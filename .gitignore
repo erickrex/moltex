@@ -1,0 +1,46 @@
+# Local-only planning notes
+agents_project_2.md
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+.coverage*
+htmlcov/
+
+# Node / Astro / Playwright
+node_modules/
+.astro/
+dist/
+playwright-report/
+test-results/
+
+# PHP / Composer
+vendor/
+.phpunit.cache/
+.phpunit.result.cache
+
+# Generated migration artifacts
+output/
+uploads/
+tmp/
+temp/
+*.log
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*~
