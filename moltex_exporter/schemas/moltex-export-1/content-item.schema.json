@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/moltex-export-1/content-item.schema.json",
+  "title": "Moltex content item",
+  "type": "object",
+  "required": ["schema_version", "id", "type", "slug", "status", "title", "author", "date_gmt", "modified_gmt", "taxonomies", "raw_html", "legacy_permalink", "postmeta"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "id": {"type": "integer", "minimum": 1},
+    "type": {"type": "string", "minLength": 1},
+    "slug": {"type": "string", "minLength": 1},
+    "status": {"type": "string", "minLength": 1},
+    "title": {"type": "string"},
+    "author": {"type": ["object", "array"]},
+    "date_gmt": {"type": "string"},
+    "modified_gmt": {"type": "string"},
+    "taxonomies": {"type": ["object", "array"]},
+    "raw_html": {"type": "string"},
+    "legacy_permalink": {"type": "string", "minLength": 1},
+    "postmeta": {"type": ["object", "array"]}
+  }
+}

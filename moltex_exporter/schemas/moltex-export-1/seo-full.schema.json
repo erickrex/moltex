@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/moltex-export-1/seo-full.schema.json",
+  "title": "Moltex resolved SEO evidence",
+  "type": "object",
+  "required": ["schema_version", "pages"],
+  "properties": {
+    "schema_version": {"type": ["integer", "string"]},
+    "pages": {"type": "array"}
+  }
+}

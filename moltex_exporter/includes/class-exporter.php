@@ -13,6 +13,10 @@ if ( ! defined( 'WPINC' ) ) {
 	die;
 }
 
+require_once __DIR__ . '/class-artifact-registry.php';
+require_once __DIR__ . '/class-schema-validator.php';
+require_once __DIR__ . '/class-artifact-writer.php';
+
 /**
  * Exporter Class
  */
@@ -33,6 +37,13 @@ class Moltex_Exporter_Exporter {
 	 * @var array
 	 */
 	private $results = array();
+
+	/**
+	 * Validated contract writer.
+	 *
+	 * @var Moltex_Exporter_Artifact_Writer
+	 */
+	private $artifact_writer;
 
 	/**
 	 * Schema version for JSON exports.
@@ -57,6 +68,7 @@ class Moltex_Exporter_Exporter {
 	public function __construct( $export_dir, $results = array() ) {
 		$this->export_dir = trailingslashit( $export_dir );
 		$this->results = $results;
+		$this->artifact_writer = new Moltex_Exporter_Artifact_Writer( $this->export_dir );
 	}
 
 	/**
@@ -96,6 +108,9 @@ class Moltex_Exporter_Exporter {
 			// Export error log if there are any errors or warnings
 			$this->export_error_log();
 
+			// Finalize the versioned contract only after every producer has written.
+			$manifest = $this->artifact_writer->finalize_bundle( $this->build_contract_metadata() );
+
 			/**
 			 * Fires after all export files have been written.
 			 *
@@ -114,6 +129,7 @@ class Moltex_Exporter_Exporter {
 				'success'  => true,
 				'errors'   => $this->errors,
 				'warnings' => $this->warnings,
+				'bundle_id' => $manifest['bundle_id'],
 			);
 
 		} catch ( Exception $e ) {
@@ -476,6 +492,14 @@ class Moltex_Exporter_Exporter {
 			$this->write_json_file( 'forms_config.json', $this->results['forms'] );
 		}
 
+		if ( isset( $this->results['seo_full'] ) ) {
+			$this->write_json_file( 'seo_full.json', $this->results['seo_full'] );
+		}
+
+		if ( isset( $this->results['integration_manifest'] ) ) {
+			$this->write_json_file( 'integration_manifest.json', $this->results['integration_manifest'] );
+		}
+
 		// Export hooks registry
 		if ( isset( $this->results['hooks'] ) ) {
 			$this->write_json_file( 'hooks_registry.json', $this->results['hooks'] );
@@ -559,6 +583,10 @@ class Moltex_Exporter_Exporter {
 
 		if ( isset( $this->results['migration_readiness'] ) ) {
 			$this->write_json_file( 'migration_readiness.json', $this->results['migration_readiness'] );
+		}
+
+		if ( isset( $this->results['media']['media_map'] ) && is_array( $this->results['media']['media_map'] ) ) {
+			$this->write_json_file( 'media/media_map.json', $this->results['media']['media_map'] );
 		}
 	}
 
@@ -702,11 +730,6 @@ class Moltex_Exporter_Exporter {
 	 */
 	private function write_json_file( $filename, $data ) {
 		try {
-			// Add schema version if not present and data is an array
-			if ( is_array( $data ) && ! isset( $data['schema_version'] ) ) {
-				$data = array_merge( array( 'schema_version' => self::SCHEMA_VERSION ), $data );
-			}
-
 			/**
 			 * Filters export data before it is written to a JSON file.
 			 *
@@ -720,51 +743,45 @@ class Moltex_Exporter_Exporter {
 			 * @param Moltex_Exporter_Exporter $exporter The exporter instance.
 			 */
 			$data = apply_filters( 'moltex_export_data', $data, $filename, $this );
-
-			// Encode JSON with pretty printing
-			$json = wp_json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
-
-			if ( $json === false ) {
-				throw new Exception( sprintf( 'Failed to encode JSON for %s: %s', $filename, json_last_error_msg() ) );
-			}
-
-			// Validate JSON
-			if ( ! $this->validate_json( $json ) ) {
-				throw new Exception( sprintf( 'Invalid JSON generated for %s', $filename ) );
-			}
-
-			// Check file size
-			$json_size = strlen( $json );
-			if ( $json_size > self::MAX_JSON_SIZE ) {
-				$this->log_error(
-					'exporter',
-					sprintf( 'JSON file %s is large (%s MB)', $filename, round( $json_size / 1048576, 2 ) ),
-					'warning'
-				);
-			}
-
-			// Write to file
-			$file_path = $this->export_dir . $filename;
-			
-			// Ensure directory exists
-			$dir = dirname( $file_path );
-			if ( ! file_exists( $dir ) ) {
-				wp_mkdir_p( $dir );
-			}
-
-			// Write file efficiently for large data
-			$result = $this->write_file_efficiently( $file_path, $json );
-
-			if ( ! $result ) {
-				throw new Exception( sprintf( 'Failed to write file %s', $filename ) );
-			}
-
+			$definition = ( new Moltex_Exporter_Artifact_Registry() )->get_definition( $filename );
+			$producer = $definition && ! empty( $definition['producer'] ) ? $definition['producer'] : 'exporter';
+			$this->artifact_writer->write_json( $filename, $data, $producer );
 			return true;
 
-		} catch ( Exception $e ) {
+		} catch ( Moltex_Exporter_Contract_Exception $e ) {
+			$definition = ( new Moltex_Exporter_Artifact_Registry() )->get_definition( $filename );
+			if ( $definition && ! empty( $definition['required'] ) ) {
+				throw $e;
+			}
 			$this->log_error( 'exporter', $e->getMessage(), 'error' );
 			return false;
 		}
+	}
+
+	/**
+	 * Build bundle-level completeness, count, and privacy metadata.
+	 *
+	 * @return array
+	 */
+	private function build_contract_metadata() {
+		$content = isset( $this->results['content'] ) && is_array( $this->results['content'] ) ? $this->results['content'] : array();
+		$completeness = isset( $content['completeness'] ) && is_array( $content['completeness'] ) ? $content['completeness'] : array();
+		$excluded_statuses = isset( $completeness['excluded_statuses'] ) && is_array( $completeness['excluded_statuses'] ) ? $completeness['excluded_statuses'] : array();
+
+		return array(
+			'created_at'       => gmdate( 'c' ),
+			'exporter_version' => defined( 'MOLTEX_EXPORTER_VERSION' ) ? MOLTEX_EXPORTER_VERSION : '1.1.0',
+			'mode'             => isset( $content['export_mode'] ) && 'discovery' === $content['export_mode'] ? 'discovery' : 'complete',
+			'site_origin'      => isset( $this->results['site']['site']['url'] ) ? $this->results['site']['site']['url'] : '',
+			'complete'     => ! empty( $completeness['complete'] ),
+			'counts'       => isset( $completeness['post_types'] ) ? $completeness['post_types'] : array(),
+			'privacy'      => array(
+				'private_content_included' => ! in_array( 'private', $excluded_statuses, true ),
+				'excluded_statuses'        => $excluded_statuses,
+				'metadata_policy'          => 'Moltex_Exporter_Security_Filters',
+				'secret_scan'              => 'pass',
+			),
+		);
 	}
 
 	/**

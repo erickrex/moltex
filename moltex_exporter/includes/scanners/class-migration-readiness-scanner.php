@@ -78,8 +78,8 @@ class Moltex_Exporter_Migration_Readiness_Scanner extends Moltex_Exporter_Scanne
 		}
 
 		return array(
-			'target'        => 'chatgpt_sites',
-			'scope'         => 'basic_content_sites',
+			'target'        => 'static_astro',
+			'scope'         => 'content_led_sites',
 			'eligible'      => empty( $blockers ),
 			'blockers'      => $blockers,
 			'manual_review' => array(

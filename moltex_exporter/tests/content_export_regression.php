@@ -60,9 +60,17 @@ function assert_true( $condition, $message ) {
 $export_dir = sys_get_temp_dir() . '/moltex_content_export_' . uniqid();
 $results = array(
 	'site'    => array(
-		'site' => array( 'name' => 'Test Site' ),
+		'site' => array(
+			'url'                 => 'https://example.test',
+			'home_url'            => 'https://example.test',
+			'wp_version'          => '7.0.1',
+			'permalink_structure' => '/%postname%/',
+			'site_title'          => 'Test Site',
+			'language'            => 'en-US',
+		),
 	),
 	'content' => array(
+		'export_mode'        => 'complete',
 		'posts'             => array(
 			array(
 				'id'     => 101,
@@ -70,6 +78,27 @@ $results = array(
 				'slug'   => 'sample-post',
 				'title'  => 'Sample Post',
 				'status' => 'publish',
+				'author' => array( 'display_name' => 'Fixture Author' ),
+				'date_gmt' => '2026-07-14 20:00:00',
+				'modified_gmt' => '2026-07-14 20:00:00',
+				'taxonomies' => array(),
+				'raw_html' => '<p>Sample Post</p>',
+				'legacy_permalink' => 'https://example.test/sample-post/',
+				'postmeta' => array(),
+			),
+			array(
+				'id'     => 102,
+				'type'   => 'post',
+				'slug'   => 'sample-post',
+				'title'  => 'Duplicate Slug Post',
+				'status' => 'publish',
+				'author' => array( 'display_name' => 'Fixture Author' ),
+				'date_gmt' => '2026-07-14 20:00:00',
+				'modified_gmt' => '2026-07-14 20:00:00',
+				'taxonomies' => array(),
+				'raw_html' => '<p>Duplicate</p>',
+				'legacy_permalink' => 'https://example.test/sample-post/',
+				'postmeta' => array(),
 			),
 		),
 		'pages'             => array(
@@ -79,6 +108,13 @@ $results = array(
 				'slug'   => 'about-us',
 				'title'  => 'About Us',
 				'status' => 'publish',
+				'author' => array( 'display_name' => 'Fixture Author' ),
+				'date_gmt' => '2026-07-14 20:00:00',
+				'modified_gmt' => '2026-07-14 20:00:00',
+				'taxonomies' => array(),
+				'raw_html' => '<p>About Us</p>',
+				'legacy_permalink' => 'https://example.test/about-us/',
+				'postmeta' => array(),
 			),
 		),
 		'custom_post_types' => array(
@@ -89,10 +125,57 @@ $results = array(
 					'slug'   => 'sample-cafe',
 					'title'  => 'Sample Cafe',
 					'status' => 'publish',
+					'author' => array( 'display_name' => 'Fixture Author' ),
+					'date_gmt' => '2026-07-14 20:00:00',
+					'modified_gmt' => '2026-07-14 20:00:00',
+					'taxonomies' => array(),
+					'raw_html' => '<p>Sample Cafe</p>',
+					'legacy_permalink' => 'https://example.test/sample-cafe/',
+					'postmeta' => array(),
 				),
 			),
 		),
 		'block_usage'       => array(),
+		'completeness'      => array(
+			'complete'          => true,
+			'post_types'        => array(
+				'post'     => array( 'discovered' => 2, 'exported' => 2, 'excluded' => 0, 'failed' => 0, 'complete' => true ),
+				'page'     => array( 'discovered' => 1, 'exported' => 1, 'excluded' => 0, 'failed' => 0, 'complete' => true ),
+				'gd_place' => array( 'discovered' => 1, 'exported' => 1, 'excluded' => 0, 'failed' => 0, 'complete' => true ),
+			),
+			'excluded_statuses' => array( 'private', 'draft' ),
+		),
+	),
+	'settings' => array(
+		'core'       => array(),
+		'language'   => array(),
+		'reading'    => array(),
+		'discussion' => array(),
+		'media'      => array(),
+	),
+	'menus' => array(
+		'menu_locations' => array(),
+		'menus'           => array(),
+	),
+	'media' => array(
+		'media_map' => array(),
+	),
+	'migration_readiness' => array(
+		'blockers' => array(),
+	),
+	'seo_full' => array(
+		'schema_version' => '1.0.0',
+		'pages'          => array(),
+	),
+	'forms' => array(
+		'detected_plugins' => array(),
+		'forms'            => array(),
+		'forms_in_content' => array(),
+		'summary'          => array(),
+	),
+	'integration_manifest' => array(
+		'schema_version' => '1.0.0',
+		'integrations'   => array(),
 	),
 );
 
@@ -101,8 +184,11 @@ $result   = $exporter->export_all();
 
 assert_true( ! empty( $result['success'] ), 'Exporter should complete successfully.' );
 assert_true( file_exists( $export_dir . '/content/post/sample-post.json' ), 'Post JSON should be written under content/post/.' );
+assert_true( file_exists( $export_dir . '/content/post/sample-post-102.json' ), 'Duplicate slugs should use a stable source-ID suffix.' );
 assert_true( file_exists( $export_dir . '/content/page/about-us.json' ), 'Page JSON should be written under content/page/.' );
 assert_true( file_exists( $export_dir . '/content/gd_place/sample-cafe.json' ), 'CPT JSON should be written under content/gd_place/.' );
+assert_true( file_exists( $export_dir . '/bundle.json' ), 'The versioned bundle manifest should be written.' );
+assert_true( ! empty( $result['bundle_id'] ), 'A deterministic bundle identity should be returned.' );
 
 $place_data = json_decode( file_get_contents( $export_dir . '/content/gd_place/sample-cafe.json' ), true );
 assert_true( is_array( $place_data ), 'Exported content file should contain valid JSON.' );

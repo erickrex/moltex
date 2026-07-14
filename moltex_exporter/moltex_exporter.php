@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Moltex Exporter
  * Description: Create a privacy-filtered WordPress evidence bundle for verified migration into a Git-managed Astro repository.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Moltex Contributors
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -22,7 +22,7 @@ if ( ! defined( 'WPINC' ) ) {
 /**
  * Currently plugin version.
  */
-define( 'MOLTEX_EXPORTER_VERSION', '1.0.0' );
+define( 'MOLTEX_EXPORTER_VERSION', '1.1.0' );
 
 /**
  * Plugin directory path.
@@ -40,6 +40,10 @@ define( 'MOLTEX_EXPORTER_URL', plugin_dir_url( __FILE__ ) );
 function activate_moltex_exporter() {
 	require_once MOLTEX_EXPORTER_PATH . 'includes/trait-error-logger.php';
 	require_once MOLTEX_EXPORTER_PATH . 'includes/class-packager.php';
+	require_once MOLTEX_EXPORTER_PATH . 'includes/class-artifact-registry.php';
+	require_once MOLTEX_EXPORTER_PATH . 'includes/class-schema-validator.php';
+	require_once MOLTEX_EXPORTER_PATH . 'includes/class-artifact-writer.php';
+	require_once MOLTEX_EXPORTER_PATH . 'includes/class-bundle-validator.php';
 	$packager = new Moltex_Exporter_Packager();
 	$packager->cleanup_old_artifacts();
 }

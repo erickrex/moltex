@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/moltex-export-1/site-blueprint.schema.json",
+  "title": "Moltex site blueprint",
+  "type": "object",
+  "required": ["schema_version", "exported_at", "site", "theme", "plugins", "content", "taxonomies", "media", "environment"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "exported_at": {"type": "string", "minLength": 1},
+    "site": {
+      "type": "object",
+      "required": ["url", "home_url", "wp_version", "permalink_structure", "site_title", "language"],
+      "properties": {
+        "url": {"type": "string", "minLength": 1},
+        "home_url": {"type": "string", "minLength": 1},
+        "wp_version": {"type": "string", "minLength": 1},
+        "permalink_structure": {"type": "string"},
+        "site_title": {"type": "string"},
+        "language": {"type": "string", "minLength": 1}
+      }
+    },
+    "theme": {"type": "object"},
+    "plugins": {"type": "array"},
+    "plugin_features": {"type": "object"},
+    "content": {"type": "object"},
+    "taxonomies": {"type": "object"},
+    "media": {"type": "object"},
+    "environment": {"type": "object"}
+  }
+}

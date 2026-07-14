@@ -13,6 +13,10 @@ if ( ! defined( 'WPINC' ) ) {
 	die;
 }
 
+require_once __DIR__ . '/class-artifact-registry.php';
+require_once __DIR__ . '/class-schema-validator.php';
+require_once __DIR__ . '/class-bundle-validator.php';
+
 /**
  * Packager Class
  */
@@ -146,6 +150,9 @@ class Moltex_Exporter_Packager {
 			if ( ! file_exists( $this->export_dir ) ) {
 				throw new Exception( 'Export directory does not exist' );
 			}
+			if ( ! is_file( trailingslashit( $this->export_dir ) . 'bundle.json' ) ) {
+				throw new Exception( 'Required bundle.json is missing; packaging was refused' );
+			}
 
 			// Check if ZipArchive is available
 			if ( ! class_exists( 'ZipArchive' ) ) {
@@ -178,6 +185,12 @@ class Moltex_Exporter_Packager {
 			// Verify ZIP file was created
 			if ( ! file_exists( $this->zip_file_path ) ) {
 				throw new Exception( 'ZIP file was not created' );
+			}
+
+			$validation = ( new Moltex_Exporter_Bundle_Validator() )->validate_zip( $this->zip_file_path );
+			if ( empty( $validation['valid'] ) ) {
+				@unlink( $this->zip_file_path );
+				throw new Exception( 'ZIP failed moltex-export/1 validation: ' . implode( ' ', $validation['errors'] ) );
 			}
 
 			// Get ZIP file size

@@ -17,6 +17,9 @@ if ! wp core is-installed; then
     --skip-email
 fi
 
+wp option update home "${MOLTEX_SMOKE_URL:-http://localhost:8088}"
+wp option update siteurl "${MOLTEX_SMOKE_URL:-http://localhost:8088}"
+
 wp plugin activate moltex-exporter
 wp option update blogdescription "Disposable public Moltex migration fixture"
 

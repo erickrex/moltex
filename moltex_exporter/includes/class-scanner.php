@@ -539,10 +539,6 @@ class Moltex_Exporter_Scanner {
 
 			$this->results[ $name ] = $scanner_results;
 			
-			// If this is MediaScanner, save the media map
-			if ( $class_name === 'Moltex_Exporter_Media_Scanner' && method_exists( $scanner, 'save_media_map' ) ) {
-				$scanner->save_media_map();
-			}
 		}
 
 		// Merge scanner errors/warnings into orchestrator

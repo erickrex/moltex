@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/moltex-export-1/export-completeness.schema.json",
+  "title": "Moltex export completeness",
+  "type": "object",
+  "required": ["schema_version", "complete", "post_types", "excluded_statuses"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "complete": {"type": "boolean"},
+    "post_types": {"type": "object"},
+    "excluded_statuses": {"type": "array", "items": {"type": "string"}}
+  }
+}

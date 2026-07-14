@@ -172,6 +172,12 @@ negative privacy check cannot pass accidentally.
 
 ## Known limitations and E2 dependencies
 
+> E2 status (2026-07-14): these dependencies were resolved by `moltex-export/1`, the
+> declarative artifact registry, shared metadata policy, validated writer, checked-in
+> schemas, deterministic `bundle.json`, and standalone ZIP validator. This section remains
+> the E1 audit record; see `docs/export-bundle-contract.md` and the E2 receipt for the
+> enforced contract.
+
 - Asset breadth is large (hundreds of WordPress core CSS/JS entries even on the fixture) and
   is not bounded by the legacy format.
 - Redirect/database scanners warn when their side files are absent instead of expressing a

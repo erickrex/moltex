@@ -34,9 +34,9 @@ other project's internal state.
 
 ## Current Status
 
-`moltex_exporter` is present and contains a substantial scanner, export, packaging, and
-test surface. Its first planned milestone is to establish an executable baseline, audit
-the artifacts, and publish a canonical manifest/checksum contract.
+`moltex_exporter` has completed its executable E1 baseline and now emits and enforces the
+versioned `moltex-export/1` manifest/checksum contract from E2. E3 will freeze the real
+sanitized Golden Path export used by harness intake.
 
 `moltex_harness` has not yet been scaffolded. Its architecture and independently
 verifiable phases are specified in the companion plan.
@@ -76,8 +76,9 @@ visual or Git-based CMS is a post-hackathon extension.
 ## Development
 
 Exporter development uses PHP, Composer, PHPUnit, standalone regression scripts, and a
-disposable WordPress installation. The exact reproducible toolchain is an explicit Phase
-E1 deliverable because the current workspace does not yet provide PHP or Composer.
+disposable WordPress installation. The toolchain and fixture are pinned in the E1/E2
+verification receipts. Contract details are in
+[`docs/export-bundle-contract.md`](./docs/export-bundle-contract.md).
 
 The new `moltex_harness` project uses Python 3.11+, `uv`, pytest, Pydantic, Astro 5, Node,
 and Playwright. Once scaffolded, Python commands use the project explicitly:

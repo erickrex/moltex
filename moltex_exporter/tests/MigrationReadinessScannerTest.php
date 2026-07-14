@@ -25,6 +25,8 @@ class MigrationReadinessScannerTest extends TestCase {
 
 		$this->assertTrue( $result['eligible'] );
 		$this->assertEmpty( $result['blockers'] );
+		$this->assertSame( 'static_astro', $result['target'] );
+		$this->assertSame( 'content_led_sites', $result['scope'] );
 	}
 
 	public function test_ecommerce_site_is_blocked() {

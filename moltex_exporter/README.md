@@ -14,24 +14,23 @@ review or a blocking readiness result.
 ## Export modes
 
 **Complete migration** exports every eligible published item up to the configured per-type
-safety ceiling and writes `export_completeness.json`. Private content is excluded by default.
+safety ceiling and writes reconciled completeness counts. Private content is excluded by
+default.
 
-**Discovery sample** exports representative content for analysis only and cannot prove a
-complete migration.
+**Discovery sample** exports representative content for analysis. It is valid evidence but
+cannot prove a complete migration.
 
-## Current legacy artifacts
+## Versioned export contract
 
-- `site_blueprint.json` — site, theme, plugin, and content summary
-- `content/{post_type}/{slug}.json` — structured public content records
-- `export_completeness.json` and `migration_readiness.json` — counts and diagnostics
-- `media/` and `media/media_map.json` — local media evidence
-- `menus.json`, settings, widgets, forms, blocks, shortcodes, hooks, and taxonomy evidence
-- `redirects_candidates.csv` and `schema_mysql.sql` when their scanners emit them
-- `snapshots/`, theme, plugin, and registered asset trees
+Version 1.1.0 emits `moltex-export/1` by default. `bundle.json` is the authoritative sorted
+inventory and includes schemas, sizes, SHA-256 checksums, count/privacy semantics, and a
+deterministic normalized bundle ID. Required JSON passes through the schema-validated atomic
+writer; packaging refuses a missing or invalid contract.
 
-Some registered scanners currently return in-memory results without a dedicated legacy ZIP
-file, including SEO, integration-manifest, page-composition, relationship, and field-usage
-results. See `docs/exporter-audit.md`; E2 decides which become declared contract artifacts.
+Required evidence includes site blueprint/settings, menus, completeness, media map,
+migration readiness, resolved SEO, forms, integrations, and every per-item content record.
+Optional evidence remains declared and checksummed. See
+[`docs/export-bundle-contract.md`](../docs/export-bundle-contract.md) for the exact boundary.
 
 ## Installation and use
 
@@ -42,15 +41,16 @@ results. See `docs/exporter-audit.md`; E2 decides which become declared contract
 5. Run the export and download the ZIP.
 6. Review the ZIP for private content and sensitive data before sharing it.
 7. Resolve blockers in `migration_readiness.json` before later harness intake.
+8. Run `php tools/validate-bundle.php path/to/export.zip` outside WordPress.
 
 ## Privacy
 
-Credentials, password material, sensitive options, sensitive metadata, and common PII fields
-are filtered. Callback evidence uses logical paths instead of absolute server paths. Manual
-review remains mandatory before sharing an export.
+Credentials, password material, sensitive options, post metadata, term metadata, and common
+PII fields pass through the shared security policy. Callback evidence uses logical paths
+instead of absolute server paths. Manual review remains mandatory before sharing an export.
 
 ## Tests
 
-The repository contains PHPUnit tests, standalone regressions, and a disposable WordPress
-smoke fixture under `tests/`. See `tests/README.md` for exact E1 commands and the current
-classified coverage status.
+The repository contains PHPUnit tests, standalone regressions, an immutable synthetic
+contract ZIP, and a disposable WordPress smoke fixture under `tests/`. See
+`tests/README.md` for the exact commands and current classified coverage.

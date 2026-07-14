@@ -222,68 +222,7 @@ class Moltex_Exporter_Taxonomy_Scanner extends Moltex_Exporter_Scanner_Base {
 			return array();
 		}
 
-		$filtered_meta = array();
-
-		foreach ( $all_meta as $meta_key => $meta_values ) {
-			// Skip if this meta key should be excluded
-			if ( $this->should_exclude_meta_key( $meta_key ) ) {
-				continue;
-			}
-
-			// Get the single value (WordPress stores meta as arrays)
-			$meta_value = isset( $meta_values[0] ) ? $meta_values[0] : '';
-
-			// Maybe unserialize
-			$meta_value = maybe_unserialize( $meta_value );
-
-			// Filter sensitive data from the value
-			$meta_value = $this->filter_sensitive_meta_value( $meta_key, $meta_value );
-
-			// Only include if not empty after filtering
-			if ( ! empty( $meta_value ) || $meta_value === '0' || $meta_value === 0 ) {
-				$filtered_meta[ $meta_key ] = $meta_value;
-			}
-		}
-
-		return $filtered_meta;
-	}
-
-	/**
-	 * Check if a meta key should be excluded from export.
-	 *
-	 * @param string $meta_key Meta key to check.
-	 * @return bool True if should be excluded.
-	 */
-	private function should_exclude_meta_key( $meta_key ) {
-		// Delegate to centralized Security_Filters.
-		if ( Moltex_Exporter_Security_Filters::is_sensitive_meta( $meta_key ) ) {
-			return true;
-		}
-
-		if ( Moltex_Exporter_Security_Filters::is_sensitive_option( $meta_key ) ) {
-			return true;
-		}
-
-		if ( Moltex_Exporter_Security_Filters::is_temporary_key( $meta_key ) ) {
-			return true;
-		}
-
-		return false;
-	}
-
-	/**
-	 * Filter sensitive data from meta values.
-	 *
-	 * @param string $meta_key Meta key.
-	 * @param mixed  $meta_value Meta value.
-	 * @return mixed Filtered meta value.
-	 */
-	private function filter_sensitive_meta_value( $meta_key, $meta_value ) {
-		if ( is_array( $meta_value ) ) {
-			return Moltex_Exporter_Security_Filters::filter_post_meta( $meta_value );
-		}
-
-		return $meta_value;
+		return Moltex_Exporter_Security_Filters::filter_export_meta( $all_meta );
 	}
 
 	/**

@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/moltex-export-1/migration-readiness.schema.json",
+  "title": "Moltex static Astro migration readiness",
+  "type": "object",
+  "required": ["schema_version"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1}
+  }
+}

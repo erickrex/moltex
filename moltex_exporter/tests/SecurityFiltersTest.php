@@ -56,4 +56,22 @@ class SecurityFiltersTest extends TestCase {
 		$this->assertArrayNotHasKey( '_transient_cache', $filtered['nested'] );
 		$this->assertSame( 'safe', $filtered['nested']['public_value'] );
 	}
+
+	public function test_shared_export_meta_policy_normalizes_wordpress_values() {
+		$filtered = Moltex_Exporter_Security_Filters::filter_export_meta(
+			array(
+				'_edit_lock'       => array( '1700000000:1' ),
+				'_billing_email'   => array( 'private@example.invalid' ),
+				'api_key'          => array( 'secret' ),
+				'public_zero'      => array( '0' ),
+				'public_structure' => array( array( 'label' => 'safe', 'access_token' => 'secret' ) ),
+			)
+		);
+
+		$this->assertArrayNotHasKey( '_edit_lock', $filtered );
+		$this->assertArrayNotHasKey( '_billing_email', $filtered );
+		$this->assertArrayNotHasKey( 'api_key', $filtered );
+		$this->assertSame( '0', $filtered['public_zero'] );
+		$this->assertSame( array( 'label' => 'safe' ), $filtered['public_structure'] );
+	}
 }

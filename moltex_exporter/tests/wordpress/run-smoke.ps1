@@ -89,6 +89,27 @@ function Get-ZipCounts {
     }
 }
 
+function Get-BundleValidation {
+    param([string]$ZipName)
+    $pluginRoot = '/var/www/html/wp-content/plugins/moltex-exporter'
+    $containerZip = "$pluginRoot/tests/wordpress/output/$ZipName"
+    $output = & docker compose -f $composeFile run --rm --entrypoint php cli `
+        "$pluginRoot/tools/validate-bundle.php" $containerZip
+    if ($LASTEXITCODE -ne 0) {
+        throw "Standalone validation failed for $ZipName"
+    }
+    $validation = ($output -join "`n") | ConvertFrom-Json
+    if (-not $validation.valid) {
+        throw "Bundle validation rejected ${ZipName}: $($validation.errors -join ' ')"
+    }
+    return [ordered]@{
+        valid = [bool]$validation.valid
+        bundle_id = $validation.bundle_id
+        complete_migration_eligible = [bool]$validation.complete_migration_eligible
+        artifact_count = [int]$validation.artifact_count
+    }
+}
+
 function Invoke-Export {
     param([ValidateSet('complete','discovery')][string]$Mode, $Session)
     $nonce = Get-ExporterNonce -Session $Session
@@ -116,6 +137,7 @@ function Invoke-Export {
     & curl.exe -fsSL -b $Session $scan.data.download_url -o $zipPath
     if ($LASTEXITCODE -ne 0) { throw "$Mode signed ZIP download failed." }
     $counts = Get-ZipCounts -Path $zipPath
+    $validation = Get-BundleValidation -ZipName (Split-Path -Leaf $zipPath)
     return [ordered]@{
         mode = $Mode
         zip = (Split-Path -Leaf $zipPath)
@@ -123,6 +145,7 @@ function Invoke-Export {
         scanner_errors = @($scan.data.errors).Count
         scanner_warnings = @($scan.data.warnings).Count
         counts = $counts
+        validation = $validation
     }
 }
 
@@ -152,6 +175,6 @@ try {
     $comparison | ConvertTo-Json -Depth 6
 } finally {
     if (-not $KeepEnvironment) {
-        Invoke-Compose down -v --remove-orphans
+        Invoke-Compose down --volumes --remove-orphans
     }
 }

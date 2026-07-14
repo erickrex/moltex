@@ -159,6 +159,23 @@ class Moltex_Exporter_Security_Filters {
 	);
 
 	/**
+	 * WordPress operational metadata that has no migration meaning.
+	 *
+	 * @var array
+	 */
+	private static $operational_meta_keys = array(
+		'_edit_lock',
+		'_edit_last',
+		'_wp_old_slug',
+		'_wp_old_date',
+		'_wp_trash_',
+		'_oembed_',
+		'_encloseme',
+		'_pingme',
+		'_wp_attachment_backup_sizes',
+	);
+
+	/**
 	 * Check if an option key is sensitive and should be excluded.
 	 *
 	 * @param string $key Option key to check.
@@ -232,6 +249,59 @@ class Moltex_Exporter_Security_Filters {
 		}
 		
 		return false;
+	}
+
+	/**
+	 * Apply the single exporter policy for post and term metadata keys.
+	 *
+	 * @param string $key Metadata key.
+	 * @return bool True when the key must not be exported.
+	 */
+	public static function is_excluded_export_meta_key( $key ) {
+		$key = strtolower( (string) $key );
+		foreach ( self::$operational_meta_keys as $operational_key ) {
+			if ( $key === $operational_key || 0 === strpos( $key, $operational_key ) ) {
+				return true;
+			}
+		}
+
+		return self::is_sensitive_meta( $key )
+			|| self::is_sensitive_option( $key )
+			|| self::is_pii_meta( $key )
+			|| self::is_temporary_key( $key );
+	}
+
+	/**
+	 * Normalize WordPress metadata storage and apply the shared privacy policy.
+	 *
+	 * @param array $meta Raw metadata returned by get_post_meta() or get_term_meta().
+	 * @return array Filtered single-value metadata.
+	 */
+	public static function filter_export_meta( $meta ) {
+		if ( ! is_array( $meta ) ) {
+			return array();
+		}
+
+		$filtered = array();
+		foreach ( $meta as $key => $values ) {
+			if ( self::is_excluded_export_meta_key( $key ) ) {
+				continue;
+			}
+
+			$value = is_array( $values ) && array_key_exists( 0, $values ) ? $values[0] : $values;
+			if ( function_exists( 'maybe_unserialize' ) ) {
+				$value = maybe_unserialize( $value );
+			}
+			if ( is_array( $value ) ) {
+				$value = self::filter_array_recursive( $value );
+			}
+
+			if ( ! empty( $value ) || '0' === $value || 0 === $value ) {
+				$filtered[ $key ] = $value;
+			}
+		}
+
+		return $filtered;
 	}
 
 	/**

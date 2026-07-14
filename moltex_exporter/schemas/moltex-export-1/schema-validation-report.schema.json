@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/moltex-export-1/schema-validation-report.schema.json",
+  "title": "Moltex exporter bundle validation report",
+  "type": "object",
+  "required": ["valid", "contract", "bundle_id", "complete_migration_eligible", "artifact_count", "errors", "warnings"],
+  "properties": {
+    "valid": {"type": "boolean"},
+    "contract": {"type": "string", "const": "moltex-export/1"},
+    "bundle_id": {"type": ["string", "null"]},
+    "complete_migration_eligible": {"type": "boolean"},
+    "artifact_count": {"type": "integer", "minimum": 0},
+    "errors": {"type": "array", "items": {"type": "string"}},
+    "warnings": {"type": "array", "items": {"type": "string"}}
+  }
+}

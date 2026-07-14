@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/moltex-export-1/media-map.schema.json",
+  "title": "Moltex media map",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["wp_src", "artifact"],
+    "properties": {
+      "wp_src": {"type": "string", "minLength": 1},
+      "artifact": {"type": ["string", "null"]},
+      "type": {"type": "string"},
+      "note": {"type": "string"},
+      "metadata": {"type": "object"}
+    }
+  }
+}
