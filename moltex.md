@@ -236,7 +236,7 @@ making the contract smaller and more reliable.
 | The batching protocol exists, but coverage by high-volume scanners is not proven | Large sites may exhaust one request | Measure and test representative volume before claiming support |
 | Readiness output is framed around ChatGPT Sites rather than the static Astro profile | Qualification policy should match the actual target | Rename target and make rules data-driven |
 | Existing test documentation describes scenarios that may not match executable fixtures | Claimed coverage is not proof | Run, repair, and report the real suite before adding features |
-| There is no checked-in Golden Path ZIP accepted by `moltex_harness` | The two projects do not yet have a proven handshake | Produce and pin it in Phase E3 |
+| There is no checked-in Golden Path ZIP accepted by `moltex_harness` | The two projects do not yet have a proven handshake | Produce and pin it in E3; prove intake in H1 |
 
 ### Preserve, narrow, replace
 
@@ -358,6 +358,31 @@ Regardless of filename, the bundle must provide:
 The main plan has three phases. Each phase produces a usable artifact and has an
 independent verification gate. Work does not advance merely because code was written.
 
+The strict cumulative order is:
+
+```text
+E1 → E2 → E3 → H1 → H2 → H3 → H4 → H5 → H6
+```
+
+“Independently verifiable” means a phase can be accepted using its own outputs and all
+previously accepted fixtures. It never requires implementation from a later phase.
+
+| Checkpoint | Material output | Acceptance proof | Later work required? |
+|---|---|---|---:|
+| E1 | Stabilized current exporter and `legacy-1` ZIP | PHP/regression suite, WordPress smoke export, privacy audit | No |
+| E2 | `moltex-export/1`, schemas, manifest, and standalone validator | Contract/tamper/schema tests against synthetic fixtures | No |
+| E3 | Real sanitized Golden Path ZIP | Standalone validation and WordPress/bundle count reconciliation | No |
+| H1 | Safe intake plus typed raw evidence for both bundle versions | Intake unit/property tests and `moltex inspect` | No |
+| H2 | Canonical evidence-linked migration contracts | Model/property tests and contract verifier | No |
+| H3 | Complete conservative Astro baseline | Conversion tests, clean `npm ci`, and production build | No |
+| H4 | Generated Codex workspace and task DAG | Planning tests, graph validation, build, and one real task | No |
+| H5 | Self-contained workspace verifier | Clean and direct-negative verifier cases | No |
+| H6 | Lifecycle, mutation, reproducibility, and repair eval reports | Published eval suite and metrics | No |
+
+For example, after H1 you can run and accept E1, E2, E3, and H1 completely. H2 does not
+need to exist. “Self-contained” does not mean H1 can run without its accepted E1–E3 input
+fixtures; phases are cumulative checkpoints rather than nine unrelated projects.
+
 ### Phase E1 — Audit and stabilize the existing exporter
 
 Objective: establish what the renamed plugin actually does, make its current behavior
@@ -420,19 +445,37 @@ privacy-reviewed handoff without rewriting all working scanners.
 Work:
 
 1. Define `moltex-export/1` and JSON schemas for required JSON artifacts.
-2. Add deterministic `bundle.json` generation after all required files are written.
-3. Record checksum, byte size, kind, required flag, schema ID, and producing scanner for
-   every declared artifact.
-4. Reconcile discovered, exported, excluded, and failed content counts by post type.
-5. Centralize JSON writing and validation for required artifacts; enumerate justified
-   binary, CSV, HTML, and large-file exceptions.
-6. Make writes atomic where possible and fail packaging when a required artifact cannot
-   be written, encoded, validated, or checksummed.
-7. Convert migration readiness to the documented static Astro qualification profile.
-8. Bound optional evidence by file count and total uncompressed size.
-9. Add ZIP structure, traversal, duplicate-path, checksum, secret-filter, and schema tests.
-10. Preserve the old fixture only as an input compatibility case; emit the new contract by
+2. Define one declarative artifact registry containing path, kind, producer, required flag,
+   schema ID, privacy class, and size limits. Use it as the source for writing,
+   `bundle.json`, validation, and tests.
+3. Add reviewed characterization fixtures and tests for current artifact paths and semantic
+   JSON content before changing write behavior; never regenerate those expectations from the
+   implementation under test.
+4. Introduce one validated artifact writer responsible for path containment, deterministic
+   JSON encoding, atomic writes where possible, schema validation, byte size, checksum,
+   producer context, and classified errors.
+5. Migrate every required JSON artifact through the validated writer. Enumerate and test
+   justified binary, CSV, HTML, copied-tree, and large-file exceptions rather than forcing
+   them through JSON handling.
+6. Add deterministic `bundle.json` generation from the artifact registry and successful
+   writer receipts after all required files are written.
+7. Reconcile discovered, exported, excluded, and failed content counts by post type.
+8. Centralize option, post-meta, and term-meta export policy in
+   `Moltex_Exporter_Security_Filters`; scanners must not maintain divergent sensitive or
+   temporary-key rules.
+9. Convert migration readiness to the documented static Astro qualification profile.
+10. Bound optional evidence by file count and total uncompressed size.
+11. Add ZIP structure, traversal, duplicate-path, checksum, secret-filter, writer-failure,
+    and schema tests.
+12. Preserve the old fixture only as an input compatibility case; emit the new contract by
     default.
+13. Add a standalone exporter-side bundle validator that checks the ZIP without importing
+    `moltex_harness`.
+
+Bounded refactoring rule: E2 may extract the artifact registry, validated writer, and shared
+metadata policy required above. It must not split the plugin or theme scanners, introduce a
+general block-walker abstraction, or remove duplicate legacy artifacts unless an executable
+contract requirement demands it. Record broader cleanup for after the E2 exit gate.
 
 Verification cases:
 
@@ -443,12 +486,21 @@ Verification cases:
 - Excluding private content is reflected in both counts and privacy metadata.
 - Duplicate slugs produce stable, unique per-item filenames without losing source IDs.
 - Malformed UTF-8 or JSON fails with the producer and artifact path.
+- Traversal or an undeclared required-artifact path is rejected by the writer before a file
+  is created.
+- Content and taxonomy metadata pass through the same tested security policy.
+- Migrating an artifact to the writer preserves its reviewed semantic characterization.
 - An unsupported site class produces a structured readiness blocker, not a crash.
 
 Required evidence:
 
 - versioned schema files
+- declarative artifact registry and registry-completeness test
+- reviewed pre-writer characterization fixtures
+- validated writer unit tests covering containment, deterministic encoding, atomic failure,
+  schema rejection, checksums, and producer-localized errors
 - `bundle.json` fixture and deterministic serialization test
+- standalone bundle validator and validation-report schema
 - tamper and missing-artifact regression tests
 - updated exporter README and bundle contract documentation
 - `samples/moltex-export-1.zip` plus expected bundle ID
@@ -457,13 +509,15 @@ Exit gate:
 
 - Two identical exports of unchanged fixture data produce equivalent normalized manifests.
 - Every required artifact has a schema or explicit non-JSON contract.
+- Every required JSON artifact is declared once and written through the validated writer.
+- Option, post-meta, and term-meta export use the shared security policy.
 - The ZIP proves its inventory and integrity without relying on undocumented filenames.
 - Complete/discovery and privacy semantics are executable.
 
-### Phase E3 — Prove the exporter-to-harness handshake
+### Phase E3 — Produce and freeze the real Golden Path export
 
-Objective: produce one real sanitized WordPress bundle that `moltex_harness` accepts and
-parses without manual ZIP editing.
+Objective: produce one real sanitized WordPress bundle that independently satisfies the
+published exporter contract and becomes the immutable production fixture for H1.
 
 Work:
 
@@ -472,22 +526,18 @@ Work:
    a disposition.
 2. Capture representative desktop and mobile screenshots and bounded rendered HTML.
 3. Export in complete mode with private content disabled.
-4. Run the harness intake adapter and fix contract disagreements at the owning side:
-   source facts in the exporter; interpretation in the harness.
-5. Reconcile every content and media count between WordPress, `bundle.json`, export
-   reports, and normalized harness inventory.
-6. Pin the accepted ZIP, bundle ID, schema versions, and expected intake report in both
-   projects' tests.
-7. Document how to replace the Golden Path without silently updating expected results.
+4. Run the standalone E2 bundle validator from outside the WordPress request lifecycle.
+5. Reconcile every content and media count between WordPress, `bundle.json`, and export
+   reports.
+6. Pin the ZIP, bundle ID, schema versions, and exporter validation report.
+7. Document how to replace the Golden Path without silently regenerating expected results.
 
 Verification:
 
 ```bash
 # Exporter-side contract verification
 moltex_exporter/vendor/bin/phpunit moltex_exporter/tests
-
-# Consumer-side acceptance; implemented by moltex_harness Phase H1
-uv run --project moltex_harness moltex inspect samples/golden-export.zip --json
+php moltex_exporter/tools/validate-bundle.php samples/golden-export.zip
 ```
 
 Required evidence:
@@ -495,23 +545,26 @@ Required evidence:
 - sanitized real `samples/golden-export.zip`
 - expected `bundle_id`
 - exporter test proving the bundle structure
-- harness intake report proving all required artifacts and references resolve
+- standalone exporter validation report
 - signed count-reconciliation table
 - documented capability and privacy review
 
 Exit gate:
 
-- A clean complete export is accepted without hand editing.
-- Exporter and harness agree on schema versions, counts, checksums, and path semantics.
-- Every public item and required media file reaches the normalized inventory exactly once.
+- A clean complete export passes the standalone schema, checksum, size, and inventory
+  validator without hand editing.
+- WordPress, `bundle.json`, and export reports agree on content and media counts.
+- Every public item and required media file appears in the bundle inventory exactly once.
 - Any unsupported capability is explicit rather than dropped.
+- No `moltex_harness` code is required to prove E3.
 
 ## `moltex_harness` Handoff
 
 After Phase E3, implementation continues under the independently gated phases in
 [`moltex_harness.md`](./moltex_harness.md):
 
-1. Scaffold the local core and parse both accepted bundle versions.
+1. Scaffold the local core and prove the exporter-to-harness handshake by parsing both
+   accepted bundle versions.
 2. Normalize evidence into canonical migration contracts.
 3. Compile the Git-managed Astro baseline.
 4. Generate bounded Codex tasks and proof artifacts.
@@ -691,8 +744,8 @@ review before publication.
 
 ### Harness work starts before the producer contract stabilizes
 
-Mitigation: H1 may parse the immutable legacy fixture, but canonical contract work depends
-on E2. E3 is the mandatory handshake before broad migration features.
+Mitigation: E3 freezes the independently valid canonical fixture. H1 is the mandatory
+cross-project handshake before H2 normalization or broader migration work.
 
 ### Visual parity consumes remaining time
 
@@ -737,8 +790,9 @@ Moltex is ready for submission only when:
 4. Fix stale project names and product metadata in exporter-facing files.
 5. Freeze one current-format sanitized ZIP as `legacy-1`.
 6. Define `moltex-export/1` and add `bundle.json` without renaming every useful artifact.
-7. Scaffold `moltex_harness` Phase H1 against the frozen fixture.
-8. Produce the real Golden Path export and pass the Phase E3 handshake.
+7. Produce and independently validate the real Golden Path export in E3.
+8. Scaffold `moltex_harness` H1 against the frozen legacy and Golden Path fixtures and
+   prove the cross-project handshake.
 9. Continue migration/compiler work exclusively under `moltex_harness.md`.
 
 ## Final Product Thesis

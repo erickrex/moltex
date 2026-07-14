@@ -1487,8 +1487,9 @@ remain localized.
 
 ### Phase H1 — Scaffold the core and parse accepted exports
 
-Dependency: `moltex.md` Phase E1 provides the immutable `legacy-1` fixture. Support for
-`moltex-export/1` is added as soon as Phase E2 publishes its schema.
+Dependencies: E1 provides the immutable `legacy-1` fixture, E2 provides the
+`moltex-export/1` schemas, and E3 provides the real Golden Path bundle. H1 requires no H2
+implementation.
 
 Objective: establish the new project without predecessor code and turn a safe ZIP into
 typed raw source evidence.
@@ -1528,14 +1529,16 @@ Exit gate:
 - Both accepted fixture versions parse from clean temporary directories.
 - Invalid archives fail before untrusted content is consumed.
 - Every declared required artifact and source reference resolves exactly once.
+- Harness intake and the E3 exporter validation report agree on schema versions, counts,
+  checksums, and path semantics.
 - Repeating intake produces equivalent normalized JSON after declared volatile fields are
   removed.
 - No Astro, Codex, browser, or verifier code is required to prove H1.
 
 ### Phase H2 — Normalize evidence and compile migration contracts
 
-Dependency: H1 typed raw evidence; `moltex-export/1` schemas from E2 for the canonical
-production path.
+Dependency: accepted H1 typed raw evidence and intake fixtures. No H3 implementation is
+required.
 
 Objective: turn source-shaped records into stable, evidence-linked migration facts without
 generating a website.
@@ -1583,7 +1586,8 @@ Exit gate:
 
 ### Phase H3 — Compile content and a buildable Astro baseline
 
-Dependency: H2 contract fixture and the E3 real Golden Path handshake.
+Dependency: accepted H2 contract fixture. The real Golden Path is already proven as an H1
+input, so H3 requires no H4 implementation.
 
 Objective: implement the core WordPress-to-Astro migration and produce a conservative,
 complete site before judgment-heavy visual work.
