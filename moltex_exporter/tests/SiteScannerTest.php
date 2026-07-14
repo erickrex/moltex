@@ -14,6 +14,13 @@ use PHPUnit\Framework\TestCase;
  */
 class SiteScannerTest extends TestCase {
 
+	protected function setUp(): void {
+		parent::setUp();
+		global $wp_post_types, $wp_taxonomies;
+		$wp_post_types = array();
+		$wp_taxonomies = array();
+	}
+
 	/**
 	 * Test scanner instantiation.
 	 */

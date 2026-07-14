@@ -42,6 +42,26 @@ class Moltex_Exporter_Source_Identifier {
 			return $source;
 		}
 
+		$normalized = str_replace( '\\', '/', $filename );
+
+		// Check logical paths emitted by Callback_Resolver before absolute paths.
+		if ( 0 === strpos( $normalized, 'wp-includes/' ) || 0 === strpos( $normalized, 'wp-admin/' ) ) {
+			$source['type'] = 'core';
+			$source['name'] = 'WordPress Core';
+			return $source;
+		}
+
+		if ( 0 === strpos( $normalized, 'plugins/' ) ) {
+			$parts = explode( '/', substr( $normalized, strlen( 'plugins/' ) ) );
+			if ( ! empty( $parts[0] ) ) {
+				$plugin_data   = self::get_plugin_data( $parts[0] );
+				$source['type'] = 'plugin';
+				$source['name'] = $plugin_data['name'];
+				$source['slug'] = $parts[0];
+			}
+			return $source;
+		}
+
 		// Check if it's from WordPress core.
 		if ( strpos( $filename, ABSPATH . 'wp-includes' ) !== false || strpos( $filename, ABSPATH . 'wp-admin' ) !== false ) {
 			$source['type'] = 'core';

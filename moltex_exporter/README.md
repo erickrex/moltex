@@ -1,76 +1,56 @@
 # Moltex Exporter
 
-Moltex Exporter is a WordPress plugin that creates the local evidence bundle consumed by
-`moltex_harness` to rebuild a content-led site as a Git-managed Astro repository with
-bounded Codex Desktop tasks and independent verification.
-
-It is read-only: it does not modify WordPress content or configuration.
+Moltex Exporter is a read-only WordPress plugin that creates the local evidence bundle a
+later `moltex_harness` phase will consume to rebuild a content-led site as a Git-managed
+Astro repository. It does not modify WordPress content or configuration.
 
 ## Supported scope
 
-The first complete-migration profile targets:
-
-- Brochure and corporate sites
-- Blogs and basic editorial sites
-- Portfolios
-- Gutenberg-first content sites
-- Basic forms and integrations that can be reviewed and replaced explicitly
-
-The exporter records a blocking readiness result for known complex site
-classes such as ecommerce, memberships, communities, learning-management
-systems, booking applications, and WordPress multisite. Unknown plugins and
-custom behavior still require manual review.
+The complete-migration profile targets brochure, corporate, blog, editorial, portfolio,
+and Gutenberg-first sites. Ecommerce, memberships, communities, learning management,
+booking applications, multisite, unknown plugins, and custom behavior require explicit
+review or a blocking readiness result.
 
 ## Export modes
 
-### Complete migration
+**Complete migration** exports every eligible published item up to the configured per-type
+safety ceiling and writes `export_completeness.json`. Private content is excluded by default.
 
-Exports every eligible published content item for each supported post type,
-up to the configured per-type safety ceiling. It generates
-`export_completeness.json`, which compares discovered and exported counts.
-`moltex_harness` refuses a complete-migration bundle that does not prove completeness.
+**Discovery sample** exports representative content for analysis only and cannot prove a
+complete migration.
 
-Private content is excluded by default to prevent accidental disclosure when a
-site is later published publicly. It may be enabled explicitly for a controlled
-migration.
-
-### Discovery sample
-
-Exports representative content for analysis only. Discovery bundles cannot
-pass the complete-migration qualification gate.
-
-## Important artifacts
+## Current legacy artifacts
 
 - `site_blueprint.json` — site, theme, plugin, and content summary
-- `content/{post_type}/{slug}.json` — one structured record per content item
-- `export_completeness.json` — discovered/exported counts and exclusions
-- `migration_readiness.json` — target eligibility and blockers
-- `media/` and media maps — local media evidence
-- `menus.json` — navigation structure
-- `seo_full.json` — SEO evidence
-- `redirects_candidates.csv` — legacy redirect candidates
-- `forms_config.json` — supported form definitions
-- `integration_manifest.json` — external integration inventory
-- `snapshots/` — optional rendered reference pages
-- theme, block, shortcode, hook, taxonomy, and field-usage artifacts
+- `content/{post_type}/{slug}.json` — structured public content records
+- `export_completeness.json` and `migration_readiness.json` — counts and diagnostics
+- `media/` and `media/media_map.json` — local media evidence
+- `menus.json`, settings, widgets, forms, blocks, shortcodes, hooks, and taxonomy evidence
+- `redirects_candidates.csv` and `schema_mysql.sql` when their scanners emit them
+- `snapshots/`, theme, plugin, and registered asset trees
+
+Some registered scanners currently return in-memory results without a dedicated legacy ZIP
+file, including SEO, integration-manifest, page-composition, relationship, and field-usage
+results. See `docs/exporter-audit.md`; E2 decides which become declared contract artifacts.
 
 ## Installation and use
 
 1. Install and activate the plugin in WordPress.
-2. Open **Moltex Exporter** in the WordPress administration area.
-3. Select **Complete migration**.
-4. Keep private content disabled unless it is intentionally in scope.
+2. Open **Moltex Exporter** in the administration area.
+3. Select complete migration or discovery sample.
+4. Keep private content disabled unless it is deliberately in scope.
 5. Run the export and download the ZIP.
-6. Open the ZIP with the local `moltex_harness` project.
-7. Resolve any blockers in `migration_readiness.json`.
+6. Review the ZIP for private content and sensitive data before sharing it.
+7. Resolve blockers in `migration_readiness.json` before later harness intake.
 
 ## Privacy
 
-Credentials, password material, sensitive options, and sensitive metadata are
-filtered. Always inspect an export before sharing it with another person or
-publishing reconstructed content.
+Credentials, password material, sensitive options, sensitive metadata, and common PII fields
+are filtered. Callback evidence uses logical paths instead of absolute server paths. Manual
+review remains mandatory before sharing an export.
 
 ## Tests
 
-The repository contains PHPUnit-style tests and standalone regression scripts
-under `tests/`.
+The repository contains PHPUnit tests, standalone regressions, and a disposable WordPress
+smoke fixture under `tests/`. See `tests/README.md` for exact E1 commands and the current
+classified coverage status.

@@ -19,6 +19,31 @@ class MediaScannerTest extends TestCase {
 	 */
 	protected function setUp(): void {
 		parent::setUp();
+
+		global $mock_posts;
+		$mock_posts = array();
+		foreach ( array( 100, 200, 300, 400, 401, 402, 500 ) as $attachment_id ) {
+			$mock_posts[ $attachment_id ] = (object) array(
+				'ID'           => $attachment_id,
+				'post_type'    => 'attachment',
+				'post_title'   => 'Image ' . $attachment_id,
+				'post_excerpt' => '',
+			);
+		}
+	}
+
+	/**
+	 * Create a scanner using the current dependency contract.
+	 *
+	 * @param array $exported_content Canonical content scanner output.
+	 * @return Moltex_Exporter_Media_Scanner
+	 */
+	private function create_scanner( array $exported_content ) {
+		return new Moltex_Exporter_Media_Scanner(
+			array(
+				'context' => array( 'content' => $exported_content ),
+			)
+		);
 	}
 
 	/**
@@ -28,7 +53,7 @@ class MediaScannerTest extends TestCase {
 		$exported_content = array();
 		$export_dir = '/tmp/test';
 		
-		$scanner = new Moltex_Exporter_Media_Scanner( $exported_content, $export_dir );
+		$scanner = $this->create_scanner( $exported_content );
 		$this->assertInstanceOf( Moltex_Exporter_Media_Scanner::class, $scanner );
 	}
 
@@ -41,7 +66,7 @@ class MediaScannerTest extends TestCase {
 		);
 		$export_dir = '/tmp/test';
 		
-		$scanner = new Moltex_Exporter_Media_Scanner( $exported_content, $export_dir );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		$this->assertIsArray( $result );
@@ -70,7 +95,7 @@ class MediaScannerTest extends TestCase {
 		);
 		$export_dir = '/tmp/test';
 		
-		$scanner = new Moltex_Exporter_Media_Scanner( $exported_content, $export_dir );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		$this->assertGreaterThan( 0, $result['total_files'] );
@@ -90,11 +115,10 @@ class MediaScannerTest extends TestCase {
 		);
 		$export_dir = '/tmp/test';
 		
-		$scanner = new Moltex_Exporter_Media_Scanner( $exported_content, $export_dir );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
-		// Should identify at least one image
-		$this->assertGreaterThanOrEqual( 0, $result['total_files'] );
+		$this->assertSame( 1, $result['total_files'] );
 	}
 
 	/**
@@ -119,7 +143,7 @@ class MediaScannerTest extends TestCase {
 		);
 		$export_dir = '/tmp/test';
 		
-		$scanner = new Moltex_Exporter_Media_Scanner( $exported_content, $export_dir );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		$this->assertGreaterThan( 0, $result['total_files'] );
@@ -146,7 +170,7 @@ class MediaScannerTest extends TestCase {
 		);
 		$export_dir = '/tmp/test';
 		
-		$scanner = new Moltex_Exporter_Media_Scanner( $exported_content, $export_dir );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		$this->assertGreaterThan( 0, $result['total_files'] );
@@ -170,20 +194,18 @@ class MediaScannerTest extends TestCase {
 		);
 		$export_dir = '/tmp/test';
 		
-		$scanner = new Moltex_Exporter_Media_Scanner( $exported_content, $export_dir );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		$media_map = $result['media_map'];
-		
-		if ( ! empty( $media_map ) ) {
-			$entry = $media_map[0];
-			
-			$this->assertArrayHasKey( 'wp_src', $entry );
-			$this->assertArrayHasKey( 'artifact', $entry );
-			
-			$this->assertIsString( $entry['wp_src'] );
-			$this->assertIsString( $entry['artifact'] );
-		}
+		$this->assertCount( 1, $media_map );
+		$entry = $media_map[0];
+
+		$this->assertArrayHasKey( 'wp_src', $entry );
+		$this->assertArrayHasKey( 'artifact', $entry );
+
+		$this->assertIsString( $entry['wp_src'] );
+		$this->assertIsString( $entry['artifact'] );
 	}
 
 	/**
@@ -204,20 +226,13 @@ class MediaScannerTest extends TestCase {
 		);
 		$export_dir = '/tmp/test';
 		
-		$scanner = new Moltex_Exporter_Media_Scanner( $exported_content, $export_dir );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		$media_map = $result['media_map'];
-		
-		if ( ! empty( $media_map ) ) {
-			$entry = $media_map[0];
-			
-			// Metadata should be included for attachments with IDs
-			if ( isset( $entry['metadata'] ) ) {
-				$this->assertIsArray( $entry['metadata'] );
-				$this->assertArrayHasKey( 'id', $entry['metadata'] );
-			}
-		}
+		$this->assertCount( 1, $media_map );
+		$this->assertArrayHasKey( 'metadata', $media_map[0] );
+		$this->assertSame( 100, $media_map[0]['metadata']['id'] );
 	}
 
 	/**
@@ -234,11 +249,13 @@ class MediaScannerTest extends TestCase {
 		);
 		$export_dir = '/tmp/test';
 		
-		$scanner = new Moltex_Exporter_Media_Scanner( $exported_content, $export_dir );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
-		// CDN URLs should be noted but not cause errors
-		$this->assertIsArray( $result );
+		$this->assertSame( 0, $result['total_files'] );
+		$this->assertCount( 1, $result['media_map'] );
+		$this->assertSame( 'cdn', $result['media_map'][0]['type'] );
+		$this->assertSame( 'https://cdn.example.com/image.jpg', $result['media_map'][0]['wp_src'] );
 	}
 
 	/**
@@ -255,11 +272,10 @@ class MediaScannerTest extends TestCase {
 		);
 		$export_dir = '/tmp/test';
 		
-		$scanner = new Moltex_Exporter_Media_Scanner( $exported_content, $export_dir );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
-		// Should identify images from srcset
-		$this->assertGreaterThanOrEqual( 0, $result['total_files'] );
+		$this->assertSame( 2, $result['total_files'] );
 	}
 
 	/**
@@ -281,7 +297,7 @@ class MediaScannerTest extends TestCase {
 		);
 		$export_dir = '/tmp/test';
 		
-		$scanner = new Moltex_Exporter_Media_Scanner( $exported_content, $export_dir );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		// Same image referenced twice should only be counted once
@@ -306,17 +322,12 @@ class MediaScannerTest extends TestCase {
 		);
 		$export_dir = '/tmp/test';
 		
-		$scanner = new Moltex_Exporter_Media_Scanner( $exported_content, $export_dir );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		$media_map = $result['media_map'];
-		
-		if ( ! empty( $media_map ) ) {
-			$entry = $media_map[0];
-			
-			// Artifact path should preserve directory structure
-			$this->assertStringContainsString( '2024/01', $entry['artifact'] );
-		}
+		$this->assertCount( 1, $media_map );
+		$this->assertStringContainsString( '2024/01', $media_map[0]['artifact'] );
 	}
 
 	/**
@@ -337,21 +348,15 @@ class MediaScannerTest extends TestCase {
 		);
 		$export_dir = '/tmp/test';
 		
-		$scanner = new Moltex_Exporter_Media_Scanner( $exported_content, $export_dir );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		$media_map = $result['media_map'];
-		
-		if ( ! empty( $media_map ) ) {
-			$entry = $media_map[0];
-			
-			if ( isset( $entry['metadata']['exif'] ) ) {
-				// Should not contain GPS data
-				$this->assertArrayNotHasKey( 'latitude', $entry['metadata']['exif'] );
-				$this->assertArrayNotHasKey( 'longitude', $entry['metadata']['exif'] );
-				$this->assertArrayNotHasKey( 'gps', $entry['metadata']['exif'] );
-			}
-		}
+		$this->assertCount( 1, $media_map );
+		$this->assertArrayHasKey( 'exif', $media_map[0]['metadata'] );
+		$this->assertArrayNotHasKey( 'latitude', $media_map[0]['metadata']['exif'] );
+		$this->assertArrayNotHasKey( 'longitude', $media_map[0]['metadata']['exif'] );
+		$this->assertArrayNotHasKey( 'gps', $media_map[0]['metadata']['exif'] );
 	}
 
 	/**
@@ -380,7 +385,7 @@ class MediaScannerTest extends TestCase {
 		);
 		$export_dir = '/tmp/test';
 		
-		$scanner = new Moltex_Exporter_Media_Scanner( $exported_content, $export_dir );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		// Should find images in nested blocks

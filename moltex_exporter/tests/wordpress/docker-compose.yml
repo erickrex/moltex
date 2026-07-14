@@ -1,0 +1,56 @@
+name: moltex-e1
+
+services:
+  db:
+    image: mariadb:10.11.8
+    environment:
+      MARIADB_DATABASE: wordpress
+      MARIADB_USER: wordpress
+      MARIADB_PASSWORD: wordpress
+      MARIADB_ROOT_PASSWORD: root
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - db_data:/var/lib/mysql
+
+  wordpress:
+    image: wordpress:7.0.1-php8.2-apache
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DEBUG: "1"
+    ports:
+      - "${MOLTEX_SMOKE_PORT:-8088}:80"
+    volumes:
+      - wp_data:/var/www/html
+      - ../../:/var/www/html/wp-content/plugins/moltex-exporter:ro
+
+  cli:
+    image: wordpress:cli-2.10.0-php8.2
+    depends_on:
+      db:
+        condition: service_healthy
+      wordpress:
+        condition: service_started
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      MOLTEX_SMOKE_URL: "${MOLTEX_SMOKE_URL:-http://localhost:8088}"
+    user: "33:33"
+    volumes:
+      - wp_data:/var/www/html
+      - ../../:/var/www/html/wp-content/plugins/moltex-exporter:ro
+
+volumes:
+  db_data:
+  wp_data:

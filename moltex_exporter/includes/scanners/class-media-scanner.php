@@ -63,6 +63,8 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 	 * @return array Media data including map and metadata.
 	 */
 	public function scan() {
+		$this->media_map = array();
+
 		// Identify all referenced media
 		$this->identify_referenced_media();
 
@@ -507,8 +509,6 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 	 * Generate media map JSON.
 	 */
 	private function generate_media_map() {
-		$this->media_map = array();
-
 		foreach ( $this->referenced_media as $media ) {
 			$url = $media['url'];
 			$relative_path = $this->get_relative_upload_path( $url );

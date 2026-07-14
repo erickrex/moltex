@@ -184,11 +184,11 @@ class Moltex_Exporter_Security_Filters {
 	 * @return bool True if sensitive, false otherwise.
 	 */
 	public static function is_sensitive_meta( $key ) {
-		$key_lower = strtolower( $key );
+		$key_lower = ltrim( strtolower( $key ), '_' );
 		
 		// Check exact matches
 		foreach ( self::$sensitive_meta_keys as $sensitive_key ) {
-			if ( strpos( $key_lower, strtolower( $sensitive_key ) ) !== false ) {
+			if ( strpos( $key_lower, ltrim( strtolower( $sensitive_key ), '_' ) ) !== false ) {
 				return true;
 			}
 		}
@@ -203,11 +203,11 @@ class Moltex_Exporter_Security_Filters {
 	 * @return bool True if contains PII, false otherwise.
 	 */
 	public static function is_pii_meta( $key ) {
-		$key_lower = strtolower( $key );
+		$key_lower = ltrim( strtolower( $key ), '_' );
 		
 		// Check exact matches
 		foreach ( self::$pii_meta_keys as $pii_key ) {
-			if ( strpos( $key_lower, strtolower( $pii_key ) ) !== false ) {
+			if ( strpos( $key_lower, ltrim( strtolower( $pii_key ), '_' ) ) !== false ) {
 				return true;
 			}
 		}
@@ -350,7 +350,12 @@ class Moltex_Exporter_Security_Filters {
 
 		foreach ( $data as $key => $value ) {
 			// Check if key is sensitive
-			if ( self::is_sensitive_option( $key ) || self::is_sensitive_meta( $key ) ) {
+			if (
+				self::is_sensitive_option( $key ) ||
+				self::is_sensitive_meta( $key ) ||
+				self::is_pii_meta( $key ) ||
+				self::is_temporary_key( $key )
+			) {
 				continue;
 			}
 

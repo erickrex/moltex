@@ -23,6 +23,32 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Moltex_Exporter_Callback_Resolver {
 
 	/**
+	 * Convert an absolute reflection path to a non-sensitive logical path.
+	 *
+	 * @param string|false $filename Reflected source filename.
+	 * @return string Logical path safe to include in exported evidence.
+	 */
+	public static function normalize_file_path( $filename ) {
+		if ( ! is_string( $filename ) || '' === $filename ) {
+			return '';
+		}
+
+		$normalized = str_replace( '\\', '/', $filename );
+		$plugin_dir = defined( 'WP_PLUGIN_DIR' ) ? str_replace( '\\', '/', WP_PLUGIN_DIR ) : '';
+		$root_dir   = defined( 'ABSPATH' ) ? rtrim( str_replace( '\\', '/', ABSPATH ), '/' ) : '';
+
+		if ( '' !== $plugin_dir && 0 === strpos( $normalized, rtrim( $plugin_dir, '/' ) . '/' ) ) {
+			return 'plugins/' . ltrim( substr( $normalized, strlen( rtrim( $plugin_dir, '/' ) ) ), '/' );
+		}
+
+		if ( '' !== $root_dir && 0 === strpos( $normalized, $root_dir . '/' ) ) {
+			return ltrim( substr( $normalized, strlen( $root_dir ) ), '/' );
+		}
+
+		return 'external/' . basename( $normalized );
+	}
+
+	/**
 	 * Resolve a PHP callable to a descriptive array.
 	 *
 	 * Handles all callback forms: string function names, array [class/object, method]
@@ -76,7 +102,7 @@ class Moltex_Exporter_Callback_Resolver {
 		try {
 			if ( function_exists( $callback ) ) {
 				$reflection    = new ReflectionFunction( $callback );
-				$info['file'] = $reflection->getFileName();
+				$info['file'] = self::normalize_file_path( $reflection->getFileName() );
 				$info['line'] = $reflection->getStartLine();
 			}
 		} catch ( Exception $e ) {
@@ -106,7 +132,7 @@ class Moltex_Exporter_Callback_Resolver {
 		try {
 			if ( method_exists( $class, $method ) ) {
 				$reflection    = new ReflectionMethod( $class, $method );
-				$info['file'] = $reflection->getFileName();
+				$info['file'] = self::normalize_file_path( $reflection->getFileName() );
 				$info['line'] = $reflection->getStartLine();
 			}
 		} catch ( Exception $e ) {
@@ -130,7 +156,7 @@ class Moltex_Exporter_Callback_Resolver {
 
 		try {
 			$reflection    = new ReflectionFunction( $callback );
-			$info['file'] = $reflection->getFileName();
+			$info['file'] = self::normalize_file_path( $reflection->getFileName() );
 			$info['line'] = $reflection->getStartLine();
 		} catch ( Exception $e ) {
 			// Reflection failed, continue without file/line.
@@ -156,7 +182,7 @@ class Moltex_Exporter_Callback_Resolver {
 
 		try {
 			$reflection    = new ReflectionMethod( $callback, '__invoke' );
-			$info['file'] = $reflection->getFileName();
+			$info['file'] = self::normalize_file_path( $reflection->getFileName() );
 			$info['line'] = $reflection->getStartLine();
 		} catch ( Exception $e ) {
 			// Reflection failed, continue without file/line.

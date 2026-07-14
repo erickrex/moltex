@@ -1,0 +1,59 @@
+<?php
+/**
+ * Behavior-focused privacy filter coverage.
+ *
+ * @package Moltex_Exporter
+ */
+
+use PHPUnit\Framework\TestCase;
+
+class SecurityFiltersTest extends TestCase {
+
+	public function test_filters_sensitive_options_at_all_depths() {
+		$filtered = Moltex_Exporter_Security_Filters::filter_options(
+			array(
+				'blogname' => 'Fixture',
+				'api_key'  => 'secret',
+				'nested'   => array(
+					'client_secret' => 'secret',
+					'public_value'  => 'safe',
+				),
+			)
+		);
+
+		$this->assertSame( 'Fixture', $filtered['blogname'] );
+		$this->assertArrayNotHasKey( 'api_key', $filtered );
+		$this->assertArrayNotHasKey( 'client_secret', $filtered['nested'] );
+		$this->assertSame( 'safe', $filtered['nested']['public_value'] );
+	}
+
+	public function test_filters_prefixed_and_unprefixed_pii_meta() {
+		$filtered = Moltex_Exporter_Security_Filters::filter_post_meta(
+			array(
+				'_billing_email' => 'private@example.invalid',
+				'billing_email'  => 'private@example.invalid',
+				'public_label'   => 'safe',
+			)
+		);
+
+		$this->assertArrayNotHasKey( '_billing_email', $filtered );
+		$this->assertArrayNotHasKey( 'billing_email', $filtered );
+		$this->assertSame( 'safe', $filtered['public_label'] );
+	}
+
+	public function test_recursive_filter_removes_pii_and_temporary_keys() {
+		$filtered = Moltex_Exporter_Security_Filters::filter_options(
+			array(
+				'nested' => array(
+					'_customer_phone' => '555-555-5555',
+					'_transient_cache' => 'temporary',
+					'public_value'     => 'safe',
+				),
+			)
+		);
+
+		$this->assertArrayNotHasKey( '_customer_phone', $filtered['nested'] );
+		$this->assertArrayNotHasKey( '_transient_cache', $filtered['nested'] );
+		$this->assertSame( 'safe', $filtered['nested']['public_value'] );
+	}
+}

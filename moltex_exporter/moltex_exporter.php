@@ -1,16 +1,14 @@
 <?php
 /**
  * Plugin Name: Moltex Exporter
- * Plugin URI: https://github.com/yourusername/moltex-exporter
- * Description: Export comprehensive WordPress site data for migration to Strapi CMS on Digital Ocean. One-click solution to collect all artifacts including database schema, content structure, plugin fingerprints, theme information, and assets.
+ * Description: Create a privacy-filtered WordPress evidence bundle for verified migration into a Git-managed Astro repository.
  * Version: 1.0.0
- * Author: Your Name
- * Author URI: https://yourwebsite.com
+ * Author: Moltex Contributors
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Requires at least: 5.9
  * Requires PHP: 7.4
- * Tested up to: 6.4
+ * Tested up to: 7.0
  * Network: false
  * 
  * @package Moltex_Exporter

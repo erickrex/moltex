@@ -1,211 +1,76 @@
-# Moltex Exporter Unit Tests
+# Moltex Exporter Tests
 
-This directory contains unit tests for the Moltex Exporter plugin scanner classes.
+This directory contains three distinct evidence layers. Do not treat documentation as proof
+that a scenario executes.
 
-## Overview
+## Prerequisites
 
-The test suite covers the following scanner classes:
-- **SiteScanner**: Tests for site information collection
-- **ThemeScanner**: Tests for theme file copying and metadata collection
-- **PluginScanner**: Tests for plugin detection logic and fingerprinting
-- **ContentScanner**: Tests for content query logic and block parsing
-- **TaxonomyScanner**: Tests for taxonomy and term relationship handling
-- **MediaScanner**: Tests for media file identification and mapping
+- PHP 8.2 for the E1 reference run (the plugin still declares PHP 7.4+)
+- Composer 2 and PHP ZipArchive
+- Docker Desktop for the disposable WordPress smoke fixture
 
-## Requirements
+Install the locked development dependencies from the repository root:
 
-- PHP 7.4 or higher
-- PHPUnit 9.x or higher
-- Composer (for installing PHPUnit)
-
-## Installation
-
-Install PHPUnit via Composer:
-
-```bash
-composer require --dev phpunit/phpunit ^9.0
+```powershell
+composer install --working-dir moltex_exporter
 ```
 
-## Running Tests
+## Required E1 commands
 
-Run all tests:
+Run these exact commands from the repository root:
 
-```bash
-vendor/bin/phpunit
+```powershell
+php -l moltex_exporter/moltex_exporter.php
+php moltex_exporter/tests/content_export_regression.php
+php moltex_exporter/tests/sample_scope_regression.php
+php moltex_exporter/tests/export_directory_regression.php
+php moltex_exporter/tests/packager_download_regression.php
+moltex_exporter/vendor/bin/phpunit moltex_exporter/tests
 ```
 
-Run a specific test file:
+The root `phpunit.xml.dist` loads the WordPress mocks for the prescribed final command. The
+project-local equivalent is:
 
-```bash
-vendor/bin/phpunit tests/SiteScannerTest.php
+```powershell
+php moltex_exporter/vendor/phpunit/phpunit/phpunit -c moltex_exporter/phpunit.xml.dist
 ```
 
-Run tests with coverage report (requires Xdebug):
+## Standalone regressions
 
-```bash
-vendor/bin/phpunit --coverage-html coverage/
+The standalone scripts exercise focused behavior without PHPUnit or a live WordPress site.
+E1 also adds:
+
+```powershell
+php moltex_exporter/tests/audit_inventory_regression.php
+php moltex_exporter/tests/callback_path_regression.php
+php moltex_exporter/tests/identity_regression.php
 ```
 
-## Test Structure
+## PHPUnit coverage status
 
-### Bootstrap File
-`tests/bootstrap.php` - Initializes the test environment and loads required files
+The PHPUnit suite contains behavior-focused scanner unit tests backed by WordPress mocks.
+The E1 stabilization updated those mocks, current scanner dependency construction, temporary
+filesystem fixtures, media/taxonomy assertions, and privacy coverage. The prescribed suite
+is green with 68 tests and 244 assertions.
 
-### Mock Functions
-`tests/mocks/wordpress-functions.php` - Provides mock implementations of WordPress functions
+The former `IntegrationTest.php` was deleted because it was a second mock suite with stale
+expectations, not an integration test. Real install/export/package/download coverage belongs
+to the disposable WordPress smoke fixture below.
 
-### Test Files
-- `tests/SiteScannerTest.php` - Tests for site data collection
-- `tests/ThemeScannerTest.php` - Tests for theme file exports
-- `tests/PluginScannerTest.php` - Tests for plugin detection
-- `tests/ContentScannerTest.php` - Tests for content queries
-- `tests/TaxonomyScannerTest.php` - Tests for taxonomy exports
-- `tests/MediaScannerTest.php` - Tests for media identification
+## Disposable WordPress smoke
 
-## Writing Tests
+Start Docker Desktop, then run:
 
-### Test Naming Convention
-- Test methods should start with `test_`
-- Use descriptive names: `test_scanner_returns_expected_structure()`
-
-### Assertions
-Common assertions used:
-- `assertInstanceOf()` - Check object type
-- `assertIsArray()` - Check if value is array
-- `assertArrayHasKey()` - Check if array has key
-- `assertEquals()` - Check equality
-- `assertTrue()` / `assertFalse()` - Check boolean values
-- `assertGreaterThan()` - Check numeric comparisons
-
-### Mock Data
-Set up mock data in `setUp()` method:
-
-```php
-protected function setUp(): void {
-    parent::setUp();
-    
-    global $mock_posts;
-    $mock_posts = array(
-        1 => (object) array(
-            'ID' => 1,
-            'post_title' => 'Test Post',
-        ),
-    );
-}
+```powershell
+powershell -ExecutionPolicy Bypass -File moltex_exporter/tests/wordpress/run-smoke.ps1
 ```
 
-## Integration Tests
+The script pins WordPress 7.0.1, PHP 8.2, WP-CLI 2.10.0, and MariaDB 10.11.8. It creates
+public and private fixture content, activates the plugin, performs authenticated complete and
+discovery exports, exercises signed downloads, and writes ignored output under
+`moltex_exporter/tests/wordpress/output/`.
 
-Integration tests verify the complete scan workflow on a live WordPress installation.
+## Adding coverage
 
-### Running Integration Tests
-
-**PHPUnit Integration Tests:**
-```bash
-vendor/bin/phpunit tests/IntegrationTest.php
-```
-
-**WordPress CLI Integration Test:**
-```bash
-wp eval-file test-integration-full-scan.php
-```
-
-### Integration Test Coverage
-
-The integration test suite covers:
-- ✅ Complete scan execution
-- ✅ ZIP structure and contents validation
-- ✅ JSON schema validation
-- ✅ GeoDirectory plugin integration
-- ✅ ACF plugin integration
-- ✅ Multilingual plugin integration (WPML, Polylang, TranslatePress)
-- ✅ Multiple plugins active simultaneously
-- ✅ Error handling and recovery
-- ✅ Progress tracking
-- ✅ Content sampling limits
-- ✅ ZIP compression and file size
-- ✅ Performance metrics
-
-### Test Scenarios
-
-**Scenario 1: Basic WordPress Site**
-- Fresh WordPress installation
-- Default theme and plugins
-- Sample content
-
-**Scenario 2: GeoDirectory Site**
-- GeoDirectory plugin active
-- Multiple custom post types (places, events, custom listings)
-- GeoDirectory-specific metadata
-
-**Scenario 3: Multilingual Site**
-- WPML, Polylang, or TranslatePress active
-- Multiple languages configured
-- Translated content
-
-**Scenario 4: ACF Site**
-- Advanced Custom Fields active
-- Custom field groups defined
-- Custom fields in content
-
-**Scenario 5: Complex Site**
-- Multiple plugins active
-- Various custom post types
-- Large content volume
-
-## Test Coverage
-
-The test suite covers:
-- ✅ Scanner instantiation
-- ✅ Data structure validation
-- ✅ Data collection methods
-- ✅ Filtering and sanitization
-- ✅ Error handling
-- ✅ Edge cases
-- ✅ Full scan workflow
-- ✅ ZIP creation and validation
-- ✅ JSON schema compliance
-- ✅ Plugin-specific integrations
-
-## Continuous Integration
-
-These tests can be integrated into CI/CD pipelines:
-
-### GitHub Actions Example
-```yaml
-name: Tests
-on: [push, pull_request]
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: php-actions/composer@v6
-      - uses: php-actions/phpunit@v3
-```
-
-## Troubleshooting
-
-### Common Issues
-
-**Issue**: `Class not found` errors
-**Solution**: Ensure `tests/bootstrap.php` is loading all required files
-
-**Issue**: Mock functions not working
-**Solution**: Check that `tests/mocks/wordpress-functions.php` is loaded before scanner classes
-
-**Issue**: Tests fail with file system errors
-**Solution**: Mock file operations or use temporary directories
-
-## Contributing
-
-When adding new scanner classes:
-1. Create a corresponding test file in `tests/`
-2. Add mock functions to `tests/mocks/wordpress-functions.php` if needed
-3. Follow existing test patterns
-4. Ensure all public methods are tested
-5. Test both success and failure scenarios
-
-## License
-
-Same as the main plugin (GPL v2 or later)
+Regression fixes first reproduce the failure. Keep WordPress mocks behavior-focused and only
+claim live integration when the disposable WordPress fixture executed it.

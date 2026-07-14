@@ -21,7 +21,15 @@ class TaxonomyScannerTest extends TestCase {
 		parent::setUp();
 		
 		// Set up mock content data
-		global $mock_terms;
+		global $mock_posts, $mock_terms, $mock_termmeta, $wp_taxonomies;
+
+		$mock_posts = array(
+			1 => (object) array(
+				'ID'        => 1,
+				'post_type' => 'post',
+			),
+		);
+		$wp_taxonomies = array();
 		
 		$mock_terms = array(
 			(object) array(
@@ -41,6 +49,26 @@ class TaxonomyScannerTest extends TestCase {
 				'count' => 10,
 			),
 		);
+		$mock_termmeta = array(
+			1 => array(
+				'public_color' => 'blue',
+				'api_key'      => 'must-not-export',
+			),
+		);
+	}
+
+	/**
+	 * Create a scanner using the current dependency contract.
+	 *
+	 * @param array $exported_content Canonical content scanner output.
+	 * @return Moltex_Exporter_Taxonomy_Scanner
+	 */
+	private function create_scanner( array $exported_content ) {
+		return new Moltex_Exporter_Taxonomy_Scanner(
+			array(
+				'context' => array( 'content' => $exported_content ),
+			)
+		);
 	}
 
 	/**
@@ -53,7 +81,7 @@ class TaxonomyScannerTest extends TestCase {
 			),
 		);
 		
-		$scanner = new Moltex_Exporter_Taxonomy_Scanner( $exported_content );
+		$scanner = $this->create_scanner( $exported_content );
 		$this->assertInstanceOf( Moltex_Exporter_Taxonomy_Scanner::class, $scanner );
 	}
 
@@ -67,7 +95,7 @@ class TaxonomyScannerTest extends TestCase {
 			),
 		);
 		
-		$scanner = new Moltex_Exporter_Taxonomy_Scanner( $exported_content );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		$this->assertIsArray( $result );
@@ -88,21 +116,18 @@ class TaxonomyScannerTest extends TestCase {
 			),
 		);
 		
-		$scanner = new Moltex_Exporter_Taxonomy_Scanner( $exported_content );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		$taxonomies = $result['taxonomies'];
-		
-		if ( ! empty( $taxonomies ) ) {
-			$taxonomy = reset( $taxonomies );
-			
-			$this->assertArrayHasKey( 'name', $taxonomy );
-			$this->assertArrayHasKey( 'slug', $taxonomy );
-			$this->assertArrayHasKey( 'hierarchical', $taxonomy );
-			$this->assertArrayHasKey( 'terms', $taxonomy );
-			
-			$this->assertIsArray( $taxonomy['terms'] );
-		}
+		$this->assertArrayHasKey( 'category', $taxonomies );
+		$taxonomy = $taxonomies['category'];
+
+		$this->assertArrayHasKey( 'name', $taxonomy );
+		$this->assertArrayHasKey( 'slug', $taxonomy );
+		$this->assertArrayHasKey( 'hierarchical', $taxonomy );
+		$this->assertArrayHasKey( 'terms', $taxonomy );
+		$this->assertIsArray( $taxonomy['terms'] );
 	}
 
 	/**
@@ -115,29 +140,23 @@ class TaxonomyScannerTest extends TestCase {
 			),
 		);
 		
-		$scanner = new Moltex_Exporter_Taxonomy_Scanner( $exported_content );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		$taxonomies = $result['taxonomies'];
-		
-		foreach ( $taxonomies as $taxonomy ) {
-			if ( ! empty( $taxonomy['terms'] ) ) {
-				$term = $taxonomy['terms'][0];
-				
-				$this->assertArrayHasKey( 'term_id', $term );
-				$this->assertArrayHasKey( 'name', $term );
-				$this->assertArrayHasKey( 'slug', $term );
-				$this->assertArrayHasKey( 'description', $term );
-				$this->assertArrayHasKey( 'parent', $term );
-				$this->assertArrayHasKey( 'count', $term );
-				
-				$this->assertIsInt( $term['term_id'] );
-				$this->assertIsInt( $term['parent'] );
-				$this->assertIsInt( $term['count'] );
-				
-				break;
-			}
-		}
+		$this->assertNotEmpty( $taxonomies['category']['terms'] );
+		$term = $taxonomies['category']['terms'][0];
+
+		$this->assertArrayHasKey( 'term_id', $term );
+		$this->assertArrayHasKey( 'name', $term );
+		$this->assertArrayHasKey( 'slug', $term );
+		$this->assertArrayHasKey( 'description', $term );
+		$this->assertArrayHasKey( 'parent', $term );
+		$this->assertArrayHasKey( 'count', $term );
+
+		$this->assertIsInt( $term['term_id'] );
+		$this->assertIsInt( $term['parent'] );
+		$this->assertIsInt( $term['count'] );
 	}
 
 	/**
@@ -150,20 +169,14 @@ class TaxonomyScannerTest extends TestCase {
 			),
 		);
 		
-		$scanner = new Moltex_Exporter_Taxonomy_Scanner( $exported_content );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		$taxonomies = $result['taxonomies'];
-		
-		foreach ( $taxonomies as $taxonomy ) {
-			if ( $taxonomy['hierarchical'] && ! empty( $taxonomy['terms'] ) ) {
-				// Check that parent field exists
-				foreach ( $taxonomy['terms'] as $term ) {
-					$this->assertArrayHasKey( 'parent', $term );
-					$this->assertIsInt( $term['parent'] );
-				}
-				break;
-			}
+		$this->assertTrue( $taxonomies['category']['hierarchical'] );
+		foreach ( $taxonomies['category']['terms'] as $term ) {
+			$this->assertArrayHasKey( 'parent', $term );
+			$this->assertIsInt( $term['parent'] );
 		}
 	}
 
@@ -186,28 +199,14 @@ class TaxonomyScannerTest extends TestCase {
 			),
 		);
 		
-		$scanner = new Moltex_Exporter_Taxonomy_Scanner( $exported_content );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		$relationships = $result['term_relationships'];
 		
-		$this->assertIsArray( $relationships );
-		
-		// If relationships exist, check structure
-		if ( ! empty( $relationships ) ) {
-			foreach ( $relationships as $post_id => $terms ) {
-				$this->assertIsInt( $post_id );
-				$this->assertIsArray( $terms );
-				
-				// Each taxonomy should have an array of term IDs
-				foreach ( $terms as $taxonomy => $term_ids ) {
-					$this->assertIsString( $taxonomy );
-					$this->assertIsArray( $term_ids );
-				}
-				
-				break;
-			}
-		}
+		$this->assertArrayHasKey( 1, $relationships );
+		$this->assertSame( array( 1, 2 ), $relationships[1]['category'] );
+		$this->assertSame( array( 1, 2 ), $relationships[1]['post_tag'] );
 	}
 
 	/**
@@ -220,7 +219,7 @@ class TaxonomyScannerTest extends TestCase {
 			),
 		);
 		
-		$scanner = new Moltex_Exporter_Taxonomy_Scanner( $exported_content );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		$taxonomies = $result['taxonomies'];
@@ -241,24 +240,14 @@ class TaxonomyScannerTest extends TestCase {
 			),
 		);
 		
-		$scanner = new Moltex_Exporter_Taxonomy_Scanner( $exported_content );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		$taxonomies = $result['taxonomies'];
-		
-		foreach ( $taxonomies as $taxonomy ) {
-			if ( ! empty( $taxonomy['terms'] ) ) {
-				$term = $taxonomy['terms'][0];
-				
-				// Meta key should exist (even if empty)
-				// If meta exists, it should be an array
-				if ( isset( $term['meta'] ) ) {
-					$this->assertIsArray( $term['meta'] );
-				}
-				
-				break;
-			}
-		}
+		$term = $taxonomies['category']['terms'][0];
+		$this->assertArrayHasKey( 'meta', $term );
+		$this->assertSame( 'blue', $term['meta']['public_color'] );
+		$this->assertArrayNotHasKey( 'api_key', $term['meta'] );
 	}
 
 	/**
@@ -280,7 +269,7 @@ class TaxonomyScannerTest extends TestCase {
 			),
 		);
 		
-		$scanner = new Moltex_Exporter_Taxonomy_Scanner( $exported_content );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		// Test passes if scanner correctly extracts all post IDs
@@ -297,22 +286,15 @@ class TaxonomyScannerTest extends TestCase {
 			),
 		);
 		
-		$scanner = new Moltex_Exporter_Taxonomy_Scanner( $exported_content );
+		$scanner = $this->create_scanner( $exported_content );
 		$result = $scanner->scan();
 
 		$taxonomies = $result['taxonomies'];
-		
-		foreach ( $taxonomies as $taxonomy ) {
-			if ( ! empty( $taxonomy['terms'] ) ) {
-				foreach ( $taxonomy['terms'] as $term ) {
-					if ( isset( $term['meta'] ) ) {
-						// Should not contain sensitive keys
-						$this->assertArrayNotHasKey( 'password', $term['meta'] );
-						$this->assertArrayNotHasKey( 'api_key', $term['meta'] );
-						$this->assertArrayNotHasKey( 'secret', $term['meta'] );
-					}
-				}
-			}
+		foreach ( $taxonomies['category']['terms'] as $term ) {
+			$meta = isset( $term['meta'] ) ? $term['meta'] : array();
+			$this->assertArrayNotHasKey( 'password', $meta );
+			$this->assertArrayNotHasKey( 'api_key', $meta );
+			$this->assertArrayNotHasKey( 'secret', $meta );
 		}
 	}
 }

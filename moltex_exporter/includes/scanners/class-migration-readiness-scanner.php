@@ -1,6 +1,6 @@
 <?php
 /**
- * ChatGPT Sites migration readiness scanner.
+ * Static Astro migration readiness scanner.
  *
  * Rejects site classes that are deliberately outside the initial local
  * complete-migration scope. It does not claim that unlisted plugins are
@@ -53,7 +53,7 @@ class Moltex_Exporter_Migration_Readiness_Scanner extends Moltex_Exporter_Scanne
 					'category'   => $definition[0],
 					'plugin'     => $definition[1],
 					'plugin_file' => $plugin_file,
-					'message'    => sprintf( '%s is outside the initial basic ChatGPT Sites migration scope.', $definition[1] ),
+					'message'    => sprintf( '%s is outside the initial static Astro migration profile.', $definition[1] ),
 				);
 			}
 		}

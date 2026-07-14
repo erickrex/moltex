@@ -32,6 +32,7 @@ vendor/
 
 # Generated migration artifacts
 output/
+moltex_exporter/tests/wordpress/output/
 uploads/
 tmp/
 temp/

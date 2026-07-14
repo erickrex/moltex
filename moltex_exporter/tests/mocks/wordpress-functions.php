@@ -25,24 +25,133 @@ if ( ! defined( 'WP_PLUGIN_DIR' ) ) {
 // Global variables for mocking
 global $wp_version, $wpdb, $wp_post_types, $wp_taxonomies, $shortcode_tags;
 $wp_version = '6.4.2';
-$wpdb = new stdClass();
-$wpdb->prefix = 'wp_';
-$wpdb->options = 'wp_options';
-$wpdb->posts = 'wp_posts';
-$wpdb->postmeta = 'wp_postmeta';
-$wpdb->terms = 'wp_terms';
-$wpdb->term_taxonomy = 'wp_term_taxonomy';
-$wpdb->term_relationships = 'wp_term_relationships';
-$wpdb->termmeta = 'wp_termmeta';
+
+/**
+ * Minimal wpdb replacement for scanner unit tests.
+ */
+class Mock_WPDB {
+	public $prefix = 'wp_';
+	public $options = 'wp_options';
+	public $posts = 'wp_posts';
+	public $postmeta = 'wp_postmeta';
+	public $terms = 'wp_terms';
+	public $term_taxonomy = 'wp_term_taxonomy';
+	public $term_relationships = 'wp_term_relationships';
+	public $termmeta = 'wp_termmeta';
+	public $comments = 'wp_comments';
+	public $commentmeta = 'wp_commentmeta';
+	public $links = 'wp_links';
+	public $usermeta = 'wp_usermeta';
+	public $users = 'wp_users';
+
+	public function prepare( $query, ...$args ) {
+		return $query;
+	}
+
+	public function esc_like( $value ) {
+		return addcslashes( $value, '_%\\' );
+	}
+
+	public function get_results( $query ) {
+		return array();
+	}
+
+	public function get_col( $query ) {
+		return array();
+	}
+
+	public function get_var( $query ) {
+		return 0;
+	}
+}
+
+$wpdb = new Mock_WPDB();
 
 // Mock data storage
-global $mock_options, $mock_posts, $mock_postmeta, $mock_terms, $mock_plugins, $mock_themes;
+global $mock_options, $mock_posts, $mock_postmeta, $mock_terms, $mock_termmeta, $mock_plugins, $mock_themes;
 $mock_options = array();
 $mock_posts = array();
 $mock_postmeta = array();
 $mock_terms = array();
+$mock_termmeta = array();
 $mock_plugins = array();
 $mock_themes = array();
+
+global $mock_filters;
+$mock_filters = array();
+
+/**
+ * Mock wp_parse_args().
+ */
+function wp_parse_args( $args, $defaults = array() ) {
+	if ( is_object( $args ) ) {
+		$args = get_object_vars( $args );
+	} elseif ( is_string( $args ) ) {
+		parse_str( $args, $args );
+	}
+
+	return array_merge( $defaults, is_array( $args ) ? $args : array() );
+}
+
+/**
+ * Register a mock filter or action callback.
+ */
+function add_filter( $hook_name, $callback, $priority = 10, $accepted_args = 1 ) {
+	global $mock_filters;
+	$mock_filters[ $hook_name ][ $priority ][] = array( $callback, $accepted_args );
+	return true;
+}
+
+/**
+ * Register a mock action callback.
+ */
+function add_action( $hook_name, $callback, $priority = 10, $accepted_args = 1 ) {
+	return add_filter( $hook_name, $callback, $priority, $accepted_args );
+}
+
+/**
+ * Apply registered mock filters.
+ */
+function apply_filters( $hook_name, $value, ...$args ) {
+	global $mock_filters;
+	if ( empty( $mock_filters[ $hook_name ] ) ) {
+		return $value;
+	}
+
+	ksort( $mock_filters[ $hook_name ] );
+	foreach ( $mock_filters[ $hook_name ] as $callbacks ) {
+		foreach ( $callbacks as $registered ) {
+			$callback_args = array_slice( array_merge( array( $value ), $args ), 0, $registered[1] );
+			$value = call_user_func_array( $registered[0], $callback_args );
+		}
+	}
+
+	return $value;
+}
+
+/**
+ * Run registered mock actions.
+ */
+function do_action( $hook_name, ...$args ) {
+	global $mock_filters;
+	if ( empty( $mock_filters[ $hook_name ] ) ) {
+		return;
+	}
+
+	ksort( $mock_filters[ $hook_name ] );
+	foreach ( $mock_filters[ $hook_name ] as $callbacks ) {
+		foreach ( $callbacks as $registered ) {
+			call_user_func_array( $registered[0], array_slice( $args, 0, $registered[1] ) );
+		}
+	}
+}
+
+/**
+ * Mock absint().
+ */
+function absint( $value ) {
+	return abs( (int) $value );
+}
 
 /**
  * Mock get_site_url()
@@ -56,6 +165,13 @@ function get_site_url() {
  */
 function get_home_url() {
 	return 'https://example.com';
+}
+
+/**
+ * Mock home_url().
+ */
+function home_url( $path = '' ) {
+	return rtrim( get_home_url(), '/' ) . '/' . ltrim( $path, '/' );
 }
 
 /**
@@ -202,56 +318,63 @@ function wp_count_posts( $post_type = 'post' ) {
 }
 
 /**
- * Mock wp_get_theme()
+ * Minimal callable WP_Theme replacement.
+ */
+class Mock_WP_Theme {
+	private $data;
+	private $directory;
+	private $parent_theme;
+
+	public function __construct( array $data = array(), $directory = '', $parent_theme = false ) {
+		$this->data = array_merge(
+			array(
+				'Name'       => 'Twenty Twenty-Four',
+				'Version'    => '1.0',
+				'Description'=> 'A test theme',
+				'Author'     => 'WordPress',
+				'AuthorURI'  => 'https://wordpress.org',
+				'ThemeURI'   => 'https://wordpress.org/themes/twentytwentyfour',
+				'Template'   => 'twentytwentyfour',
+				'Stylesheet' => 'twentytwentyfour',
+				'TextDomain' => 'twentytwentyfour',
+			),
+			$data
+		);
+		$this->directory = $directory ?: sys_get_temp_dir() . '/moltex-test-theme';
+		$this->parent_theme = $parent_theme;
+	}
+
+	public function get( $key ) {
+		return isset( $this->data[ $key ] ) ? $this->data[ $key ] : '';
+	}
+
+	public function get_template() {
+		return $this->data['Template'];
+	}
+
+	public function get_stylesheet() {
+		return $this->data['Stylesheet'];
+	}
+
+	public function get_stylesheet_directory() {
+		return $this->directory;
+	}
+
+	public function parent() {
+		return $this->parent_theme;
+	}
+
+	public function get_page_templates() {
+		return array();
+	}
+}
+
+/**
+ * Mock wp_get_theme().
  */
 function wp_get_theme() {
 	global $mock_themes;
-	
-	if ( empty( $mock_themes ) ) {
-		$theme = new stdClass();
-		$theme->name = 'Twenty Twenty-Four';
-		$theme->version = '1.0';
-		$theme->template = 'twentytwentyfour';
-		$theme->stylesheet = 'twentytwentyfour';
-		
-		$theme->get = function( $key ) use ( $theme ) {
-			$data = array(
-				'Name' => 'Twenty Twenty-Four',
-				'Version' => '1.0',
-				'Description' => 'A test theme',
-				'Author' => 'WordPress',
-				'AuthorURI' => 'https://wordpress.org',
-				'ThemeURI' => 'https://wordpress.org/themes/twentytwentyfour',
-				'Template' => 'twentytwentyfour',
-				'TextDomain' => 'twentytwentyfour',
-			);
-			return isset( $data[ $key ] ) ? $data[ $key ] : '';
-		};
-		
-		$theme->get_template = function() {
-			return 'twentytwentyfour';
-		};
-		
-		$theme->get_stylesheet = function() {
-			return 'twentytwentyfour';
-		};
-		
-		$theme->get_stylesheet_directory = function() {
-			return '/var/www/html/wp-content/themes/twentytwentyfour';
-		};
-		
-		$theme->parent = function() {
-			return false;
-		};
-		
-		$theme->get_page_templates = function() {
-			return array();
-		};
-		
-		return $theme;
-	}
-	
-	return $mock_themes[0];
+	return empty( $mock_themes ) ? new Mock_WP_Theme() : $mock_themes[0];
 }
 
 /**
@@ -279,7 +402,11 @@ function trailingslashit( $string ) {
  * Mock wp_mkdir_p()
  */
 function wp_mkdir_p( $target ) {
-	return true;
+	if ( is_dir( $target ) ) {
+		return true;
+	}
+
+	return mkdir( $target, 0755, true );
 }
 
 /**
@@ -342,6 +469,10 @@ function parse_blocks( $content ) {
  */
 function get_post( $post_id = null ) {
 	global $mock_posts;
+	if ( null === $post_id ) {
+		global $post;
+		return isset( $post ) ? $post : null;
+	}
 	
 	if ( isset( $mock_posts[ $post_id ] ) ) {
 		return $mock_posts[ $post_id ];
@@ -399,7 +530,24 @@ function wp_get_post_terms( $post_id, $taxonomy, $args = array() ) {
  * Mock get_term_meta()
  */
 function get_term_meta( $term_id, $key = '', $single = false ) {
-	return $single ? '' : array();
+	global $mock_termmeta;
+	if ( ! isset( $mock_termmeta[ $term_id ] ) ) {
+		return $single ? '' : array();
+	}
+
+	if ( '' !== $key ) {
+		if ( ! array_key_exists( $key, $mock_termmeta[ $term_id ] ) ) {
+			return $single ? '' : array();
+		}
+		$value = $mock_termmeta[ $term_id ][ $key ];
+		return $single ? $value : array( $value );
+	}
+
+	$all_meta = array();
+	foreach ( $mock_termmeta[ $term_id ] as $meta_key => $meta_value ) {
+		$all_meta[ $meta_key ] = array( $meta_value );
+	}
+	return $all_meta;
 }
 
 /**
@@ -407,6 +555,7 @@ function get_term_meta( $term_id, $key = '', $single = false ) {
  */
 function taxonomy_exists( $taxonomy ) {
 	global $wp_taxonomies;
+	get_taxonomies( array(), 'objects' );
 	return isset( $wp_taxonomies[ $taxonomy ] );
 }
 
@@ -415,6 +564,7 @@ function taxonomy_exists( $taxonomy ) {
  */
 function get_taxonomy( $taxonomy ) {
 	global $wp_taxonomies;
+	get_taxonomies( array(), 'objects' );
 	return isset( $wp_taxonomies[ $taxonomy ] ) ? $wp_taxonomies[ $taxonomy ] : false;
 }
 
@@ -588,6 +738,66 @@ function get_post_thumbnail_id( $post_id ) {
  */
 function sanitize_file_name( $filename ) {
 	return preg_replace( '/[^a-z0-9\-_\.]/', '-', strtolower( $filename ) );
+}
+
+/**
+ * Mock get_theme_mods().
+ */
+function get_theme_mods() {
+	return array();
+}
+
+/**
+ * Mock get_posts().
+ */
+function get_posts( $args = array() ) {
+	global $mock_posts, $test_get_posts_calls;
+	if ( isset( $test_get_posts_calls ) && is_array( $test_get_posts_calls ) ) {
+		$test_get_posts_calls[] = $args;
+	}
+
+	$posts = array_values( $mock_posts );
+	if ( isset( $args['post_type'] ) ) {
+		$post_types = (array) $args['post_type'];
+		$posts = array_values(
+			array_filter(
+				$posts,
+				function( $post ) use ( $post_types ) {
+					return isset( $post->post_type ) && in_array( $post->post_type, $post_types, true );
+				}
+			)
+		);
+	}
+
+	return $posts;
+}
+
+/**
+ * Mock plugin activation check.
+ */
+function is_plugin_active( $plugin ) {
+	return false;
+}
+
+/**
+ * Mock theme support lookup.
+ */
+function get_theme_support( $feature ) {
+	return false;
+}
+
+/**
+ * Prevent unit tests from making network requests.
+ */
+function wp_remote_get( $url, $args = array() ) {
+	return new WP_Error( 'network_disabled', 'Network disabled in unit tests' );
+}
+
+/**
+ * Mock response body accessor.
+ */
+function wp_remote_retrieve_body( $response ) {
+	return is_array( $response ) && isset( $response['body'] ) ? $response['body'] : '';
 }
 
 /**

@@ -13,12 +13,46 @@ use PHPUnit\Framework\TestCase;
  * Plugin Scanner Test Class
  */
 class PluginScannerTest extends TestCase {
+	use Moltex_Exporter_Temp_Directory_Trait;
+
+	/**
+	 * Test-owned export directory.
+	 *
+	 * @var string
+	 */
+	private $export_dir;
+
+	protected function setUp(): void {
+		parent::setUp();
+		global $wp_post_types, $wp_taxonomies;
+		$wp_post_types = array();
+		$wp_taxonomies = array();
+		get_post_types( array(), 'objects' );
+		get_taxonomies( array(), 'objects' );
+		$this->export_dir = $this->create_temp_directory( 'moltex-plugin-scanner' );
+	}
+
+	protected function tearDown(): void {
+		$this->remove_temp_directory( $this->export_dir );
+		parent::tearDown();
+	}
+
+	/**
+	 * Create a scanner with an isolated export directory.
+	 *
+	 * @return Moltex_Exporter_Plugin_Scanner
+	 */
+	private function create_scanner() {
+		return new Moltex_Exporter_Plugin_Scanner(
+			array( 'export_dir' => $this->export_dir )
+		);
+	}
 
 	/**
 	 * Test scanner instantiation.
 	 */
 	public function test_scanner_instantiation() {
-		$scanner = new Moltex_Exporter_Plugin_Scanner();
+		$scanner = $this->create_scanner();
 		$this->assertInstanceOf( Moltex_Exporter_Plugin_Scanner::class, $scanner );
 	}
 
@@ -26,7 +60,7 @@ class PluginScannerTest extends TestCase {
 	 * Test scan method returns expected structure.
 	 */
 	public function test_scan_returns_expected_structure() {
-		$scanner = new Moltex_Exporter_Plugin_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$this->assertIsArray( $result );
@@ -44,7 +78,7 @@ class PluginScannerTest extends TestCase {
 	 * Test plugins list collection.
 	 */
 	public function test_plugins_list_collection() {
-		$scanner = new Moltex_Exporter_Plugin_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$plugins_list = $result['plugins_list'];
@@ -61,7 +95,7 @@ class PluginScannerTest extends TestCase {
 	 * Test plugin metadata structure.
 	 */
 	public function test_plugin_metadata_structure() {
-		$scanner = new Moltex_Exporter_Plugin_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$plugins = $result['plugins_list']['plugins'];
@@ -83,7 +117,7 @@ class PluginScannerTest extends TestCase {
 	 * Test README exports structure.
 	 */
 	public function test_readme_exports_structure() {
-		$scanner = new Moltex_Exporter_Plugin_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$readme_exports = $result['readme_exports'];
@@ -100,7 +134,7 @@ class PluginScannerTest extends TestCase {
 	 * Test behavioral fingerprints structure.
 	 */
 	public function test_behavioral_fingerprints_structure() {
-		$scanner = new Moltex_Exporter_Plugin_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$fingerprints = $result['behavioral_fingerprints'];
@@ -114,7 +148,7 @@ class PluginScannerTest extends TestCase {
 	 * Test custom post types documentation.
 	 */
 	public function test_custom_post_types_documentation() {
-		$scanner = new Moltex_Exporter_Plugin_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$cpt = $result['custom_post_types'];
@@ -131,7 +165,7 @@ class PluginScannerTest extends TestCase {
 	 * Test taxonomies documentation.
 	 */
 	public function test_taxonomies_documentation() {
-		$scanner = new Moltex_Exporter_Plugin_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$taxonomies = $result['taxonomies'];
@@ -152,7 +186,7 @@ class PluginScannerTest extends TestCase {
 			'test_shortcode' => 'test_callback',
 		);
 		
-		$scanner = new Moltex_Exporter_Plugin_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$shortcodes = $result['shortcodes'];
@@ -165,7 +199,7 @@ class PluginScannerTest extends TestCase {
 	 * Test blocks documentation.
 	 */
 	public function test_blocks_documentation() {
-		$scanner = new Moltex_Exporter_Plugin_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$blocks = $result['blocks'];
@@ -178,7 +212,7 @@ class PluginScannerTest extends TestCase {
 	 * Test database tables identification.
 	 */
 	public function test_database_tables_identification() {
-		$scanner = new Moltex_Exporter_Plugin_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$tables = $result['database_tables'];
@@ -192,7 +226,7 @@ class PluginScannerTest extends TestCase {
 	 * Test plugin slug extraction from file path.
 	 */
 	public function test_plugin_slug_extraction() {
-		$scanner = new Moltex_Exporter_Plugin_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$plugins = $result['plugins_list']['plugins'];

@@ -31,7 +31,7 @@ $settings = wp_parse_args( $settings, $defaults );
 	<div class="moltex-exporter-container">
 		<div class="moltex-exporter-header">
 			<p class="moltex-exporter-tagline">
-				<?php echo esc_html( 'Create a complete local migration bundle for rebuilding with Codex and publishing with ChatGPT Sites' ); ?>
+				<?php echo esc_html( 'Create a complete local migration bundle for rebuilding as a Git-managed Astro site with Codex' ); ?>
 			</p>
 			
 			<p class="moltex-exporter-description">

@@ -13,12 +13,41 @@ use PHPUnit\Framework\TestCase;
  * Theme Scanner Test Class
  */
 class ThemeScannerTest extends TestCase {
+	use Moltex_Exporter_Temp_Directory_Trait;
+
+	/**
+	 * Test-owned export directory.
+	 *
+	 * @var string
+	 */
+	private $export_dir;
+
+	protected function setUp(): void {
+		parent::setUp();
+		$this->export_dir = $this->create_temp_directory( 'moltex-theme-scanner' );
+	}
+
+	protected function tearDown(): void {
+		$this->remove_temp_directory( $this->export_dir );
+		parent::tearDown();
+	}
+
+	/**
+	 * Create a scanner with an isolated export directory.
+	 *
+	 * @return Moltex_Exporter_Theme_Scanner
+	 */
+	private function create_scanner() {
+		return new Moltex_Exporter_Theme_Scanner(
+			array( 'export_dir' => $this->export_dir )
+		);
+	}
 
 	/**
 	 * Test scanner instantiation.
 	 */
 	public function test_scanner_instantiation() {
-		$scanner = new Moltex_Exporter_Theme_Scanner();
+		$scanner = $this->create_scanner();
 		$this->assertInstanceOf( Moltex_Exporter_Theme_Scanner::class, $scanner );
 	}
 
@@ -26,7 +55,7 @@ class ThemeScannerTest extends TestCase {
 	 * Test scan method returns expected structure.
 	 */
 	public function test_scan_returns_expected_structure() {
-		$scanner = new Moltex_Exporter_Theme_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$this->assertIsArray( $result );
@@ -39,7 +68,7 @@ class ThemeScannerTest extends TestCase {
 	 * Test theme info collection.
 	 */
 	public function test_theme_info_collection() {
-		$scanner = new Moltex_Exporter_Theme_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$theme_info = $result['theme_info'];
@@ -57,7 +86,7 @@ class ThemeScannerTest extends TestCase {
 	 * Test exported files structure.
 	 */
 	public function test_exported_files_structure() {
-		$scanner = new Moltex_Exporter_Theme_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$exported_files = $result['exported_files'];
@@ -72,7 +101,7 @@ class ThemeScannerTest extends TestCase {
 	 * Test file copying returns success status.
 	 */
 	public function test_file_copying_status() {
-		$scanner = new Moltex_Exporter_Theme_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$style_css = $result['exported_files']['style.css'];
@@ -85,7 +114,7 @@ class ThemeScannerTest extends TestCase {
 	 * Test template hierarchy generation.
 	 */
 	public function test_template_hierarchy_generation() {
-		$scanner = new Moltex_Exporter_Theme_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$hierarchy = $result['template_hierarchy'];
@@ -105,7 +134,7 @@ class ThemeScannerTest extends TestCase {
 	 * Test child theme detection.
 	 */
 	public function test_child_theme_detection() {
-		$scanner = new Moltex_Exporter_Theme_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$theme_info = $result['theme_info'];
@@ -122,7 +151,7 @@ class ThemeScannerTest extends TestCase {
 	 * Test block theme detection.
 	 */
 	public function test_block_theme_detection() {
-		$scanner = new Moltex_Exporter_Theme_Scanner();
+		$scanner = $this->create_scanner();
 		$result = $scanner->scan();
 
 		$theme_info = $result['theme_info'];

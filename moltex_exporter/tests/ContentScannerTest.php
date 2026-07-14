@@ -21,7 +21,10 @@ class ContentScannerTest extends TestCase {
 		parent::setUp();
 		
 		// Set up mock posts
-		global $mock_posts, $mock_postmeta;
+		global $mock_posts, $mock_postmeta, $mock_options, $wp_post_types, $wp_taxonomies;
+		$mock_options = array();
+		$wp_post_types = array();
+		$wp_taxonomies = array();
 		
 		$mock_posts = array(
 			1 => (object) array(
