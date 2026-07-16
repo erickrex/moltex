@@ -777,7 +777,7 @@ class Moltex_Exporter_Exporter {
 
 		return array(
 			'created_at'       => gmdate( 'c' ),
-			'exporter_version' => defined( 'MOLTEX_EXPORTER_VERSION' ) ? MOLTEX_EXPORTER_VERSION : '1.1.0',
+			'exporter_version' => defined( 'MOLTEX_EXPORTER_VERSION' ) ? MOLTEX_EXPORTER_VERSION : '1.2.0',
 			'mode'             => isset( $content['export_mode'] ) && 'discovery' === $content['export_mode'] ? 'discovery' : 'complete',
 			'site_origin'      => isset( $this->results['site']['site']['url'] ) ? $this->results['site']['site']['url'] : '',
 			'complete'     => ! empty( $completeness['complete'] ),

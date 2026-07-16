@@ -1,0 +1,10 @@
+/.gitattributes export-ignore
+/composer.json export-ignore
+/composer.lock export-ignore
+/example-export-sample.json export-ignore
+/GEODIRECTORY-EXPORT-EXAMPLE.json export-ignore
+/phpunit.xml.dist export-ignore
+/release-files.json export-ignore
+/tests export-ignore
+/vendor export-ignore
+/tools/build-release.ps1 export-ignore

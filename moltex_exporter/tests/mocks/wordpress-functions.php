@@ -206,6 +206,35 @@ function get_option( $option, $default = false ) {
 }
 
 /**
+ * Mock update_option().
+ */
+function update_option( $option, $value, $autoload = null ) {
+	global $mock_options;
+	$mock_options[ $option ] = $value;
+	return true;
+}
+
+/**
+ * Mock wp_unslash().
+ */
+function wp_unslash( $value ) {
+	return $value;
+}
+
+/**
+ * Mock WordPress security primitives.
+ */
+function wp_verify_nonce( $nonce, $action = -1 ) {
+	global $mock_nonce_valid;
+	return ! isset( $mock_nonce_valid ) || (bool) $mock_nonce_valid;
+}
+
+function current_user_can( $capability ) {
+	global $mock_user_can;
+	return ! isset( $mock_user_can ) || (bool) $mock_user_can;
+}
+
+/**
  * Mock get_post_types()
  */
 function get_post_types( $args = array(), $output = 'names' ) {

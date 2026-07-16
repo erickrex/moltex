@@ -13,26 +13,9 @@ if ( ! defined( 'WPINC' ) ) {
 	die;
 }
 
-class Moltex_Exporter_Migration_Readiness_Scanner extends Moltex_Exporter_Scanner_Base {
+require_once dirname( __DIR__ ) . '/class-preflight.php';
 
-	/**
-	 * Plugin families that require transactional or account-heavy behavior.
-	 *
-	 * @var array
-	 */
-	private $blocked_plugin_families = array(
-		'woocommerce/'              => array( 'ecommerce', 'WooCommerce' ),
-		'easy-digital-downloads/'   => array( 'ecommerce', 'Easy Digital Downloads' ),
-		'memberpress/'              => array( 'membership', 'MemberPress' ),
-		'paid-memberships-pro/'     => array( 'membership', 'Paid Memberships Pro' ),
-		'restrict-content-pro/'     => array( 'membership', 'Restrict Content Pro' ),
-		'buddypress/'               => array( 'community', 'BuddyPress' ),
-		'bbpress/'                  => array( 'community', 'bbPress' ),
-		'sfwd-lms/'                 => array( 'learning_management', 'LearnDash' ),
-		'lifterlms/'                => array( 'learning_management', 'LifterLMS' ),
-		'tutor/'                    => array( 'learning_management', 'Tutor LMS' ),
-		'bookly-responsive-appointment-booking-tool/' => array( 'booking', 'Bookly' ),
-	);
+class Moltex_Exporter_Migration_Readiness_Scanner extends Moltex_Exporter_Scanner_Base {
 
 	/**
 	 * Scan the active site for hard blockers.
@@ -44,7 +27,7 @@ class Moltex_Exporter_Migration_Readiness_Scanner extends Moltex_Exporter_Scanne
 		$active_plugins = get_option( 'active_plugins', array() );
 
 		foreach ( $active_plugins as $plugin_file ) {
-			foreach ( $this->blocked_plugin_families as $prefix => $definition ) {
+			foreach ( Moltex_Exporter_Preflight::get_blocked_plugin_families() as $prefix => $definition ) {
 				if ( 0 !== strpos( $plugin_file, $prefix ) ) {
 					continue;
 				}

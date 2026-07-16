@@ -1,0 +1,55 @@
+services:
+  db:
+    image: mariadb:10.11.8
+    environment:
+      MARIADB_DATABASE: wordpress
+      MARIADB_USER: wordpress
+      MARIADB_PASSWORD: wordpress
+      MARIADB_ROOT_PASSWORD: root
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - db_data:/var/lib/mysql
+
+  wordpress:
+    image: "${MOLTEX_WP_IMAGE}"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+    ports:
+      - "${MOLTEX_SMOKE_PORT}:80"
+    volumes:
+      - wp_data:/var/www/html
+
+  cli:
+    image: "${MOLTEX_CLI_IMAGE}"
+    depends_on:
+      db:
+        condition: service_healthy
+      wordpress:
+        condition: service_started
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      MOLTEX_SMOKE_URL: "${MOLTEX_SMOKE_URL}"
+    user: "33:33"
+    volumes:
+      - wp_data:/var/www/html
+      - ../../../dist:/fixtures/dist:ro
+      - ./fixtures:/fixtures/tests/fixtures:ro
+      - ./setup-fixture.sh:/fixtures/tests/setup-fixture.sh:ro
+      - ./release-output:/fixtures/output
+
+volumes:
+  db_data:
+  wp_data:

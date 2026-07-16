@@ -1,108 +1,61 @@
-# Moltex Exporter Tests
+# Moltex Exporter Verification
 
-This directory contains distinct executable evidence layers. Do not treat documentation as proof
-that a scenario executes.
+E1–E3 are cumulative. Documentation is not proof; acceptance requires the commands below
+and the checked-in receipts.
 
 ## Prerequisites
 
-- PHP 8.2 for the E1 reference run (the plugin still declares PHP 7.4+)
-- Composer 2 and PHP ZipArchive
-- Docker Desktop for the disposable WordPress smoke fixture
+- PHP 7.4 for the declared minimum and PHP 8.2 for the reference run
+- Composer 2 with PHP ZipArchive
+- Docker Desktop
+- Google Chrome, Microsoft Edge, or an explicit Chromium `-BrowserPath`
 
-Install the locked development dependencies from the repository root:
+Install locked development dependencies:
 
 ```powershell
 composer install --working-dir moltex_exporter
 ```
 
-## Required E1 commands
-
-Run these exact commands from the repository root:
+## Cumulative local gate
 
 ```powershell
-php -l moltex_exporter/moltex_exporter.php
+php moltex_exporter/vendor/phpunit/phpunit/phpunit -c moltex_exporter/phpunit.xml.dist
 php moltex_exporter/tests/content_export_regression.php
 php moltex_exporter/tests/sample_scope_regression.php
 php moltex_exporter/tests/export_directory_regression.php
 php moltex_exporter/tests/packager_download_regression.php
-moltex_exporter/vendor/bin/phpunit moltex_exporter/tests
-```
-
-The root `phpunit.xml.dist` loads the WordPress mocks for the prescribed final command. The
-project-local equivalent is:
-
-```powershell
-php moltex_exporter/vendor/phpunit/phpunit/phpunit -c moltex_exporter/phpunit.xml.dist
-```
-
-## Required E2 commands
-
-E2 retains the E1 suite and adds contract validation:
-
-```powershell
-php moltex_exporter/vendor/phpunit/phpunit/phpunit -c moltex_exporter/phpunit.xml.dist
-php moltex_exporter/tests/content_export_regression.php
-php moltex_exporter/tools/validate-bundle.php samples/moltex-export-1.zip
-powershell -ExecutionPolicy Bypass -File moltex_exporter/tests/wordpress/run-smoke.ps1
-```
-
-The smoke runs the standalone validator against both downloaded ZIPs. A clean complete
-bundle is complete-migration eligible; discovery remains valid evidence but is not eligible.
-The synthetic sample is regenerated only by the explicit maintainer script
-`tests/build-contract-sample.php`; tests never regenerate their expected fixture.
-
-## Required E3 commands
-
-E3 adds a real, sanitized WordPress Golden Path candidate workflow:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File moltex_exporter/tests/wordpress/run-golden-path.ps1
-php moltex_exporter/tools/validate-bundle.php samples/golden-export.zip
-php moltex_exporter/vendor/phpunit/phpunit/phpunit -c moltex_exporter/phpunit.xml.dist
-```
-
-The workflow always writes to ignored `tests/wordpress/golden-output/` and never promotes
-the candidate. Replacement requires the reviewed procedure in
-`docs/verification/e3-replacement-procedure.md`. `GoldenExportTest.php` validates the frozen
-archive and static oracle without rebuilding either one.
-
-## Standalone regressions
-
-The standalone scripts exercise focused behavior without PHPUnit or a live WordPress site.
-E1 also adds:
-
-```powershell
 php moltex_exporter/tests/audit_inventory_regression.php
 php moltex_exporter/tests/callback_path_regression.php
 php moltex_exporter/tests/identity_regression.php
+php moltex_exporter/tests/privacy_fixture_regression.php samples/golden-export.zip
+php moltex_exporter/tools/validate-bundle.php samples/moltex-export-1.zip
+php moltex_exporter/tools/validate-bundle.php samples/golden-export.zip
 ```
 
-## PHPUnit coverage status
-
-The PHPUnit suite contains behavior-focused scanner unit tests backed by WordPress mocks.
-The E1 gate was green with 68 tests and 244 assertions. E2 adds registry, writer,
-characterization, schema, deterministic-manifest, sample, tamper, missing-artifact,
-traversal, discovery, and validation-report coverage; consult the E2 receipt for final
-counts.
-
-The former `IntegrationTest.php` was deleted because it was a second mock suite with stale
-expectations, not an integration test. Real install/export/package/download coverage belongs
-to the disposable WordPress smoke fixture below.
-
-## Disposable WordPress smoke
-
-Start Docker Desktop, then run:
+## Disposable WordPress gates
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File moltex_exporter/tests/wordpress/run-smoke.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File moltex_exporter/tests/wordpress/run-smoke.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File moltex_exporter/tests/wordpress/run-golden-path.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File moltex_exporter/tests/wordpress/run-release-smoke.ps1
 ```
 
-The script pins WordPress 7.0.1, PHP 8.2, WP-CLI 2.10.0, and MariaDB 10.11.8. It creates
-public and private fixture content, activates the plugin, performs authenticated complete and
-discovery exports, exercises signed downloads, and writes ignored output under
-`moltex_exporter/tests/wordpress/output/`.
+The normal smoke proves complete/discovery behavior and signed downloads. The Golden Path
+stages a candidate under ignored `golden-output/` and never overwrites the reviewed oracle.
+The release smoke uploads and activates the exact development-free release ZIP in fresh
+minimum and reference WordPress environments.
 
-## Adding coverage
+Chrome is auto-detected before Edge. `-BrowserPath C:\path\to\chromium.exe` selects a
+specific installation. Candidate reports record browser name/version; the browser is
+tooling, not part of `moltex-export/1`.
 
-Regression fixes first reproduce the failure. Keep WordPress mocks behavior-focused and only
-claim live integration when the disposable WordPress fixture executed it.
+## Fixture policy
+
+Tests never regenerate their own oracle. The synthetic contract sample changes only through
+its explicit maintainer builder. The real Golden Export changes only through
+[`docs/verification/e3-replacement-procedure.md`](../../docs/verification/e3-replacement-procedure.md)
+after count, visual, capability, privacy, and validator review.
+
+The old mock `IntegrationTest.php` and direct-browser scanner scripts were removed because
+they did not prove live integration. Real integration belongs to the disposable WordPress
+and install-from-release workflows.

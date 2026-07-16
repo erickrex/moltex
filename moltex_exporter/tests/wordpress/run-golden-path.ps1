@@ -1,5 +1,6 @@
 param(
     [int]$Port = 8094,
+    [string]$BrowserPath,
     [switch]$KeepEnvironment
 )
 
@@ -10,6 +11,7 @@ $outputDir = Join-Path $scriptDir 'golden-output'
 $env:MOLTEX_SMOKE_PORT = [string]$Port
 $baseUrl = "http://localhost:$Port"
 $env:MOLTEX_SMOKE_URL = $baseUrl
+. (Join-Path (Split-Path -Parent (Split-Path -Parent $scriptDir)) 'tools/chromium-capture.ps1')
 
 function Invoke-Compose {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
@@ -80,13 +82,9 @@ function Invoke-CurlPost {
 }
 
 function Capture-ReferenceScreenshots {
-    $edge = @(
-        "$env:ProgramFiles (x86)\Microsoft\Edge\Application\msedge.exe",
-        "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe"
-    ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-    if (-not $edge) { throw 'Microsoft Edge is required for reproducible Golden Path screenshots.' }
+    param([object]$Browser)
 
-    $profileRoot = Join-Path $outputDir 'edge-profiles'
+    $profileRoot = Join-Path $outputDir 'browser-profiles'
     New-Item -ItemType Directory -Path $profileRoot -Force | Out-Null
     $captures = @(
         @{ Name = 'home-desktop.png'; Size = '1440,1200' },
@@ -97,10 +95,10 @@ function Capture-ReferenceScreenshots {
     foreach ($capture in $captures) {
         $path = Join-Path $outputDir $capture.Name
         $profile = Join-Path $profileRoot ([IO.Path]::GetFileNameWithoutExtension($capture.Name))
-        & $edge --headless --disable-gpu --hide-scrollbars `
+        & $Browser.Path --headless --disable-gpu --hide-scrollbars `
             --run-all-compositor-stages-before-draw --virtual-time-budget=5000 `
             "--user-data-dir=$profile" "--window-size=$($capture.Size)" `
-            "--screenshot=$path" "$baseUrl/"
+            "--screenshot=$path" "$baseUrl/" | Out-Host
         $deadline = (Get-Date).AddSeconds(15)
         while ((-not (Test-Path -LiteralPath $path) -or (Get-Item -LiteralPath $path -ErrorAction SilentlyContinue).Length -lt 10000) -and (Get-Date) -lt $deadline) {
             Start-Sleep -Milliseconds 250
@@ -111,6 +109,12 @@ function Capture-ReferenceScreenshots {
     }
     Start-Sleep -Seconds 1
     Remove-Item -LiteralPath $profileRoot -Recurse -Force -ErrorAction SilentlyContinue
+
+    return [ordered]@{
+        name = $Browser.Name
+        version = $Browser.Version
+        engine = 'Chromium'
+    }
 }
 
 function Get-ZipEntries {
@@ -157,6 +161,8 @@ function Assert-NoPrivateMarkers {
     }
 }
 
+$screenshotBrowser = Resolve-MoltexChromiumBrowser -BrowserPath $BrowserPath
+
 if (Test-Path -LiteralPath $outputDir) {
     Remove-Item -LiteralPath $outputDir -Recurse -Force
 }
@@ -170,7 +176,7 @@ try {
         /var/www/html/wp-content/plugins/moltex-exporter/tests/wordpress/setup-golden-fixture.sh
     $fixture = Get-LastJsonObject -Lines $fixtureOutput
 
-    Capture-ReferenceScreenshots
+    $browser = Capture-ReferenceScreenshots -Browser $screenshotBrowser
     $screenshotOutput = Invoke-Compose run --rm --entrypoint sh cli `
         /var/www/html/wp-content/plugins/moltex-exporter/tests/wordpress/register-golden-screenshots.sh
     $screenshots = Get-LastJsonObject -Lines $screenshotOutput
@@ -235,6 +241,7 @@ try {
             wordpress = '7.0.1'
             php = '8.2'
             database = 'MariaDB 10.11.8'
+            browser = $browser
             site_origin = $baseUrl
             public_content = [int]$fixture.public_content
             referenced_media = [int]$fixture.referenced_media

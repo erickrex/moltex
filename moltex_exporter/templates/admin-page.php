@@ -17,18 +17,29 @@ $defaults = array(
 	'max_posts'                => 100,
 	'max_pages'                => 50,
 	'max_per_custom_post_type' => 50,
-	'include_html_snapshots'   => false,
+	'include_html_snapshots'   => true,
 	'batch_size'               => 50,
 	'cleanup_after_hours'      => 24,
 );
 $settings = get_option( 'moltex_settings', $defaults );
 $settings = wp_parse_args( $settings, $defaults );
+$preflight = isset( $preflight ) && is_array( $preflight ) ? $preflight : array( 'ready' => false, 'blockers' => array( 'Preflight was unavailable.' ), 'warnings' => array() );
+$reference_screenshots = isset( $reference_screenshots ) && is_array( $reference_screenshots ) ? $reference_screenshots : array();
 ?>
 
 <div class="wrap moltex-exporter-wrap">
 	<h1><?php echo esc_html( '🦞 Moltex Exporter' ); ?></h1>
 	
 	<div class="moltex-exporter-container">
+		<div class="notice <?php echo $preflight['ready'] ? 'notice-success' : 'notice-error'; ?> inline">
+			<p><strong><?php echo esc_html( $preflight['ready'] ? 'Export preflight passed.' : 'Export is blocked by preflight.' ); ?></strong></p>
+			<?php if ( ! empty( $preflight['blockers'] ) ) : ?>
+				<ul><?php foreach ( $preflight['blockers'] as $message ) : ?><li><?php echo esc_html( $message ); ?></li><?php endforeach; ?></ul>
+			<?php endif; ?>
+			<?php if ( ! empty( $preflight['warnings'] ) ) : ?>
+				<ul><?php foreach ( $preflight['warnings'] as $message ) : ?><li><?php echo esc_html( $message ); ?></li><?php endforeach; ?></ul>
+			<?php endif; ?>
+		</div>
 		<div class="moltex-exporter-header">
 			<p class="moltex-exporter-tagline">
 				<?php echo esc_html( 'Create a complete local migration bundle for rebuilding as a Git-managed Astro site with Codex' ); ?>
@@ -46,7 +57,7 @@ $settings = wp_parse_args( $settings, $defaults );
 		<!-- Collapsible Settings Section -->
 		<div class="moltex-exporter-settings-section">
 			<button type="button" id="moltex-settings-toggle" class="button" style="margin-bottom: 10px;">
-				<?php echo esc_html( 'Settings ▼' ); ?>
+				<?php echo esc_html( 'Settings' ); ?>
 			</button>
 
 			<div id="moltex-settings-panel" style="display: none; background: #fff; border: 1px solid #ccd0d4; padding: 15px; margin-bottom: 20px;">
@@ -75,7 +86,7 @@ $settings = wp_parse_args( $settings, $defaults );
 							<p class="description"><?php echo esc_html( 'Leave disabled for public Sites migrations to avoid accidental disclosure.' ); ?></p>
 						</td>
 					</tr>
-					<tr>
+					<tr class="moltex-discovery-setting">
 						<th scope="row">
 							<label for="moltex-max-posts"><?php echo esc_html( 'Max Posts' ); ?></label>
 						</th>
@@ -84,7 +95,7 @@ $settings = wp_parse_args( $settings, $defaults );
 							<p class="description"><?php echo esc_html( 'Maximum number of posts to export (default: 100)' ); ?></p>
 						</td>
 					</tr>
-					<tr>
+					<tr class="moltex-discovery-setting">
 						<th scope="row">
 							<label for="moltex-max-pages"><?php echo esc_html( 'Max Pages' ); ?></label>
 						</th>
@@ -93,7 +104,7 @@ $settings = wp_parse_args( $settings, $defaults );
 							<p class="description"><?php echo esc_html( 'Maximum number of pages to export (default: 50)' ); ?></p>
 						</td>
 					</tr>
-					<tr>
+					<tr class="moltex-discovery-setting">
 						<th scope="row">
 							<label for="moltex-max-cpt"><?php echo esc_html( 'Max per Custom Post Type' ); ?></label>
 						</th>
@@ -111,7 +122,7 @@ $settings = wp_parse_args( $settings, $defaults );
 								<input type="checkbox" id="moltex-html-snapshots" value="1" <?php checked( $settings['include_html_snapshots'], true ); ?> />
 								<?php echo esc_html( 'Generate HTML snapshots of content' ); ?>
 							</label>
-							<p class="description"><?php echo esc_html( 'Enable to capture rendered HTML for each content item (default: off)' ); ?></p>
+							<p class="description"><?php echo esc_html( 'Capture bounded rendered HTML for each content item (default: on).' ); ?></p>
 						</td>
 					</tr>
 					<tr>
@@ -143,8 +154,28 @@ $settings = wp_parse_args( $settings, $defaults );
 			</div>
 		</div>
 
+		<div class="moltex-exporter-settings-section">
+			<h2><?php echo esc_html( 'Reviewed Reference Screenshots' ); ?></h2>
+			<p><?php echo esc_html( 'Select up to ten public PNG screenshots. Each screenshot must identify its site-relative route and viewport.' ); ?></p>
+			<table class="widefat striped" id="moltex-screenshot-table">
+				<thead><tr><th><?php echo esc_html( 'Attachment' ); ?></th><th><?php echo esc_html( 'Route' ); ?></th><th><?php echo esc_html( 'Viewport' ); ?></th><th><?php echo esc_html( 'Label' ); ?></th><th></th></tr></thead>
+				<tbody>
+				<?php foreach ( $reference_screenshots as $reference ) : ?>
+					<tr class="moltex-screenshot-row">
+						<td><input type="hidden" class="moltex-screenshot-id" value="<?php echo esc_attr( $reference['attachment_id'] ); ?>" /><span class="moltex-screenshot-name"><?php echo esc_html( basename( (string) get_attached_file( $reference['attachment_id'] ) ) ); ?></span></td>
+						<td><input type="text" class="moltex-screenshot-route" value="<?php echo esc_attr( $reference['route'] ); ?>" /></td>
+						<td><input type="text" class="moltex-screenshot-viewport" value="<?php echo esc_attr( $reference['viewport'] ); ?>" /></td>
+						<td><input type="text" class="moltex-screenshot-label" value="<?php echo esc_attr( $reference['label'] ); ?>" /></td>
+						<td><button type="button" class="button-link moltex-replace-screenshot"><?php echo esc_html( 'Replace' ); ?></button> <button type="button" class="button-link-delete moltex-remove-screenshot"><?php echo esc_html( 'Remove' ); ?></button></td>
+					</tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table>
+			<p><button type="button" class="button" id="moltex-add-screenshot"><?php echo esc_html( 'Select PNG' ); ?></button> <button type="button" class="button button-primary" id="moltex-save-screenshots"><?php echo esc_html( 'Save screenshots' ); ?></button> <span id="moltex-screenshot-status"></span></p>
+		</div>
+
 		<div class="moltex-exporter-actions">
-			<button id="moltex-migrate-btn" class="button button-primary button-hero">
+			<button id="moltex-migrate-btn" class="button button-primary button-hero" <?php disabled( ! $preflight['ready'] ); ?>>
 				<?php echo esc_html( 'Export' ); ?>
 			</button>
 		</div>

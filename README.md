@@ -34,9 +34,10 @@ other project's internal state.
 
 ## Current Status
 
-`moltex_exporter` has completed its executable E1 baseline and now emits and enforces the
-versioned `moltex-export/1` manifest/checksum contract from E2. E3 will freeze the real
-sanitized Golden Path export used by harness intake.
+`moltex_exporter` has completed E1 through E3: its executable baseline is green, it emits
+and enforces `moltex-export/1`, and the reviewed real WordPress Golden Export is frozen for
+harness intake. Current work hardens E3 into an uploadable staging-pilot release. There is
+no E4; H1 is the next product phase.
 
 `moltex_harness` has not yet been scaffolded. Its architecture and independently
 verifiable phases are specified in the companion plan.
@@ -75,8 +76,8 @@ visual or Git-based CMS is a post-hackathon extension.
 
 ## Development
 
-Exporter development uses PHP, Composer, PHPUnit, standalone regression scripts, and a
-disposable WordPress installation. The toolchain and fixture are pinned in the E1/E2
+Exporter development uses PHP, Composer, PHPUnit, standalone regression scripts, and
+disposable WordPress installations. The toolchain and fixtures are pinned in the E1–E3
 verification receipts. Contract details are in
 [`docs/export-bundle-contract.md`](./docs/export-bundle-contract.md).
 

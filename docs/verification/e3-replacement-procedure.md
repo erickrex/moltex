@@ -8,6 +8,10 @@ The Golden Export is a reviewed oracle. Tests must never regenerate or overwrite
    powershell -NoProfile -ExecutionPolicy Bypass -File moltex_exporter/tests/wordpress/run-golden-path.ps1
    ```
 
+   The runner auto-detects Chrome before Edge. Use `-BrowserPath` when the reviewed
+   environment requires a specific Chromium executable; confirm the recorded browser and
+   version in the candidate report.
+
 2. Review `golden-output/candidate-report.json`, both screenshots, the capability inventory,
    completeness counts, media map, and privacy canary result. Any count or validation
    mismatch stops the script before promotion.

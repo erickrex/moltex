@@ -1,57 +1,82 @@
 # Moltex Exporter
 
-Moltex Exporter is a read-only WordPress plugin that creates the local evidence bundle a
-later `moltex_harness` phase will consume to rebuild a content-led site as a Git-managed
-Astro repository. It does not modify WordPress content or configuration.
+Moltex Exporter is a read-only WordPress plugin that creates a privacy-filtered,
+checksummed `moltex-export/1` evidence ZIP for later rebuilding as a Git-managed Astro
+site. The exporter observes and packages WordPress; the future `moltex_harness` interprets
+the ZIP. H1 has not yet proved that consumer handshake.
 
 ## Supported scope
 
-The complete-migration profile targets brochure, corporate, blog, editorial, portfolio,
-and Gutenberg-first sites. Ecommerce, memberships, communities, learning management,
-booking applications, multisite, unknown plugins, and custom behavior require explicit
-review or a blocking readiness result.
+The complete profile targets content-led brochure, corporate, blog, editorial, portfolio,
+and Gutenberg-first sites. Ecommerce, memberships, communities, learning systems,
+bookings, multisite, unknown plugins, and custom behavior require explicit review or a
+readiness blocker.
 
-## Export modes
+## Install the release
 
-**Complete migration** exports every eligible published item up to the configured per-type
-safety ceiling and writes reconciled completeness counts. Private content is excluded by
-default.
+Build or obtain `moltex-exporter-1.2.0.zip`, then use **Plugins → Add New → Upload Plugin**.
+The release requires WordPress 5.9+, PHP 7.4+, JSON, and `ZipArchive`. After activation,
+open **Moltex Exporter** and resolve every blocking preflight result.
 
-**Discovery sample** exports representative content for analysis. It is valid evidence but
-cannot prove a complete migration.
+Do not upload a ZIP of the development directory: it contains tests, fixtures, and PHPUnit.
+The supported release is built from a clean commit:
 
-## Versioned export contract
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File moltex_exporter/tools/build-release.ps1
+```
 
-Version 1.1.0 emits `moltex-export/1` by default. `bundle.json` is the authoritative sorted
-inventory and includes schemas, sizes, SHA-256 checksums, count/privacy semantics, and a
-deterministic normalized bundle ID. Required JSON passes through the schema-validated atomic
-writer; packaging refuses a missing or invalid contract.
+Pilot on a staging clone before production.
 
-Required evidence includes site blueprint/settings, menus, completeness, media map,
-migration readiness, resolved SEO, forms, integrations, and every per-item content record.
-Optional evidence remains declared and checksummed. See
-[`docs/export-bundle-contract.md`](../docs/export-bundle-contract.md) for the exact boundary.
+## Prepare visual evidence
 
-## Installation and use
+Complete exports default to bounded rendered HTML snapshots. Capture representative public
+routes locally with Chrome, Edge, or another Chromium installation:
 
-1. Install and activate the plugin in WordPress.
-2. Open **Moltex Exporter** in the administration area.
-3. Select complete migration or discovery sample.
-4. Keep private content disabled unless it is deliberately in scope.
-5. Run the export and download the ZIP.
-6. Review the ZIP for private content and sensitive data before sharing it.
-7. Resolve blockers in `migration_readiness.json` before later harness intake.
-8. Run `php tools/validate-bundle.php path/to/export.zip` outside WordPress.
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File moltex_exporter/tools/capture-reference-screenshots.ps1 `
+  -BaseUrl https://staging.example.com `
+  -Routes /,/about/
+```
 
-## Privacy
+Upload the generated PNGs to the WordPress Media Library, then register each route and
+viewport in **Reviewed Reference Screenshots**. At most ten reviewed PNGs are included;
+each must be within uploads, no larger than 10 MB, and free of private information.
 
-Credentials, password material, sensitive options, post metadata, term metadata, and common
-PII fields pass through the shared security policy. Callback evidence uses logical paths
-instead of absolute server paths. Manual review remains mandatory before sharing an export.
+## Export and validate
 
-## Tests
+1. Select **Complete migration**.
+2. Keep private content disabled for a public rebuild.
+3. Confirm the complete-export ceiling is above every eligible post-type count.
+4. Keep HTML snapshots enabled and register representative screenshots.
+5. Export and download the signed ZIP.
+6. Review `migration_readiness.json`, `export_completeness.json`, `error_log.json`, and the
+   privacy state in `bundle.json`.
+7. Validate outside WordPress:
 
-The repository contains PHPUnit tests, standalone regressions, an immutable synthetic
-contract ZIP, the reviewed real WordPress Golden Export, and disposable WordPress fixtures
-under `tests/`. See
-`tests/README.md` for the exact commands and current classified coverage.
+   ```bash
+   php tools/validate-bundle.php path/to/export.zip
+   ```
+
+Complete mode exports every eligible published item up to the configured per-type safety
+ceiling. Discovery mode is representative evidence only and is never complete-migration
+eligible. The package refuses to offer a download unless its schema, checksums, sizes, and
+inventory validate.
+
+## Privacy and limitations
+
+Credentials, password material, sensitive options and metadata, common PII, and private
+content are filtered or excluded by default. Manual review is still mandatory before a ZIP
+is shared. Forms, shortcodes, hooks, external APIs, authentication, redirects,
+accessibility, SEO, and visual parity can require explicit downstream decisions.
+
+The release captures all exporter-owned evidence for supported content-led sites. It does
+not claim that an arbitrary site can already be rebuilt; H1 must prove intake, and later
+harness phases own normalization, Astro generation, and verification.
+
+## Development
+
+The repository contains PHPUnit and standalone regressions, a synthetic contract fixture,
+the immutable real Golden Export, and disposable WordPress integration environments. See
+[`tests/README.md`](tests/README.md) and the verification receipts under
+[`docs/verification`](../docs/verification/).

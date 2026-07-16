@@ -26,6 +26,7 @@ class Moltex_Exporter_Admin_Page {
 		add_action( 'wp_ajax_moltex_get_progress', array( $this, 'handle_ajax_get_progress' ) );
 		add_action( 'wp_ajax_moltex_download', array( $this, 'handle_ajax_download' ) );
 		add_action( 'wp_ajax_moltex_save_settings', array( $this, 'handle_ajax_save_settings' ) );
+		add_action( 'wp_ajax_moltex_save_reference_screenshots', array( $this, 'handle_ajax_save_reference_screenshots' ) );
 		
 		// Only register admin UI hooks when in admin context
 		if ( is_admin() && ! wp_doing_ajax() ) {
@@ -82,6 +83,7 @@ class Moltex_Exporter_Admin_Page {
 			MOLTEX_EXPORTER_VERSION,
 			true
 		);
+		wp_enqueue_media();
 
 		// Localize script with AJAX URL and nonce
 		wp_localize_script(
@@ -102,6 +104,10 @@ class Moltex_Exporter_Admin_Page {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( 'You do not have sufficient permissions to access this page.' );
 		}
+
+		$settings = get_option( 'moltex_settings', array() );
+		$preflight = ( new Moltex_Exporter_Preflight() )->evaluate( $settings );
+		$reference_screenshots = ( new Moltex_Exporter_Reference_Screenshots() )->get_references();
 
 		// Load template
 		require_once MOLTEX_EXPORTER_PATH . 'templates/admin-page.php';
@@ -140,7 +146,7 @@ class Moltex_Exporter_Admin_Page {
 			$sanitized['include_html_snapshots'] = (bool) $input['include_html_snapshots'];
 		} else {
 			// If checkbox is not checked, it won't be in the input array
-			$sanitized['include_html_snapshots'] = false;
+			$sanitized['include_html_snapshots'] = true;
 		}
 
 		if ( isset( $input['batch_size'] ) ) {
@@ -212,6 +218,45 @@ class Moltex_Exporter_Admin_Page {
 	}
 
 	/**
+	 * Save the reviewed screenshot declarations selected through the media library.
+	 */
+	public function handle_ajax_save_reference_screenshots() {
+		require_once MOLTEX_EXPORTER_PATH . 'includes/class-security-filters.php';
+
+		$nonce = isset( $_POST['nonce'] ) ? sanitize_text_field( $_POST['nonce'] ) : '';
+		if ( ! Moltex_Exporter_Security_Filters::verify_nonce( $nonce ) ) {
+			wp_send_json_error( array( 'message' => 'Security check failed.' ), 403 );
+		}
+		if ( ! Moltex_Exporter_Security_Filters::verify_capability( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Insufficient permissions.' ), 403 );
+		}
+
+		$raw = isset( $_POST['references'] ) ? wp_unslash( $_POST['references'] ) : '[]';
+		$references = json_decode( $raw, true );
+		if ( ! is_array( $references ) ) {
+			wp_send_json_error( array( 'message' => 'Screenshot declarations must be valid JSON.' ), 400 );
+		}
+
+		$result = ( new Moltex_Exporter_Reference_Screenshots() )->save( $references );
+		if ( ! $result['valid'] ) {
+			wp_send_json_error(
+				array(
+					'message' => implode( ' ', $result['errors'] ),
+					'errors'  => $result['errors'],
+				),
+				400
+			);
+		}
+
+		wp_send_json_success(
+			array(
+				'message'    => 'Reference screenshots saved.',
+				'references' => $result['references'],
+			)
+		);
+	}
+
+	/**
 	 * Prepare the current request for a long-running export.
 	 */
 	private function prepare_long_running_request() {
@@ -267,6 +312,17 @@ class Moltex_Exporter_Admin_Page {
 			if ( ! Moltex_Exporter_Security_Filters::verify_capability( 'manage_options' ) ) {
 				ob_end_clean();
 				wp_send_json_error( array( 'message' => 'Insufficient permissions.' ) );
+			}
+
+			$preflight = ( new Moltex_Exporter_Preflight() )->evaluate();
+			if ( ! $preflight['ready'] ) {
+				ob_end_clean();
+				wp_send_json_error(
+					array(
+						'message'  => 'Export preflight failed: ' . implode( ' ', $preflight['blockers'] ),
+						'blockers' => $preflight['blockers'],
+					)
+				);
 			}
 
 			// Load scanner class

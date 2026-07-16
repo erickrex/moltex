@@ -74,4 +74,20 @@ class SecurityFiltersTest extends TestCase {
 		$this->assertSame( '0', $filtered['public_zero'] );
 		$this->assertSame( array( 'label' => 'safe' ), $filtered['public_structure'] );
 	}
+
+	public function test_admin_mutations_require_a_valid_nonce_and_capability() {
+		global $mock_nonce_valid, $mock_user_can;
+
+		$mock_nonce_valid = false;
+		$mock_user_can = true;
+		$this->assertFalse( Moltex_Exporter_Security_Filters::verify_nonce( 'invalid' ) );
+		$this->assertTrue( Moltex_Exporter_Security_Filters::verify_capability( 'manage_options' ) );
+
+		$mock_nonce_valid = true;
+		$mock_user_can = false;
+		$this->assertTrue( Moltex_Exporter_Security_Filters::verify_nonce( 'valid' ) );
+		$this->assertFalse( Moltex_Exporter_Security_Filters::verify_capability( 'manage_options' ) );
+
+		unset( $mock_nonce_valid, $mock_user_can );
+	}
 }

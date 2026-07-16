@@ -1,0 +1,50 @@
+=== Moltex Exporter ===
+Contributors: moltex
+Tags: migration, export, astro, static-site
+Requires at least: 5.9
+Tested up to: 7.0
+Requires PHP: 7.4
+Stable tag: 1.2.0
+License: GPLv2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
+
+Create a privacy-filtered, checksummed WordPress evidence ZIP for a verified static-site migration.
+
+== Description ==
+
+Moltex Exporter captures public content, referenced media, navigation, site/theme/plugin evidence,
+resolved SEO, capabilities, readiness, bounded HTML, and optional reviewed screenshots in the
+versioned moltex-export/1 contract.
+
+The plugin is read-only with respect to WordPress content. It writes temporary export artifacts
+under uploads and removes them according to the configured retention period.
+
+== Installation ==
+
+1. Upload the supported moltex-exporter release ZIP.
+2. Activate Moltex Exporter.
+3. Open Moltex Exporter in wp-admin and resolve blocking preflight results.
+4. Pilot on a staging clone before production.
+
+PHP ZipArchive is required. Complete exports exclude private content by default. Always review an
+export for private material before sharing it.
+
+== Frequently Asked Questions ==
+
+= Does this rebuild the site? =
+
+No. The plugin creates exporter-owned evidence. The separate Moltex harness will own intake,
+normalization, Astro generation, and verification.
+
+= Are all WordPress sites supported? =
+
+No. Transactional, account-heavy, multisite, and unknown custom behavior can produce readiness
+blockers or manual-review items.
+
+== Changelog ==
+
+= 1.2.0 =
+* Added release packaging, live-site preflight, reviewed screenshot management, and installable ZIP verification.
+
+= 1.1.0 =
+* Published and enforced the moltex-export/1 evidence contract and Golden Path fixture.
