@@ -8,10 +8,10 @@
 
 ## Release artifact
 
-- Source commit: `c056a5293a98ddb32dd696face582a827da084ee`
+- Release-content commit: `8495266c778a3861450fac537214612e22ee1c1b`
 - File: `dist/moltex-exporter-1.2.0.zip`
-- Size: 188,728 bytes; 71 files under the single `moltex-exporter/` directory
-- SHA-256: `e3dcbb5ff668e32acd345d1705360645a6927e8209b97608df4c23282599d92a`
+- Size: 185,984 bytes; 71 files under the single `moltex-exporter/` directory
+- SHA-256: `9ba40033a7ccf30b9e16805aadb0b2dfd3efd71f0b62ed1016497f1b9f3405a0`
 - Build policy: clean Git tree, four matching version declarations, explicit runtime
   allowlist/requirements, and explicit development-file denials
 - Archive review: no tests, fixtures, vendor, Composer/PHPUnit files, examples, build
@@ -37,7 +37,7 @@ digest was
 
 ## Verification summary
 
-- PHPUnit: PASS — 111 tests, 1,667 assertions after Golden promotion
+- PHPUnit: PASS — 111 tests, 1,668 assertions after Golden promotion
 - PHP 7.4 syntax: PASS across production, test, template, fixture, and validator PHP
 - Cumulative standalone regressions: PASS
 - Synthetic and frozen Golden validators: PASS
