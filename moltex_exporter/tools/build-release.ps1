@@ -40,6 +40,12 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $zipPath)) { throw 'git
 
 $rules = ($rulesSource -join "`n") | ConvertFrom-Json
 Add-Type -AssemblyName System.IO.Compression.FileSystem
+$archive = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Update)
+try {
+    $normalizedTimestamp = [DateTimeOffset]::new(2000, 1, 1, 0, 0, 0, [TimeSpan]::Zero)
+    foreach ($entry in $archive.Entries) { $entry.LastWriteTime = $normalizedTimestamp }
+} finally { $archive.Dispose() }
+
 $archive = [IO.Compression.ZipFile]::OpenRead($zipPath)
 try {
     $entries = @($archive.Entries | Where-Object { $_.FullName -notmatch '/$' } | ForEach-Object { $_.FullName })

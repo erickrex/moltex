@@ -36,5 +36,7 @@ class ReleasePackagingTest extends TestCase {
 		$this->assertContains( 'tests/', $rules['forbidden_prefixes'] );
 		$this->assertContains( 'vendor/', $rules['forbidden_prefixes'] );
 		$this->assertContains( 'includes/scanners/.gitkeep', $rules['forbidden_files'] );
+		$builder = file_get_contents( MOLTEX_PLUGIN_DIR . '/tools/build-release.ps1' );
+		$this->assertStringContainsString( 'normalizedTimestamp', $builder );
 	}
 }
