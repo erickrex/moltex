@@ -4,9 +4,9 @@
 
 **Fixture:** Lakeside Commons, disposable WordPress 7.0.1 / PHP 8.2 / MariaDB 10.11.8
 
-**Bundle ID:** `sha256:a35d08da99edff0491a531ff55202bf3cf246aa25a661ad0e3b02a6338fea98a`
+**Bundle ID:** `sha256:1700381e5023e1ee456439f62ba00e17bd5af18917169c76679fd17fe5aba03f`
 
-**ZIP SHA-256:** `430e581f40cff6560b98970d19d4cd92a7a328dd607f94c2a3fe49385d2eefdd`
+**ZIP SHA-256:** `12929f58f44ce82d2f22de84bd05ce4bd24dc7a5d4160d4ff6e3fa0224253478`
 
 The fixture was created on a fresh named volume, exported in complete mode with private
 content disabled, downloaded through the signed endpoint, and validated outside the
@@ -29,4 +29,4 @@ non-empty alternative text.
 
 Signed-off-by: Codex (E3 implementation review), 2026-07-16
 
-Attested archive: `430e581f40cff6560b98970d19d4cd92a7a328dd607f94c2a3fe49385d2eefdd`
+Attested archive: `12929f58f44ce82d2f22de84bd05ce4bd24dc7a5d4160d4ff6e3fa0224253478`

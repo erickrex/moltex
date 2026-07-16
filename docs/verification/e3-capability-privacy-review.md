@@ -25,4 +25,8 @@ runtime dependency.
   500 px width is intentional because Chromium headless enforces that minimum CSS layout
   width; the workflow does not mislabel a cropped 390 px image as a responsive capture.
 
+The promoted 1.2.0 replacement was captured with Google Chrome 149.0.7827.156. Its
+desktop hash remained stable; the changed mobile hash was reviewed against the visible
+responsive layout before promotion.
+
 Review outcome: accepted for the public E3 Golden Path fixture.

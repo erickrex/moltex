@@ -1,8 +1,8 @@
 {
-    "archive_sha256": "430e581f40cff6560b98970d19d4cd92a7a328dd607f94c2a3fe49385d2eefdd",
-    "bundle_id": "sha256:a35d08da99edff0491a531ff55202bf3cf246aa25a661ad0e3b02a6338fea98a",
+    "archive_sha256": "12929f58f44ce82d2f22de84bd05ce4bd24dc7a5d4160d4ff6e3fa0224253478",
+    "bundle_id": "sha256:1700381e5023e1ee456439f62ba00e17bd5af18917169c76679fd17fe5aba03f",
     "contract": "moltex-export/1",
-    "exporter_version": "1.1.0",
+    "exporter_version": "1.2.0",
     "manifest_version": 1,
     "schema_versions": {
         "content_item": 1,
@@ -47,7 +47,7 @@
             "artifact": "screenshots/mobile-500x844-home.png",
             "route": "/",
             "viewport": "mobile-500x844",
-            "sha256": "47f488dade4e17a8b660d3b74223d7edaa30e4cfd2666f9434f125dce52bdee4"
+            "sha256": "6e0f1152ae5a9919a9e93d08b05d733c14a4a5418dfc155d1f9629a53758a1d1"
         }
     ],
     "seo_canonical_urls": [

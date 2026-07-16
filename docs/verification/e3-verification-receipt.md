@@ -11,11 +11,11 @@
 ## Frozen evidence
 
 - Real disposable WordPress export: `samples/golden-export.zip`
-- Bundle ID: `sha256:a35d08da99edff0491a531ff55202bf3cf246aa25a661ad0e3b02a6338fea98a`
-- ZIP SHA-256: `430e581f40cff6560b98970d19d4cd92a7a328dd607f94c2a3fe49385d2eefdd`
+- Bundle ID: `sha256:1700381e5023e1ee456439f62ba00e17bd5af18917169c76679fd17fe5aba03f`
+- ZIP SHA-256: `12929f58f44ce82d2f22de84bd05ce4bd24dc7a5d4160d4ff6e3fa0224253478`
 - Standalone report: `samples/golden-export.validation.json`
 - Reviewed expectations: `samples/golden-export.expected.json`
-- Pinned versions: exporter `1.1.0`, manifest `1`, artifact schemas `1` / `1.0.0` as
+- Pinned versions: exporter `1.2.0`, manifest `1`, artifact schemas `1` / `1.0.0` as
   enumerated in the reviewed expectations; every schema file is checksummed in `bundle.json`
 
 ## Executable evidence
@@ -35,8 +35,8 @@ validator, reconciled source/report/archive counts, and removed all disposable s
 | Scanner execution | PASS — 0 errors; 2 classified optional-file warnings |
 | Privacy canaries | PASS — no private content or sensitive marker exported |
 | Capability review | PASS — `embed:youtube` recorded once with explicit disposition |
-| Visual review | PASS — desktop and responsive mobile evidence accepted |
-| PHPUnit | PASS — 99 tests, 1,614 assertions, 0 errors/failures/risky tests |
+| Visual review | PASS — Chrome 149 desktop and responsive mobile evidence accepted |
+| PHPUnit | PASS — cumulative suite green after 1.2.0 promotion |
 | PHP syntax and standalone regressions | PASS |
 | Retained complete/discovery smoke | PASS — both ZIPs valid; eligibility classified correctly |
 | Disposable cleanup | PASS — containers, network, and named volumes removed |

@@ -1,9 +1,14 @@
 ﻿{
-    "generated_at":  "2026-07-16T21:41:40.9249585Z",
+    "generated_at":  "2026-07-16T23:04:10.2523570Z",
     "source":  {
                    "wordpress":  "7.0.1",
                    "php":  "8.2",
                    "database":  "MariaDB 10.11.8",
+                   "browser":  {
+                                   "name":  "Google Chrome",
+                                   "version":  "149.0.7827.156",
+                                   "engine":  "Chromium"
+                               },
                    "site_origin":  "http://localhost:8094",
                    "public_content":  8,
                    "referenced_media":  2,
@@ -15,8 +20,8 @@
                     "screenshots":  2,
                     "html_snapshots":  8
                 },
-    "bundle_id":  "sha256:a35d08da99edff0491a531ff55202bf3cf246aa25a661ad0e3b02a6338fea98a",
-    "bundle_sha256":  "430e581f40cff6560b98970d19d4cd92a7a328dd607f94c2a3fe49385d2eefdd",
+    "bundle_id":  "sha256:1700381e5023e1ee456439f62ba00e17bd5af18917169c76679fd17fe5aba03f",
+    "bundle_sha256":  "12929f58f44ce82d2f22de84bd05ce4bd24dc7a5d4160d4ff6e3fa0224253478",
     "complete":  true,
     "mode":  "complete",
     "privacy":  {
@@ -54,7 +59,7 @@
     "validation":  {
                        "valid":  true,
                        "contract":  "moltex-export/1",
-                       "bundle_id":  "sha256:a35d08da99edff0491a531ff55202bf3cf246aa25a661ad0e3b02a6338fea98a",
+                       "bundle_id":  "sha256:1700381e5023e1ee456439f62ba00e17bd5af18917169c76679fd17fe5aba03f",
                        "complete_migration_eligible":  true,
                        "artifact_count":  401,
                        "errors":  [
