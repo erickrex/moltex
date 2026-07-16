@@ -41,11 +41,24 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $zipPath)) { throw 'git
 $rules = ($rulesSource -join "`n") | ConvertFrom-Json
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-$archive = [IO.Compression.ZipFile]::Open($zipPath, [IO.Compression.ZipArchiveMode]::Update)
+$normalizedPath = "$zipPath.normalized"
+if (Test-Path -LiteralPath $normalizedPath) { Remove-Item -LiteralPath $normalizedPath -Force }
+$sourceArchive = [IO.Compression.ZipFile]::OpenRead($zipPath)
+$normalizedArchive = [IO.Compression.ZipFile]::Open($normalizedPath, [IO.Compression.ZipArchiveMode]::Create)
 try {
     $normalizedTimestamp = [DateTimeOffset]::new(2000, 1, 1, 0, 0, 0, [TimeSpan]::Zero)
-    foreach ($entry in $archive.Entries) { $entry.LastWriteTime = $normalizedTimestamp }
-} finally { $archive.Dispose() }
+    foreach ($entry in @($sourceArchive.Entries | Where-Object { $_.FullName -notmatch '/$' } | Sort-Object FullName)) {
+        $normalizedEntry = $normalizedArchive.CreateEntry($entry.FullName, [IO.Compression.CompressionLevel]::Optimal)
+        $normalizedEntry.LastWriteTime = $normalizedTimestamp
+        $sourceStream = $entry.Open()
+        $targetStream = $normalizedEntry.Open()
+        try { $sourceStream.CopyTo($targetStream) } finally { $targetStream.Dispose(); $sourceStream.Dispose() }
+    }
+} finally {
+    $normalizedArchive.Dispose()
+    $sourceArchive.Dispose()
+}
+Move-Item -LiteralPath $normalizedPath -Destination $zipPath -Force
 
 $archive = [IO.Compression.ZipFile]::OpenRead($zipPath)
 try {
