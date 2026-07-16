@@ -588,6 +588,13 @@ class Moltex_Exporter_Exporter {
 		if ( isset( $this->results['media']['media_map'] ) && is_array( $this->results['media']['media_map'] ) ) {
 			$this->write_json_file( 'media/media_map.json', $this->results['media']['media_map'] );
 		}
+
+		if ( ! empty( $this->results['media']['reference_screenshots'] ) && is_array( $this->results['media']['reference_screenshots'] ) ) {
+			$this->write_json_file(
+				'screenshots/manifest.json',
+				array( 'screenshots' => $this->results['media']['reference_screenshots'] )
+			);
+		}
 	}
 
 	/**

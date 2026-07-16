@@ -1,0 +1,69 @@
+﻿{
+    "generated_at":  "2026-07-16T21:41:40.9249585Z",
+    "source":  {
+                   "wordpress":  "7.0.1",
+                   "php":  "8.2",
+                   "database":  "MariaDB 10.11.8",
+                   "site_origin":  "http://localhost:8094",
+                   "public_content":  8,
+                   "referenced_media":  2,
+                   "screenshot_attachments":  2
+               },
+    "archive":  {
+                    "content_json":  8,
+                    "media_files":  2,
+                    "screenshots":  2,
+                    "html_snapshots":  8
+                },
+    "bundle_id":  "sha256:a35d08da99edff0491a531ff55202bf3cf246aa25a661ad0e3b02a6338fea98a",
+    "bundle_sha256":  "430e581f40cff6560b98970d19d4cd92a7a328dd607f94c2a3fe49385d2eefdd",
+    "complete":  true,
+    "mode":  "complete",
+    "privacy":  {
+                    "excluded_statuses":  [
+                                              "private",
+                                              "draft",
+                                              "pending",
+                                              "future",
+                                              "trash"
+                                          ],
+                    "metadata_policy":  "Moltex_Exporter_Security_Filters",
+                    "private_content_included":  false,
+                    "secret_scan":  "pass"
+                },
+    "counts":  {
+                   "page":  {
+                                "complete":  true,
+                                "discovered":  5,
+                                "excluded":  0,
+                                "exported":  5,
+                                "failed":  0
+                            },
+                   "post":  {
+                                "complete":  true,
+                                "discovered":  3,
+                                "excluded":  0,
+                                "exported":  3,
+                                "failed":  0
+                            }
+               },
+    "seo_pages":  8,
+    "integration_ids":  [
+                            "embed:youtube"
+                        ],
+    "validation":  {
+                       "valid":  true,
+                       "contract":  "moltex-export/1",
+                       "bundle_id":  "sha256:a35d08da99edff0491a531ff55202bf3cf246aa25a661ad0e3b02a6338fea98a",
+                       "complete_migration_eligible":  true,
+                       "artifact_count":  401,
+                       "errors":  [
+
+                                  ],
+                       "warnings":  [
+
+                                    ]
+                   },
+    "scanner_errors":  0,
+    "scanner_warnings":  2
+}

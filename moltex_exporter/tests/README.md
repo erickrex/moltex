@@ -1,6 +1,6 @@
 # Moltex Exporter Tests
 
-This directory contains three distinct evidence layers. Do not treat documentation as proof
+This directory contains distinct executable evidence layers. Do not treat documentation as proof
 that a scenario executes.
 
 ## Prerequisites
@@ -50,6 +50,21 @@ The smoke runs the standalone validator against both downloaded ZIPs. A clean co
 bundle is complete-migration eligible; discovery remains valid evidence but is not eligible.
 The synthetic sample is regenerated only by the explicit maintainer script
 `tests/build-contract-sample.php`; tests never regenerate their expected fixture.
+
+## Required E3 commands
+
+E3 adds a real, sanitized WordPress Golden Path candidate workflow:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File moltex_exporter/tests/wordpress/run-golden-path.ps1
+php moltex_exporter/tools/validate-bundle.php samples/golden-export.zip
+php moltex_exporter/vendor/phpunit/phpunit/phpunit -c moltex_exporter/phpunit.xml.dist
+```
+
+The workflow always writes to ignored `tests/wordpress/golden-output/` and never promotes
+the candidate. Replacement requires the reviewed procedure in
+`docs/verification/e3-replacement-procedure.md`. `GoldenExportTest.php` validates the frozen
+archive and static oracle without rebuilding either one.
 
 ## Standalone regressions
 

@@ -74,11 +74,108 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 		// Generate media map
 		$this->generate_media_map();
 
+		// Copy explicitly reviewed source screenshots registered as attachments.
+		$reference_screenshots = $this->copy_reference_screenshots();
+
 		// Return media data
 		return array(
-			'media_map' => $this->media_map,
-			'total_files' => count( $this->referenced_media ),
+			'media_map'             => $this->media_map,
+			'total_files'           => count( $this->referenced_media ),
+			'reference_screenshots' => $reference_screenshots,
 		);
+	}
+
+	/**
+	 * Copy reviewed screenshot attachments into bounded visual evidence paths.
+	 *
+	 * The option is intentionally explicit: ordinary media attachments are never treated as
+	 * screenshots. Each entry declares attachment_id, route, viewport, and label.
+	 *
+	 * @return array Screenshot manifest entries.
+	 */
+	private function copy_reference_screenshots() {
+		$references = get_option( 'moltex_reference_screenshots', array() );
+		if ( empty( $this->export_dir ) || ! is_array( $references ) || empty( $references ) ) {
+			return array();
+		}
+
+		$uploads = wp_upload_dir();
+		$uploads_root = ! empty( $uploads['basedir'] ) ? realpath( $uploads['basedir'] ) : false;
+		if ( false === $uploads_root ) {
+			$this->log_warning( 'media', 'Reference screenshots were configured but the uploads directory is unavailable.' );
+			return array();
+		}
+
+		$screenshots_dir = trailingslashit( $this->export_dir ) . 'screenshots';
+		if ( ! file_exists( $screenshots_dir ) && ! wp_mkdir_p( $screenshots_dir ) ) {
+			$this->log_error( 'media', 'Failed to create the reference screenshots directory.' );
+			return array();
+		}
+
+		$manifest = array();
+		$seen = array();
+		$uploads_prefix = trailingslashit( str_replace( '\\', '/', $uploads_root ) );
+
+		foreach ( $references as $reference ) {
+			if ( ! is_array( $reference ) || empty( $reference['attachment_id'] ) || empty( $reference['route'] ) || empty( $reference['viewport'] ) ) {
+				$this->log_warning( 'media', 'Skipped an incomplete reference screenshot declaration.' );
+				continue;
+			}
+
+			$attachment_id = absint( $reference['attachment_id'] );
+			$source = get_attached_file( $attachment_id );
+			$source_real = $source ? realpath( $source ) : false;
+			$source_normalized = false !== $source_real ? str_replace( '\\', '/', $source_real ) : '';
+			if ( false === $source_real || 0 !== strpos( $source_normalized, $uploads_prefix ) ) {
+				$this->log_warning( 'media', sprintf( 'Reference screenshot attachment %d is unavailable or outside uploads.', $attachment_id ) );
+				continue;
+			}
+
+			$extension = strtolower( pathinfo( $source_real, PATHINFO_EXTENSION ) );
+			$bytes = filesize( $source_real );
+			$image = @getimagesize( $source_real );
+			if ( 'png' !== $extension || false === $image || 'image/png' !== $image['mime'] ) {
+				$this->log_warning( 'media', sprintf( 'Reference screenshot attachment %d must contain a valid PNG.', $attachment_id ) );
+				continue;
+			}
+			if ( false === $bytes || $bytes > 10485760 ) {
+				$this->log_warning( 'media', sprintf( 'Reference screenshot attachment %d exceeds the 10 MB evidence limit.', $attachment_id ) );
+				continue;
+			}
+
+			$route = trim( (string) $reference['route'] );
+			$viewport = sanitize_file_name( (string) $reference['viewport'] );
+			$label = ! empty( $reference['label'] ) ? sanitize_file_name( (string) $reference['label'] ) : 'page';
+			if ( empty( $viewport ) || 1 !== preg_match( '#^/(?!/)[^\x00-\x1F\x7F]*$#', $route ) ) {
+				$this->log_warning( 'media', sprintf( 'Reference screenshot attachment %d has an invalid route or viewport.', $attachment_id ) );
+				continue;
+			}
+			if ( empty( $label ) ) {
+				$label = 'page';
+			}
+			$artifact = 'screenshots/' . $viewport . '-' . $label . '.png';
+			if ( isset( $seen[ strtolower( $artifact ) ] ) ) {
+				$this->log_warning( 'media', 'Skipped duplicate reference screenshot path: ' . $artifact );
+				continue;
+			}
+
+			$destination = trailingslashit( $this->export_dir ) . $artifact;
+			if ( ! copy( $source_real, $destination ) ) {
+				$this->log_error( 'media', 'Failed to copy reference screenshot: ' . $artifact );
+				continue;
+			}
+			$seen[ strtolower( $artifact ) ] = true;
+			$manifest[] = array(
+				'attachment_id' => $attachment_id,
+				'route'         => $route,
+				'viewport'      => $viewport,
+				'artifact'      => $artifact,
+				'bytes'         => filesize( $destination ),
+				'sha256'        => hash_file( 'sha256', $destination ),
+			);
+		}
+
+		return $manifest;
 	}
 
 	/**

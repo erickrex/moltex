@@ -61,6 +61,8 @@ class Moltex_Exporter_Artifact_Registry {
 			$this->definition( 'integration_manifest.json', 'json', 'integration_manifest', true, 'schemas/integration-manifest.schema.json', 'sensitive-filtered capability evidence' ),
 			$this->pattern_definition( 'content/*/*.json', 'json', 'content', true, 'schemas/content-item.schema.json', 'public content with filtered metadata', self::DEFAULT_MAX_BYTES ),
 			$this->pattern_definition( 'snapshots/*.html', 'html', 'content', false, null, 'sanitized public HTML', 5242880, false ),
+			$this->definition( 'screenshots/manifest.json', 'json', 'media', false, 'schemas/generic-object.schema.json', 'reviewed public visual evidence' ),
+			$this->pattern_definition( 'screenshots/*.png', 'image', 'media', false, null, 'reviewed public visual evidence', 10485760, false ),
 			$this->pattern_definition( 'media/*', 'binary', 'media', false, null, 'public media', 52428800, false ),
 			$this->pattern_definition( 'theme/*', 'evidence', 'theme', false, null, 'presentation evidence', 52428800, false ),
 			$this->pattern_definition( 'assets/*', 'evidence', 'assets', false, null, 'public assets', 52428800, false ),

@@ -1,0 +1,74 @@
+{
+    "archive_sha256": "430e581f40cff6560b98970d19d4cd92a7a328dd607f94c2a3fe49385d2eefdd",
+    "bundle_id": "sha256:a35d08da99edff0491a531ff55202bf3cf246aa25a661ad0e3b02a6338fea98a",
+    "contract": "moltex-export/1",
+    "exporter_version": "1.1.0",
+    "manifest_version": 1,
+    "schema_versions": {
+        "content_item": 1,
+        "export_completeness": 1,
+        "menus": 1,
+        "screenshots": 1,
+        "seo": "1.0.0",
+        "integrations": "1.0.0"
+    },
+    "counts": {
+        "content": 8,
+        "pages": 5,
+        "posts": 3,
+        "media": 2,
+        "screenshots": 2,
+        "snapshots": 8,
+        "seo_pages": 8
+    },
+    "content_paths": [
+        "content/page/about.json",
+        "content/page/contact.json",
+        "content/page/home.json",
+        "content/page/stories.json",
+        "content/page/visit.json",
+        "content/post/autumn-workshops.json",
+        "content/post/shoreline-notes.json",
+        "content/post/volunteer-table.json"
+    ],
+    "content_ids": [101, 102, 103, 201, 202, 203, 204, 205],
+    "media_paths": [
+        "media/2026/07/community-workshop.png",
+        "media/2026/07/lakeside-pavilion.png"
+    ],
+    "screenshots": [
+        {
+            "artifact": "screenshots/desktop-1440x1200-home.png",
+            "route": "/",
+            "viewport": "desktop-1440x1200",
+            "sha256": "45ae605b2a8f82fffa0befd5de7c09bc81d44e1a02880703314cfb1d6b7953e7"
+        },
+        {
+            "artifact": "screenshots/mobile-500x844-home.png",
+            "route": "/",
+            "viewport": "mobile-500x844",
+            "sha256": "47f488dade4e17a8b660d3b74223d7edaa30e4cfd2666f9434f125dce52bdee4"
+        }
+    ],
+    "seo_canonical_urls": [
+        "/",
+        "/about/",
+        "/autumn-workshops/",
+        "/contact/",
+        "/shoreline-notes/",
+        "/stories/",
+        "/visit/",
+        "/volunteer-table/"
+    ],
+    "integration_ids": ["embed:youtube"],
+    "menu": {
+        "slug": "primary-navigation",
+        "items": 8,
+        "nested_object_ids": ["101", "102", "103"]
+    },
+    "private_markers": [
+        "PRIVATE-GOLDEN-CONTENT-MUST-NOT-EXPORT",
+        "GOLDEN-SECRET-MUST-NOT-EXPORT",
+        "GOLDEN-OPTION-SECRET-MUST-NOT-EXPORT"
+    ]
+}

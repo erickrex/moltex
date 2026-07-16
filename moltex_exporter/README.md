@@ -52,5 +52,6 @@ instead of absolute server paths. Manual review remains mandatory before sharing
 ## Tests
 
 The repository contains PHPUnit tests, standalone regressions, an immutable synthetic
-contract ZIP, and a disposable WordPress smoke fixture under `tests/`. See
+contract ZIP, the reviewed real WordPress Golden Export, and disposable WordPress fixtures
+under `tests/`. See
 `tests/README.md` for the exact commands and current classified coverage.

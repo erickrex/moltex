@@ -68,7 +68,7 @@ class Mock_WPDB {
 $wpdb = new Mock_WPDB();
 
 // Mock data storage
-global $mock_options, $mock_posts, $mock_postmeta, $mock_terms, $mock_termmeta, $mock_plugins, $mock_themes;
+global $mock_options, $mock_posts, $mock_postmeta, $mock_terms, $mock_termmeta, $mock_plugins, $mock_themes, $mock_upload_dir, $mock_attached_files;
 $mock_options = array();
 $mock_posts = array();
 $mock_postmeta = array();
@@ -76,6 +76,8 @@ $mock_terms = array();
 $mock_termmeta = array();
 $mock_plugins = array();
 $mock_themes = array();
+$mock_upload_dir = null;
+$mock_attached_files = array();
 
 global $mock_filters;
 $mock_filters = array();
@@ -381,6 +383,10 @@ function wp_get_theme() {
  * Mock wp_upload_dir()
  */
 function wp_upload_dir() {
+	global $mock_upload_dir;
+	if ( is_array( $mock_upload_dir ) ) {
+		return $mock_upload_dir;
+	}
 	return array(
 		'path' => '/var/www/html/wp-content/uploads/2024/01',
 		'url' => 'https://example.com/wp-content/uploads/2024/01',
@@ -389,6 +395,14 @@ function wp_upload_dir() {
 		'baseurl' => 'https://example.com/wp-content/uploads',
 		'error' => false,
 	);
+}
+
+/**
+ * Mock get_attached_file().
+ */
+function get_attached_file( $attachment_id ) {
+	global $mock_attached_files;
+	return isset( $mock_attached_files[ $attachment_id ] ) ? $mock_attached_files[ $attachment_id ] : false;
 }
 
 /**
