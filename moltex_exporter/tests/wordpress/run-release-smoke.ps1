@@ -91,7 +91,7 @@ function Invoke-ReleaseExport {
     if (-not $saved.success) { throw "Could not save $Mode settings." }
     $scan = Invoke-CurlPost -Uri "$BaseUrl/wp-admin/admin-ajax.php" -Session $Session -Body @{ action='moltex_start_scan'; nonce=$nonce } | ConvertFrom-Json
     if (-not $scan.success) { throw "$Mode export failed: $($scan.data.message)" }
-    $downloadUrl = [string]$scan.data.download_url
+    $downloadUrl = [string]($scan.data.download_url)
     if (-not $downloadUrl) { throw "$Mode export returned no signed download URL." }
     $zip = Join-Path $outputDir "$Name-$Mode.zip"
     & curl.exe -fsSL -b $Session $downloadUrl -o $zip
