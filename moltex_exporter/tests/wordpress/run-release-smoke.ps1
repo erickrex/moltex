@@ -18,9 +18,9 @@ function Invoke-Compose {
 
 function Get-ImageDigest {
     param([string]$Image)
-    $digests = & docker image inspect --format '{{join .RepoDigests ","}}' $Image
+    $metadata = (& docker image inspect $Image | ConvertFrom-Json)
     if ($LASTEXITCODE -ne 0) { throw "Could not inspect Docker image: $Image" }
-    return ($digests -join '').Trim()
+    return (@($metadata[0].RepoDigests) -join ',')
 }
 
 function Read-ZipJson {
@@ -60,7 +60,7 @@ function Install-ReleaseUpload {
     if (-not $nonce) { throw 'Could not locate the plugin upload nonce.' }
     $response = & curl.exe -fsS -b $Session -c $Session -F "_wpnonce=$nonce" -F '_wp_http_referer=/wp-admin/plugin-install.php?tab=upload' -F "pluginzip=@$releasePath;type=application/zip" -F 'install-plugin-submit=Install Now' "$BaseUrl/wp-admin/update.php?action=upload-plugin"
     if ($LASTEXITCODE -ne 0 -or ($response -join "`n") -notmatch 'Plugin installed successfully') { throw 'WordPress did not install the uploaded release ZIP.' }
-    Invoke-Compose run --rm cli wp plugin activate moltex-exporter
+    Invoke-Compose run --rm cli wp plugin activate moltex-exporter | Out-Host
 }
 
 function Get-ExporterNonce {
@@ -74,10 +74,10 @@ function Get-ExporterNonce {
 
 function Invoke-CurlPost {
     param([string]$Uri, [hashtable]$Body, [string]$Session)
-    $arguments = @('-fsS', '-b', $Session, '-c', $Session)
-    foreach ($item in $Body.GetEnumerator()) { $arguments += '--data-urlencode'; $arguments += "$($item.Key)=$($item.Value)" }
-    $arguments += $Uri
-    $content = & curl.exe @arguments
+    $encoded = @($Body.GetEnumerator() | ForEach-Object {
+        [Uri]::EscapeDataString([string]$_.Key) + '=' + [Uri]::EscapeDataString([string]$_.Value)
+    }) -join '&'
+    $content = & curl.exe -sS -b $Session -c $Session --data-raw $encoded $Uri
     if ($LASTEXITCODE -ne 0) { throw "HTTP POST failed: $Uri" }
     return ($content -join "`n")
 }
@@ -108,7 +108,7 @@ function Invoke-ReleaseExport {
         bundle_id=$validation.bundle_id
         eligible=[bool]$validation.complete_migration_eligible
         artifacts=[int]$validation.artifact_count
-        counts=$completeness.counts
+        counts=$completeness.post_types
     }
 }
 
@@ -126,19 +126,22 @@ function Register-ReleaseScreenshots {
 }
 
 function Invoke-MatrixCase {
-    param([string]$Name, [string]$WordPressImage, [string]$CliImage, [int]$Port, [switch]$Discovery)
+    param([string]$Name, [string]$WordPressImage, [string]$CliImage, [int]$Port, [string]$CoreVersion, [switch]$Discovery)
     $env:COMPOSE_PROJECT_NAME = "moltex-release-$Name"
     $env:MOLTEX_WP_IMAGE = $WordPressImage
     $env:MOLTEX_CLI_IMAGE = $CliImage
     $env:MOLTEX_SMOKE_PORT = [string]$Port
     $env:MOLTEX_SMOKE_URL = "http://localhost:$Port"
     try {
-        Invoke-Compose up -d --wait db wordpress
+        Invoke-Compose up -d --wait db wordpress | Out-Host
         Wait-ForWordPress -BaseUrl $env:MOLTEX_SMOKE_URL
-        Invoke-Compose run --rm cli wp core install --url=$env:MOLTEX_SMOKE_URL --title="Moltex Release $Name" --admin_user=moltex-admin --admin_password=moltex-fixture-password --admin_email=admin@example.invalid --skip-email
+        if ($CoreVersion) {
+            Invoke-Compose run --rm cli wp core download --version=$CoreVersion --force | Out-Host
+        }
+        Invoke-Compose run --rm cli wp core install --url=$env:MOLTEX_SMOKE_URL --title="Moltex Release $Name" --admin_user=moltex-admin --admin_password=moltex-fixture-password --admin_email=admin@example.invalid --skip-email | Out-Host
         $session = New-AdminSession -BaseUrl $env:MOLTEX_SMOKE_URL -Name $Name
         Install-ReleaseUpload -BaseUrl $env:MOLTEX_SMOKE_URL -Session $session
-        Invoke-Compose run --rm --entrypoint sh cli /fixtures/tests/setup-fixture.sh
+        Invoke-Compose run --rm --entrypoint sh cli /fixtures/tests/setup-fixture.sh | Out-Host
         if ($Discovery) { Register-ReleaseScreenshots -BaseUrl $env:MOLTEX_SMOKE_URL -Session $session }
         $complete = Invoke-ReleaseExport -BaseUrl $env:MOLTEX_SMOKE_URL -Session $session -Mode complete -Name $Name
         $discoveryResult = $null
@@ -157,13 +160,13 @@ function Invoke-MatrixCase {
             discovery=$discoveryResult
         }
     } finally {
-        if (-not $KeepEnvironment) { Invoke-Compose down --volumes --remove-orphans }
+        if (-not $KeepEnvironment) { Invoke-Compose down --volumes --remove-orphans | Out-Host }
     }
 }
 
 if (Test-Path -LiteralPath $outputDir) { Remove-Item -LiteralPath $outputDir -Recurse -Force }
 New-Item -ItemType Directory -Path $outputDir | Out-Null
-$minimum = Invoke-MatrixCase -Name minimum -WordPressImage 'wordpress:5.9-php7.4-apache' -CliImage 'wordpress:cli-php7.4' -Port 8091
+$minimum = Invoke-MatrixCase -Name minimum -WordPressImage 'wordpress:5.9-php7.4-apache' -CliImage 'wordpress:cli-php7.4' -Port 8091 -CoreVersion '5.9.10'
 $reference = Invoke-MatrixCase -Name reference -WordPressImage 'wordpress:7.0.1-php8.2-apache' -CliImage 'wordpress:cli-2.10.0-php8.2' -Port 8092 -Discovery
 $report = [ordered]@{ generated_at=(Get-Date).ToUniversalTime().ToString('o'); release_sha256=(Get-FileHash $releasePath -Algorithm SHA256).Hash.ToLowerInvariant(); minimum=$minimum; reference=$reference }
 $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $outputDir 'release-smoke-report.json') -Encoding UTF8
