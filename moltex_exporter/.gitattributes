@@ -3,6 +3,8 @@
 /composer.lock export-ignore
 /example-export-sample.json export-ignore
 /GEODIRECTORY-EXPORT-EXAMPLE.json export-ignore
+/includes/scanners/.gitkeep export-ignore
+/includes/scanners/README.md export-ignore
 /phpunit.xml.dist export-ignore
 /release-files.json export-ignore
 /tests export-ignore

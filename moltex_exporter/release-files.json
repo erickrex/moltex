@@ -14,6 +14,22 @@
     "schemas/",
     "templates/"
   ],
+  "forbidden_files": [
+    ".gitattributes",
+    "composer.json",
+    "composer.lock",
+    "example-export-sample.json",
+    "GEODIRECTORY-EXPORT-EXAMPLE.json",
+    "includes/scanners/.gitkeep",
+    "includes/scanners/README.md",
+    "phpunit.xml.dist",
+    "release-files.json",
+    "tools/build-release.ps1"
+  ],
+  "forbidden_prefixes": [
+    "tests/",
+    "vendor/"
+  ],
   "required_files": [
     "moltex_exporter.php",
     "includes/class-admin-page.php",

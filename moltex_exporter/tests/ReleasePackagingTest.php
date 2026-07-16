@@ -29,8 +29,12 @@ class ReleasePackagingTest extends TestCase {
 		}
 
 		$attributes = file_get_contents( MOLTEX_PLUGIN_DIR . '/.gitattributes' );
-		foreach ( array( '/tests export-ignore', '/vendor export-ignore', '/composer.json export-ignore', '/composer.lock export-ignore', '/tools/build-release.ps1 export-ignore', '/release-files.json export-ignore' ) as $rule ) {
+		foreach ( array( '/tests export-ignore', '/vendor export-ignore', '/composer.json export-ignore', '/composer.lock export-ignore', '/includes/scanners/.gitkeep export-ignore', '/includes/scanners/README.md export-ignore', '/tools/build-release.ps1 export-ignore', '/release-files.json export-ignore' ) as $rule ) {
 			$this->assertStringContainsString( $rule, $attributes );
 		}
+
+		$this->assertContains( 'tests/', $rules['forbidden_prefixes'] );
+		$this->assertContains( 'vendor/', $rules['forbidden_prefixes'] );
+		$this->assertContains( 'includes/scanners/.gitkeep', $rules['forbidden_files'] );
 	}
 }

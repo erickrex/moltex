@@ -49,6 +49,10 @@ $relative = @($entries | ForEach-Object {
     $_.Substring('moltex-exporter/'.Length)
 })
 foreach ($path in $relative) {
+    if ($rules.forbidden_files -contains $path) { throw "Forbidden development file in release ZIP: $path" }
+    foreach ($prefix in $rules.forbidden_prefixes) {
+        if ($path.StartsWith($prefix, [StringComparison]::Ordinal)) { throw "Forbidden development path in release ZIP: $path" }
+    }
     $allowed = $rules.allowed_files -contains $path
     if (-not $allowed) {
         foreach ($prefix in $rules.allowed_prefixes) {
