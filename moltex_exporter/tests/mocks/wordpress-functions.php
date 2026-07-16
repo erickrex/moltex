@@ -235,6 +235,20 @@ function current_user_can( $capability ) {
 }
 
 /**
+ * Mock the WordPress admin screen context used by legacy content filters.
+ */
+function get_current_screen() {
+	global $mock_current_screen;
+	return isset( $mock_current_screen ) ? $mock_current_screen : null;
+}
+
+function set_current_screen( $screen = '' ) {
+	global $mock_current_screen;
+	$mock_current_screen = (object) array( 'id' => $screen );
+	return $mock_current_screen;
+}
+
+/**
  * Mock get_post_types()
  */
 function get_post_types( $args = array(), $output = 'names' ) {

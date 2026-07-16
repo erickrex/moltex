@@ -71,4 +71,15 @@ class PreflightTest extends TestCase {
 		$this->assertSame( array( 'WooCommerce is outside the initial static migration profile.' ), $result['warnings'] );
 		$mock_options = array();
 	}
+
+	public function test_ajax_scan_prepares_admin_screen_for_wordpress_59_filters() {
+		global $mock_current_screen;
+		$mock_current_screen = null;
+		$method = new ReflectionMethod( Moltex_Exporter_Admin_Page::class, 'prepare_ajax_admin_screen' );
+		$method->setAccessible( true );
+		$method->invoke( new Moltex_Exporter_Admin_Page() );
+
+		$this->assertSame( 'toplevel_page_moltex-exporter', $mock_current_screen->id );
+		$mock_current_screen = null;
+	}
 }

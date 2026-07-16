@@ -274,6 +274,19 @@ class Moltex_Exporter_Admin_Page {
 	}
 
 	/**
+	 * Provide the admin screen context expected by older WordPress content filters.
+	 *
+	 * WordPress 5.9 can dereference get_current_screen() while applying block-related
+	 * filters during admin AJAX. Normal admin pages set this context automatically;
+	 * admin-ajax.php does not.
+	 */
+	private function prepare_ajax_admin_screen() {
+		if ( function_exists( 'get_current_screen' ) && function_exists( 'set_current_screen' ) && null === get_current_screen() ) {
+			set_current_screen( 'toplevel_page_moltex-exporter' );
+		}
+	}
+
+	/**
 	 * Handle AJAX request to start scan.
 	 */
 	public function handle_ajax_start_scan() {
@@ -295,6 +308,7 @@ class Moltex_Exporter_Admin_Page {
 			error_log( 'Moltex Exporter: Starting AJAX scan request' );
 		}
 
+		$this->prepare_ajax_admin_screen();
 		$this->prepare_long_running_request();
 
 		try {
@@ -376,7 +390,7 @@ class Moltex_Exporter_Admin_Page {
 			ob_end_clean();
 		}
 		
-		if ( $result['success'] ) {
+		if ( $result['success'] && ! empty( $result['results']['download_url'] ) ) {
 			// Get download URL from results
 			$download_url = isset( $result['results']['download_url'] ) ? $result['results']['download_url'] : '';
 			$zip_filename = isset( $result['results']['zip_filename'] ) ? $result['results']['zip_filename'] : '';
@@ -409,7 +423,7 @@ class Moltex_Exporter_Admin_Page {
 			) );
 		} else {
 			// Format error message with helpful context
-			$error_message = isset( $result['error'] ) ? $result['error'] : 'An unknown error occurred.';
+			$error_message = isset( $result['error'] ) ? $result['error'] : 'The export did not produce a validated download.';
 			
 			// Add troubleshooting tips
 			$error_message .= ' ' . 'Please check the WordPress debug log for more details.';
