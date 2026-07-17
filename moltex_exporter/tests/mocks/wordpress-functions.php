@@ -82,6 +82,9 @@ $mock_attached_files = array();
 global $mock_filters;
 $mock_filters = array();
 
+global $mock_removed_menu_pages;
+$mock_removed_menu_pages = array();
+
 /**
  * Mock wp_parse_args().
  */
@@ -109,6 +112,15 @@ function add_filter( $hook_name, $callback, $priority = 10, $accepted_args = 1 )
  */
 function add_action( $hook_name, $callback, $priority = 10, $accepted_args = 1 ) {
 	return add_filter( $hook_name, $callback, $priority, $accepted_args );
+}
+
+/**
+ * Record a removed top-level admin menu page.
+ */
+function remove_menu_page( $menu_slug ) {
+	global $mock_removed_menu_pages;
+	$mock_removed_menu_pages[] = $menu_slug;
+	return true;
 }
 
 /**

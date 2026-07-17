@@ -31,6 +31,7 @@ class Moltex_Exporter_Admin_Page {
 		if ( is_admin() && ! wp_doing_ajax() ) {
 			// Add admin menu
 			add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
+			add_action( 'admin_menu', array( $this, 'remove_legacy_admin_menu' ), PHP_INT_MAX );
 			
 			// Enqueue admin assets
 			add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
@@ -59,6 +60,16 @@ class Moltex_Exporter_Admin_Page {
 			'moltex-exporter',
 			array( $this, 'render_page' )
 		);
+	}
+
+	/**
+	 * Remove the obsolete exporter menu left by the pre-Moltex integration.
+	 *
+	 * The compatibility cleanup is deliberately limited to the known legacy
+	 * page slug so no unrelated WordPress admin menu can be affected.
+	 */
+	public function remove_legacy_admin_menu() {
+		remove_menu_page( 'djamingo-exporter' );
 	}
 
 	/**

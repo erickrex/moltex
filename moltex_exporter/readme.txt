@@ -4,7 +4,7 @@ Tags: migration, export, astro, static-site
 Requires at least: 5.9
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.2.3
+Stable tag: 1.2.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -26,8 +26,8 @@ under uploads and removes them according to the configured retention period.
 3. Open Moltex Exporter in wp-admin and resolve blocking preflight results.
 4. Pilot on a staging clone before production.
 
-If wp-admin also shows a separate AI-branded export menu, deactivate and remove that legacy
-plugin installation. It does not produce the supported moltex-export/1 bundle.
+Moltex suppresses the known obsolete djamingo-exporter admin menu when site-local legacy
+code registers it. Only the moltex-exporter page produces the supported moltex-export/1 bundle.
 
 PHP ZipArchive is required. Complete exports exclude private content by default. Always review an
 export for private material before sharing it.
@@ -45,6 +45,9 @@ No. Transactional, account-heavy, multisite, and unknown custom behavior can pro
 blockers or manual-review items.
 
 == Changelog ==
+
+= 1.2.4 =
+* Removed the obsolete djamingo-exporter admin menu when the supported Moltex Exporter is active.
 
 = 1.2.3 =
 * Added the Export blueprints submenu and explicit Astro rebuild wording.

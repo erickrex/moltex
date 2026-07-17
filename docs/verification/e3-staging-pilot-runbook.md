@@ -1,6 +1,6 @@
 # E3 Staging Pilot Runbook
 
-1. Build `dist/moltex-exporter-1.2.3.zip` from a clean reviewed commit and retain its SHA-256
+1. Build `dist/moltex-exporter-1.2.4.zip` from a clean reviewed commit and retain its SHA-256
    receipt.
 2. Restore a staging clone of the source site. Do not begin on production.
 3. Upload and activate the release ZIP through WordPress, open Moltex Exporter, and resolve
