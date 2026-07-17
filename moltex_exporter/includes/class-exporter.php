@@ -589,12 +589,6 @@ class Moltex_Exporter_Exporter {
 			$this->write_json_file( 'media/media_map.json', $this->results['media']['media_map'] );
 		}
 
-		if ( ! empty( $this->results['media']['reference_screenshots'] ) && is_array( $this->results['media']['reference_screenshots'] ) ) {
-			$this->write_json_file(
-				'screenshots/manifest.json',
-				array( 'screenshots' => $this->results['media']['reference_screenshots'] )
-			);
-		}
 	}
 
 	/**
@@ -777,7 +771,7 @@ class Moltex_Exporter_Exporter {
 
 		return array(
 			'created_at'       => gmdate( 'c' ),
-			'exporter_version' => defined( 'MOLTEX_EXPORTER_VERSION' ) ? MOLTEX_EXPORTER_VERSION : '1.2.1',
+			'exporter_version' => defined( 'MOLTEX_EXPORTER_VERSION' ) ? MOLTEX_EXPORTER_VERSION : '1.2.2',
 			'mode'             => isset( $content['export_mode'] ) && 'discovery' === $content['export_mode'] ? 'discovery' : 'complete',
 			'site_origin'      => isset( $this->results['site']['site']['url'] ) ? $this->results['site']['site']['url'] : '',
 			'complete'     => ! empty( $completeness['complete'] ),

@@ -4,8 +4,6 @@
     "README.md",
     "readme.txt",
     "moltex_exporter.php",
-    "tools/capture-reference-screenshots.ps1",
-    "tools/chromium-capture.ps1",
     "tools/validate-bundle.php"
   ],
   "allowed_prefixes": [
@@ -34,10 +32,8 @@
     "moltex_exporter.php",
     "includes/class-admin-page.php",
     "includes/class-preflight.php",
-    "includes/class-reference-screenshots.php",
     "schemas/moltex-export-1/bundle.schema.json",
     "templates/admin-page.php",
-    "tools/validate-bundle.php",
-    "tools/capture-reference-screenshots.ps1"
+    "tools/validate-bundle.php"
   ]
 }

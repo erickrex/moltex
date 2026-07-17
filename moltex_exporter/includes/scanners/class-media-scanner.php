@@ -13,8 +13,6 @@ if ( ! defined( 'WPINC' ) ) {
 	die;
 }
 
-require_once dirname( __DIR__ ) . '/class-reference-screenshots.php';
-
 /**
  * Media Scanner Class
  */
@@ -76,64 +74,11 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 		// Generate media map
 		$this->generate_media_map();
 
-		// Copy explicitly reviewed source screenshots registered as attachments.
-		$reference_screenshots = $this->copy_reference_screenshots();
-
 		// Return media data
 		return array(
-			'media_map'             => $this->media_map,
-			'total_files'           => count( $this->referenced_media ),
-			'reference_screenshots' => $reference_screenshots,
+			'media_map'   => $this->media_map,
+			'total_files' => count( $this->referenced_media ),
 		);
-	}
-
-	/**
-	 * Copy reviewed screenshot attachments into bounded visual evidence paths.
-	 *
-	 * The option is intentionally explicit: ordinary media attachments are never treated as
-	 * screenshots. Each entry declares attachment_id, route, viewport, and label.
-	 *
-	 * @return array Screenshot manifest entries.
-	 */
-	private function copy_reference_screenshots() {
-		$service = new Moltex_Exporter_Reference_Screenshots();
-		$references = $service->get_references();
-		if ( empty( $this->export_dir ) || empty( $references ) ) {
-			return array();
-		}
-
-		$validation = $service->validate( $references );
-		foreach ( $validation['errors'] as $error ) {
-			$this->log_warning( 'media', $error );
-		}
-		if ( empty( $validation['prepared'] ) ) {
-			return array();
-		}
-
-		$screenshots_dir = trailingslashit( $this->export_dir ) . 'screenshots';
-		if ( ! file_exists( $screenshots_dir ) && ! wp_mkdir_p( $screenshots_dir ) ) {
-			$this->log_error( 'media', 'Failed to create the reference screenshots directory.' );
-			return array();
-		}
-
-		$manifest = array();
-		foreach ( $validation['prepared'] as $prepared ) {
-			$destination = trailingslashit( $this->export_dir ) . $prepared['artifact'];
-			if ( ! copy( $prepared['source'], $destination ) ) {
-				$this->log_error( 'media', 'Failed to copy reference screenshot: ' . $prepared['artifact'] );
-				continue;
-			}
-			$manifest[] = array(
-				'attachment_id' => $prepared['attachment_id'],
-				'route'         => $prepared['route'],
-				'viewport'      => $prepared['viewport'],
-				'artifact'      => $prepared['artifact'],
-				'bytes'         => filesize( $destination ),
-				'sha256'        => hash_file( 'sha256', $destination ),
-			);
-		}
-
-		return $manifest;
 	}
 
 	/**

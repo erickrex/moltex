@@ -8,7 +8,6 @@ and the checked-in receipts.
 - PHP 7.4 for the declared minimum and PHP 8.2 for the reference run
 - Composer 2 with PHP ZipArchive
 - Docker Desktop
-- Google Chrome, Microsoft Edge, or an explicit Chromium `-BrowserPath`
 
 Install locked development dependencies:
 
@@ -45,16 +44,13 @@ stages a candidate under ignored `golden-output/` and never overwrites the revie
 The release smoke uploads and activates the exact development-free release ZIP in fresh
 minimum and reference WordPress environments.
 
-Chrome is auto-detected before Edge. `-BrowserPath C:\path\to\chromium.exe` selects a
-specific installation. Candidate reports record browser name/version; the browser is
-tooling, not part of `moltex-export/1`.
-
 ## Fixture policy
 
 Tests never regenerate their own oracle. The synthetic contract sample changes only through
 its explicit maintainer builder. The real Golden Export changes only through
 [`docs/verification/e3-replacement-procedure.md`](../../docs/verification/e3-replacement-procedure.md)
-after count, visual, capability, privacy, and validator review.
+after count, bounded-HTML, capability, privacy, and validator review. Automated visual
+capture belongs to the H2-to-H3 transition and is not a WordPress release prerequisite.
 
 The old mock `IntegrationTest.php` and direct-browser scanner scripts were removed because
 they did not prove live integration. Real integration belongs to the disposable WordPress

@@ -21,9 +21,8 @@ class MediaScannerTest extends TestCase {
 	protected function setUp(): void {
 		parent::setUp();
 
-		global $mock_posts, $mock_options, $mock_upload_dir, $mock_attached_files;
+		global $mock_posts, $mock_upload_dir, $mock_attached_files;
 		$mock_posts = array();
-		$mock_options['moltex_reference_screenshots'] = array();
 		$mock_upload_dir = null;
 		$mock_attached_files = array();
 		foreach ( array( 100, 200, 300, 400, 401, 402, 500 ) as $attachment_id ) {
@@ -396,28 +395,16 @@ class MediaScannerTest extends TestCase {
 		$this->assertGreaterThan( 0, $result['total_files'] );
 	}
 
-	public function test_reviewed_reference_screenshots_are_copied_with_receipts() {
-		global $mock_options, $mock_upload_dir, $mock_attached_files;
-		$root = $this->create_temp_directory( 'moltex-screenshot' );
-		$uploads = $root . '/uploads';
+	public function test_legacy_screenshot_option_is_not_collected() {
+		global $mock_options;
+		$root = $this->create_temp_directory( 'moltex-no-wordpress-screenshots' );
 		$export = $root . '/export';
-		mkdir( $uploads );
 		mkdir( $export );
-		$source = $uploads . '/home-desktop.png';
-		file_put_contents(
-			$source,
-			base64_decode( 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' )
-		);
-		$mock_upload_dir = array(
-			'basedir' => $uploads,
-			'baseurl' => 'https://example.test/wp-content/uploads',
-		);
-		$mock_attached_files[900] = $source;
 		$mock_options['moltex_reference_screenshots'] = array(
 			array(
 				'attachment_id' => 900,
 				'route'         => '/',
-				'viewport'      => 'desktop',
+				'viewport'      => 'desktop-1440x1200',
 				'label'         => 'home',
 			),
 		);
@@ -431,48 +418,12 @@ class MediaScannerTest extends TestCase {
 			);
 			$result = $scanner->scan();
 
-			$this->assertCount( 1, $result['reference_screenshots'] );
-			$this->assertSame( '/', $result['reference_screenshots'][0]['route'] );
-			$this->assertFileExists( $export . '/screenshots/desktop-home.png' );
-			$this->assertSame( hash_file( 'sha256', $source ), $result['reference_screenshots'][0]['sha256'] );
+			$this->assertArrayNotHasKey( 'reference_screenshots', $result );
+			$this->assertFalse( is_dir( $export . '/screenshots' ) );
 		} finally {
+			unset( $mock_options['moltex_reference_screenshots'] );
 			$this->remove_temp_directory( $root );
 		}
 	}
 
-	public function test_reference_screenshot_rejects_a_renamed_non_png_file() {
-		global $mock_options, $mock_upload_dir, $mock_attached_files;
-		$root = $this->create_temp_directory( 'moltex-invalid-screenshot' );
-		$uploads = $root . '/uploads';
-		$export = $root . '/export';
-		mkdir( $uploads );
-		mkdir( $export );
-		$source = $uploads . '/not-really-an-image.png';
-		file_put_contents( $source, 'untrusted non-image bytes' );
-		$mock_upload_dir = array( 'basedir' => $uploads );
-		$mock_attached_files[901] = $source;
-		$mock_options['moltex_reference_screenshots'] = array(
-			array(
-				'attachment_id' => 901,
-				'route'         => '/',
-				'viewport'      => 'desktop',
-				'label'         => 'home',
-			),
-		);
-
-		try {
-			$scanner = new Moltex_Exporter_Media_Scanner(
-				array(
-					'export_dir' => $export,
-					'context'    => array( 'content' => array() ),
-				)
-			);
-			$result = $scanner->scan();
-
-			$this->assertSame( array(), $result['reference_screenshots'] );
-			$this->assertFileDoesNotExist( $export . '/screenshots/desktop-home.png' );
-		} finally {
-			$this->remove_temp_directory( $root );
-		}
-	}
 }

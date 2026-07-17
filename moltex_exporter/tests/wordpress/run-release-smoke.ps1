@@ -7,8 +7,8 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $scriptDir))
 $composeFile = Join-Path $scriptDir 'docker-compose-release.yml'
 $outputDir = Join-Path $scriptDir 'release-output'
-$releasePath = Join-Path $repoRoot 'dist/moltex-exporter-1.2.1.zip'
-if (-not (Test-Path -LiteralPath $releasePath)) { throw 'Build dist/moltex-exporter-1.2.1.zip before running the release smoke.' }
+$releasePath = Join-Path $repoRoot 'dist/moltex-exporter-1.2.2.zip'
+if (-not (Test-Path -LiteralPath $releasePath)) { throw 'Build dist/moltex-exporter-1.2.2.zip before running the release smoke.' }
 
 function Invoke-Compose {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
@@ -112,19 +112,6 @@ function Invoke-ReleaseExport {
     }
 }
 
-function Register-ReleaseScreenshots {
-    param([string]$BaseUrl, [string]$Session)
-    $desktopId = (Invoke-Compose run --rm cli wp media import /fixtures/tests/fixtures/golden-media/lakeside-pavilion.png --title='Release desktop reference' --porcelain | Select-Object -Last 1).Trim()
-    $mobileId = (Invoke-Compose run --rm cli wp media import /fixtures/tests/fixtures/golden-media/community-workshop.png --title='Release mobile reference' --porcelain | Select-Object -Last 1).Trim()
-    $nonce = Get-ExporterNonce -BaseUrl $BaseUrl -Session $Session
-    $references = @(
-        [ordered]@{ attachment_id=[int]$desktopId; route='/'; viewport='desktop-1440x1200'; label='home' },
-        [ordered]@{ attachment_id=[int]$mobileId; route='/'; viewport='mobile-500x844'; label='home' }
-    ) | ConvertTo-Json -Compress
-    $saved = Invoke-CurlPost -Uri "$BaseUrl/wp-admin/admin-ajax.php" -Session $Session -Body @{ action='moltex_save_reference_screenshots'; nonce=$nonce; references=$references } | ConvertFrom-Json
-    if (-not $saved.success -or @($saved.data.references).Count -ne 2) { throw "Could not register release screenshots: $($saved.data.message)" }
-}
-
 function Invoke-MatrixCase {
     param([string]$Name, [string]$WordPressImage, [string]$CliImage, [int]$Port, [string]$CoreVersion, [switch]$Discovery)
     $env:COMPOSE_PROJECT_NAME = "moltex-release-$Name"
@@ -142,7 +129,6 @@ function Invoke-MatrixCase {
         $session = New-AdminSession -BaseUrl $env:MOLTEX_SMOKE_URL -Name $Name
         Install-ReleaseUpload -BaseUrl $env:MOLTEX_SMOKE_URL -Session $session
         Invoke-Compose run --rm --entrypoint sh cli /fixtures/tests/setup-fixture.sh | Out-Host
-        if ($Discovery) { Register-ReleaseScreenshots -BaseUrl $env:MOLTEX_SMOKE_URL -Session $session }
         $complete = Invoke-ReleaseExport -BaseUrl $env:MOLTEX_SMOKE_URL -Session $session -Mode complete -Name $Name
         $discoveryResult = $null
         if ($Discovery) { $discoveryResult = Invoke-ReleaseExport -BaseUrl $env:MOLTEX_SMOKE_URL -Session $session -Mode discovery -Name $Name }

@@ -9,8 +9,8 @@ the declarative artifact registry before packaging.
 - Scanners extend `Moltex_Exporter_Scanner_Base` and return structured arrays.
 - The content scanner owns eligible-item enumeration, per-item records, bounded rendered
   HTML, and completeness counts.
-- The media scanner copies only referenced public originals and explicitly reviewed
-  screenshot attachments.
+- The media scanner copies only referenced public originals. Source screenshots are not
+  collected by WordPress; the harness captures planned public routes automatically after H2.
 - Migration readiness owns static-site eligibility and known blockers; unknown behavior
   remains a manual-review item.
 - Required JSON is written only by the central validated writer. Scanners must not create

@@ -103,7 +103,6 @@ wp menu item add-post primary-navigation 102 --title="Shoreline notes" --parent-
 wp menu item add-post primary-navigation 103 --title="Community suppers" --parent-id="$stories_item" >/dev/null
 wp menu item add-post primary-navigation 204 --title="Contact" >/dev/null
 
-wp option delete moltex_reference_screenshots >/dev/null 2>&1 || true
 
 printf '{"site_url":"%s","hero_id":%s,"workshop_id":%s,"public_content":8,"referenced_media":2}\n' \
   "$site_url" "$hero_id" "$workshop_id"

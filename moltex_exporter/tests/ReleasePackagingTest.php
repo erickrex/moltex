@@ -14,10 +14,10 @@ class ReleasePackagingTest extends TestCase {
 		$readme = file_get_contents( MOLTEX_PLUGIN_DIR . '/readme.txt' );
 		$exporter = file_get_contents( MOLTEX_PLUGIN_DIR . '/includes/class-exporter.php' );
 
-		$this->assertMatchesRegularExpression( '/^ \* Version:\s+1\.2\.1$/m', $entry );
-		$this->assertStringContainsString( "MOLTEX_EXPORTER_VERSION', '1.2.1'", $entry );
-		$this->assertMatchesRegularExpression( '/^Stable tag:\s+1\.2\.1$/m', $readme );
-		$this->assertMatchesRegularExpression( "/'exporter_version'\s*=>[^\n]+:\s*'1\\.2\\.1'/", $exporter );
+		$this->assertMatchesRegularExpression( '/^ \* Version:\s+1\.2\.2$/m', $entry );
+		$this->assertStringContainsString( "MOLTEX_EXPORTER_VERSION', '1.2.2'", $entry );
+		$this->assertMatchesRegularExpression( '/^Stable tag:\s+1\.2\.2$/m', $readme );
+		$this->assertMatchesRegularExpression( "/'exporter_version'\s*=>[^\n]+:\s*'1\\.2\\.2'/", $exporter );
 	}
 
 	public function test_release_manifest_requires_runtime_and_excludes_development_files() {
@@ -38,5 +38,17 @@ class ReleasePackagingTest extends TestCase {
 		$this->assertContains( 'includes/scanners/.gitkeep', $rules['forbidden_files'] );
 		$builder = file_get_contents( MOLTEX_PLUGIN_DIR . '/tools/build-release.ps1' );
 		$this->assertStringContainsString( 'normalizedTimestamp', $builder );
+	}
+
+	public function test_release_has_no_user_facing_screenshot_workflow() {
+		$admin = file_get_contents( MOLTEX_PLUGIN_DIR . '/includes/class-admin-page.php' );
+		$template = file_get_contents( MOLTEX_PLUGIN_DIR . '/templates/admin-page.php' );
+		$script = file_get_contents( MOLTEX_PLUGIN_DIR . '/assets/js/admin.js' );
+		$preflight = file_get_contents( MOLTEX_PLUGIN_DIR . '/includes/class-preflight.php' );
+
+		$this->assertStringNotContainsString( 'moltex_save_reference_screenshots', $admin . $script );
+		$this->assertStringNotContainsString( 'moltex-screenshot', $template . $script );
+		$this->assertStringNotContainsString( 'Reference Screenshots', $template );
+		$this->assertStringNotContainsString( 'No reviewed desktop/mobile reference screenshots', $preflight );
 	}
 }

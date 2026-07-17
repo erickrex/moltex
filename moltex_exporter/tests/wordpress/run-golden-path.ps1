@@ -1,6 +1,5 @@
 param(
     [int]$Port = 8094,
-    [string]$BrowserPath,
     [switch]$KeepEnvironment
 )
 
@@ -11,7 +10,6 @@ $outputDir = Join-Path $scriptDir 'golden-output'
 $env:MOLTEX_SMOKE_PORT = [string]$Port
 $baseUrl = "http://localhost:$Port"
 $env:MOLTEX_SMOKE_URL = $baseUrl
-. (Join-Path (Split-Path -Parent (Split-Path -Parent $scriptDir)) 'tools/chromium-capture.ps1')
 
 function Invoke-Compose {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
@@ -81,42 +79,6 @@ function Invoke-CurlPost {
     return ($content -join "`n")
 }
 
-function Capture-ReferenceScreenshots {
-    param([object]$Browser)
-
-    $profileRoot = Join-Path $outputDir 'browser-profiles'
-    New-Item -ItemType Directory -Path $profileRoot -Force | Out-Null
-    $captures = @(
-        @{ Name = 'home-desktop.png'; Size = '1440,1200' },
-        # Chromium headless enforces a 500 CSS-pixel minimum layout width. Capture
-        # that honest responsive viewport instead of cropping a nominal 390px shot.
-        @{ Name = 'home-mobile.png'; Size = '500,844' }
-    )
-    foreach ($capture in $captures) {
-        $path = Join-Path $outputDir $capture.Name
-        $profile = Join-Path $profileRoot ([IO.Path]::GetFileNameWithoutExtension($capture.Name))
-        & $Browser.Path --headless --disable-gpu --hide-scrollbars `
-            --run-all-compositor-stages-before-draw --virtual-time-budget=5000 `
-            "--user-data-dir=$profile" "--window-size=$($capture.Size)" `
-            "--screenshot=$path" "$baseUrl/" | Out-Host
-        $deadline = (Get-Date).AddSeconds(15)
-        while ((-not (Test-Path -LiteralPath $path) -or (Get-Item -LiteralPath $path -ErrorAction SilentlyContinue).Length -lt 10000) -and (Get-Date) -lt $deadline) {
-            Start-Sleep -Milliseconds 250
-        }
-        if (-not (Test-Path -LiteralPath $path) -or (Get-Item -LiteralPath $path).Length -lt 10000) {
-			throw "Screenshot capture failed: $($capture.Name)"
-		}
-    }
-    Start-Sleep -Seconds 1
-    Remove-Item -LiteralPath $profileRoot -Recurse -Force -ErrorAction SilentlyContinue
-
-    return [ordered]@{
-        name = $Browser.Name
-        version = $Browser.Version
-        engine = 'Chromium'
-    }
-}
-
 function Get-ZipEntries {
     param([string]$Path)
     Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -161,8 +123,6 @@ function Assert-NoPrivateMarkers {
     }
 }
 
-$screenshotBrowser = Resolve-MoltexChromiumBrowser -BrowserPath $BrowserPath
-
 if (Test-Path -LiteralPath $outputDir) {
     Remove-Item -LiteralPath $outputDir -Recurse -Force
 }
@@ -175,11 +135,6 @@ try {
     $fixtureOutput = Invoke-Compose run --rm --entrypoint sh cli `
         /var/www/html/wp-content/plugins/moltex-exporter/tests/wordpress/setup-golden-fixture.sh
     $fixture = Get-LastJsonObject -Lines $fixtureOutput
-
-    $browser = Capture-ReferenceScreenshots -Browser $screenshotBrowser
-    $screenshotOutput = Invoke-Compose run --rm --entrypoint sh cli `
-        /var/www/html/wp-content/plugins/moltex-exporter/tests/wordpress/register-golden-screenshots.sh
-    $screenshots = Get-LastJsonObject -Lines $screenshotOutput
 
     $session = New-AdminSession
     $nonce = Get-ExporterNonce -Session $session
@@ -216,21 +171,18 @@ try {
     $bundle = Read-ZipJson -Path $candidatePath -EntryName 'bundle.json'
     $completeness = Read-ZipJson -Path $candidatePath -EntryName 'export_completeness.json'
     $mediaMap = @(Read-ZipJson -Path $candidatePath -EntryName 'media/media_map.json')
-    $screenshotManifest = Read-ZipJson -Path $candidatePath -EntryName 'screenshots/manifest.json'
     $seo = Read-ZipJson -Path $candidatePath -EntryName 'seo_full.json'
     $integrations = Read-ZipJson -Path $candidatePath -EntryName 'integration_manifest.json'
 
     $archiveCounts = [ordered]@{
         content_json = @($entries | Where-Object { $_ -match '^content/[^/]+/[^/]+\.json$' }).Count
         media_files = @($entries | Where-Object { $_ -match '^media/.+' -and $_ -notmatch 'media_map\.json$' -and $_ -notmatch '/$' }).Count
-        screenshots = @($entries | Where-Object { $_ -match '^screenshots/.+\.png$' }).Count
         html_snapshots = @($entries | Where-Object { $_ -match '^snapshots/.+\.html$' }).Count
     }
 
     if (-not $validation.valid -or -not $validation.complete_migration_eligible) { throw 'Golden Path bundle is not complete-migration eligible.' }
     if ($archiveCounts.content_json -ne [int]$fixture.public_content) { throw 'WordPress/content artifact count mismatch.' }
     if ($archiveCounts.media_files -ne [int]$fixture.referenced_media -or $mediaMap.Count -ne [int]$fixture.referenced_media) { throw 'WordPress/media artifact count mismatch.' }
-    if ($archiveCounts.screenshots -ne [int]$screenshots.screenshot_count -or @($screenshotManifest.screenshots).Count -ne [int]$screenshots.screenshot_count) { throw 'Screenshot count mismatch.' }
     if (@($seo.pages).Count -ne [int]$fixture.public_content) { throw 'Resolved SEO count mismatch.' }
     if (@($integrations.integrations | Where-Object { $_.integration_id -eq 'embed:youtube' }).Count -ne 1) { throw 'The YouTube capability evidence is missing.' }
     Assert-NoPrivateMarkers -Path $candidatePath
@@ -241,11 +193,9 @@ try {
             wordpress = '7.0.1'
             php = '8.2'
             database = 'MariaDB 10.11.8'
-            browser = $browser
             site_origin = $baseUrl
             public_content = [int]$fixture.public_content
             referenced_media = [int]$fixture.referenced_media
-            screenshot_attachments = [int]$screenshots.screenshot_count
         }
         archive = $archiveCounts
         bundle_id = $bundle.bundle_id

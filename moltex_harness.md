@@ -327,6 +327,15 @@ The first canonical model set is deliberately small:
 - SEO contract reference
 - Source evidence references
 
+### `VisualCapturePlan`
+
+- Source bundle ID and deterministic plan ID
+- Bounded representative public route IDs and source URLs
+- Required desktop and mobile viewport profiles
+- Selection reason and route-family evidence for every target
+- Stable evidence ID used to pair source and target captures
+- No credentials, private routes, browser state, or user-supplied screenshots
+
 ### `AssetContract`
 
 - Stable asset ID and source URL
@@ -405,9 +414,11 @@ This is the basis for trustworthy tasks and localized verifier failures.
 flowchart TD
     A["H1 Safe intake"] --> B["H2 Normalize evidence"]
     B --> C["Compile route, asset, SEO, capability contracts"]
-    C --> D["H3 Convert content and scaffold Astro"]
+    C --> V["Automatically capture planned source visuals"]
+    V --> D["H3 Convert content and scaffold Astro"]
     D --> E["Build baseline"]
     C --> F["H4 Compile Codex task graph"]
+    V --> F
     E --> G["H5 Ship workspace verifier"]
     F --> G
     G --> H["H6 Lifecycle and mutation evals"]
@@ -1546,13 +1557,16 @@ generating a website.
 Build:
 
 - Implement `SourceManifest`, `SiteSpec`, `ContentRecord`, `RouteContract`,
-  `AssetContract`, `SeoContract`, and `CapabilityDisposition`.
+  `AssetContract`, `SeoContract`, `CapabilityDisposition`, and `VisualCapturePlan`.
 - Normalize source IDs, URLs, slugs, dates, authors, taxonomies, relationships, menus,
   media, SEO precedence, redirects, and capability observations.
 - Build immutable URL and media maps.
 - Preserve JSON-pointer/file evidence lineage through every derived value.
 - Classify static eligibility and emit `needs_decision` instead of guessing.
 - Seed one parity row per public content item and discovered capability.
+- Select a bounded visual target set containing the homepage, one representative route per
+  public route family, and routes needed to observe business-critical or unresolved
+  capabilities. Emit desktop 1440×1200 and mobile 500×844 targets with stable evidence IDs.
 - Add Pydantic round-trip, property, idempotency, collision, contradiction, and missing
   reference tests.
 
@@ -1571,6 +1585,7 @@ Required artifacts:
 - `site-spec.json`
 - route, asset, SEO, redirect, and capability contract files
 - URL/media maps
+- `visual-capture-plan.json`
 - initial parity matrix
 - normalization findings and decision queue
 
@@ -1580,14 +1595,44 @@ Exit gate:
 - Every public item has one route contract and every required media reference has one
   asset contract.
 - Every canonical field used for migration has resolvable evidence lineage.
+- Every visual target resolves to one public route contract, target selection is bounded,
+  and repeated compilation emits a byte-equivalent `visual-capture-plan.json`.
 - The same fixture compiles byte-equivalent normalized contracts after volatile metadata
   is excluded.
 - No Astro build is required to prove H2.
 
+### Automated visual acquisition — H2 to H3 transition
+
+This transition is an automatic Moltex operation, not a WordPress feature and not a user
+task. After H2 passes, Moltex launches its pinned Playwright Chromium runtime and captures
+every target in `visual-capture-plan.json`. The WordPress user is never asked to take,
+upload, select, approve, or manage screenshots.
+
+```bash
+uv run --project moltex_harness moltex capture-source output/golden-contracts \
+  --output output/golden-source-visuals
+```
+
+The capture runner:
+
+- visits only the plan's public HTTP(S) source URLs in a fresh isolated browser context;
+- uses the exact declared desktop and mobile viewports and a bounded timeout;
+- writes PNGs under `source-visuals/` and never changes the accepted exporter ZIP;
+- emits `source-visuals/manifest.json` and `capture-receipt.json` containing the bundle ID,
+  plan hash, browser/version, final URL, viewport, byte size, and SHA-256 for every image;
+- rejects missing, duplicate, redirected-off-origin, blank, or failed captures; and
+- produces no interactive prompt or fallback asking the operator for screenshots.
+
+A valid capture receipt is required to enter H3 for a supported migration and the Golden
+Path. Capture failure is a visual-readiness blocker, never an exporter ZIP validation
+failure. Frozen tests use reviewed source visuals and receipts; normal verification never
+silently refreshes them.
+
 ### Phase H3 — Compile content and a buildable Astro baseline
 
-Dependency: accepted H2 contract fixture. The real Golden Path is already proven as an H1
-input, so H3 requires no H4 implementation.
+Dependency: accepted H2 contract fixture plus a successful bundle-bound automated source
+visual capture receipt. The real Golden Path is already proven as an H1 input, so H3
+requires no H4 implementation.
 
 Objective: implement the core WordPress-to-Astro migration and produce a conservative,
 complete site before judgment-heavy visual work.
@@ -1601,8 +1646,10 @@ Build:
   `package.json`, and committed `package-lock.json`.
 - Materialize editable Astro content collections, routes, listings, navigation, media,
   metadata, sitemap inputs, redirects, and 404 behavior from contracts.
-- Generate a conservative accessible shell that exposes content even when visual evidence
-  is incomplete.
+- Generate a conservative accessible shell before judgment-heavy visual decisions are
+  implemented.
+- Copy the immutable source visual manifest and images into protected workspace evidence
+  so later planning and verification can pair them by evidence ID.
 - Write conversion receipts and findings for every fallback or unsupported construct.
 - Add conversion unit/property tests, upstream-inspired regression fixtures, workspace
   snapshots, and clean build integration tests.
@@ -1620,6 +1667,7 @@ npm --prefix output/golden-site run build
 Required artifacts:
 
 - complete generated Astro repository
+- protected source visual evidence and capture receipt
 - content conversion receipts
 - baseline build log
 - built-route and asset inventory
@@ -1631,12 +1679,14 @@ Exit gate:
 - Every expected content item, route, and required local asset is materialized.
 - Sanitized content preserves required markers and contains no known executable source
   payload.
+- Every planned source visual resolves by evidence ID and its recorded checksum verifies.
 - WordPress is not required to build or edit the generated site.
 - No Codex task generation or mutation harness is required to prove H3.
 
 ### Phase H4 — Generate the bounded Codex migration workspace
 
-Dependency: passing H3 baseline and H2 evidence/contracts.
+Dependency: passing H3 baseline, H2 evidence/contracts, and the immutable automated source
+visual evidence.
 
 Objective: turn remaining visual, structural, and capability work into small executable
 specifications rather than one monolithic prompt.

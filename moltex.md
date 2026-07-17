@@ -252,7 +252,8 @@ Narrow:
 - Default scanner set for complete content-led migrations
 - Plugin and database evidence to fields that inform a capability decision
 - Environment data to non-secret compatibility facts
-- Optional screenshots and rendered HTML to representative, bounded evidence
+- Rendered HTML to representative, bounded evidence; source screenshots are captured
+  automatically downstream after H2 selects canonical routes
 
 Replace or redesign:
 
@@ -341,7 +342,8 @@ Regardless of filename, the bundle must provide:
 - Forms, search, scripts, integrations, shortcodes, hooks, and custom behaviors needed for
   capability decisions
 - Export completeness, omissions, errors, and migration-readiness findings
-- Representative HTML/screenshots for the Golden Path homepage and selected page families
+- Representative bounded HTML for the Golden Path homepage and selected page families,
+  plus sufficient public route evidence for downstream automated visual capture
 
 ### Compatibility policy
 
@@ -373,8 +375,8 @@ previously accepted fixtures. It never requires implementation from a later phas
 | E2 | `moltex-export/1`, schemas, manifest, and standalone validator | Contract/tamper/schema tests against synthetic fixtures | No |
 | E3 | Real sanitized Golden Path ZIP | Standalone validation and WordPress/bundle count reconciliation | No |
 | H1 | Safe intake plus typed raw evidence for both bundle versions | Intake unit/property tests and `moltex inspect` | No |
-| H2 | Canonical evidence-linked migration contracts | Model/property tests and contract verifier | No |
-| H3 | Complete conservative Astro baseline | Conversion tests, clean `npm ci`, and production build | No |
+| H2 | Canonical evidence-linked migration contracts and visual capture plan | Model/property tests and contract verifier | No |
+| H3 | Automatically captured source visuals and complete conservative Astro baseline | Capture receipt, conversion tests, clean `npm ci`, and production build | No |
 | H4 | Generated Codex workspace and task DAG | Planning tests, graph validation, build, and one real task | No |
 | H5 | Self-contained workspace verifier | Clean and direct-negative verifier cases | No |
 | H6 | Lifecycle, mutation, reproducibility, and repair eval reports | Published eval suite and metrics | No |
@@ -524,7 +526,9 @@ Work:
 1. Select a real content-led Golden Path site with five to ten public routes, navigation,
    local images, SEO, one repeatable content family, and at least one capability requiring
    a disposition.
-2. Capture representative desktop and mobile screenshots and bounded rendered HTML.
+2. Capture bounded rendered HTML in the export. Do not request, upload, or manage source
+   screenshots in WordPress; H2 selects their routes and Moltex captures them automatically
+   before H3.
 3. Export in complete mode with private content disabled.
 4. Run the standalone E2 bundle validator from outside the WordPress request lifecycle.
 5. Reconcile every content and media count between WordPress, `bundle.json`, and export
@@ -608,14 +612,18 @@ same test run.
 4. The exporter writes and packages a versioned, checksummed evidence ZIP.
 5. The operator opens `moltex_harness` locally and selects the ZIP.
 6. Harness intake validates paths, schemas, checksums, counts, and qualification.
-7. The harness normalizes evidence and produces a buildable static Astro baseline.
-8. It generates a parity matrix, bounded Codex tasks, an ExecPlan, and verification
+7. The harness normalizes evidence, compiles canonical routes, and writes a deterministic
+   visual capture plan.
+8. Moltex launches Chromium without prompting the operator, captures the planned source
+   routes at desktop and mobile viewports, and binds the capture receipt to the bundle ID.
+9. The harness produces a buildable static Astro baseline.
+10. It generates a parity matrix, bounded Codex tasks, an ExecPlan, and verification
    commands.
-9. The operator opens the generated repository in Codex Desktop.
-10. Codex completes tasks in dependency order and attaches required evidence.
-11. The independent verifier builds, serves, and checks the site.
-12. Failed contracts produce localized repair work; ambiguity returns to the operator.
-13. When all blocking gates pass, the Git-managed Astro repository is ready for normal
+11. The operator opens the generated repository in Codex Desktop.
+12. Codex completes tasks in dependency order and attaches required evidence.
+13. The independent verifier builds, serves, and checks the site.
+14. Failed contracts produce localized repair work; ambiguity returns to the operator.
+15. When all blocking gates pass, the Git-managed Astro repository is ready for normal
    hosting or a later publishing workflow.
 
 ## Golden Path Acceptance
@@ -630,7 +638,8 @@ JSON. It includes:
 - resolved SEO evidence;
 - at least one custom or ambiguous section for Codex;
 - at least one capability disposition;
-- source screenshots at desktop and mobile sizes;
+- public source routes from which Moltex automatically captures desktop and mobile visual
+  evidence after H2;
 - sanitized content safe for a public repository.
 
 End-to-end acceptance:

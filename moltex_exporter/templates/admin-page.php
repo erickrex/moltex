@@ -24,7 +24,6 @@ $defaults = array(
 $settings = get_option( 'moltex_settings', $defaults );
 $settings = wp_parse_args( $settings, $defaults );
 $preflight = isset( $preflight ) && is_array( $preflight ) ? $preflight : array( 'ready' => false, 'blockers' => array( 'Preflight was unavailable.' ), 'warnings' => array() );
-$reference_screenshots = isset( $reference_screenshots ) && is_array( $reference_screenshots ) ? $reference_screenshots : array();
 ?>
 
 <div class="wrap moltex-exporter-wrap">
@@ -152,26 +151,6 @@ $reference_screenshots = isset( $reference_screenshots ) && is_array( $reference
 					<span id="moltex-settings-status" style="margin-left: 10px;"></span>
 				</p>
 			</div>
-		</div>
-
-		<div class="moltex-exporter-settings-section">
-			<h2><?php echo esc_html( 'Reviewed Reference Screenshots' ); ?></h2>
-			<p><?php echo esc_html( 'Select up to ten public PNG screenshots. Each screenshot must identify its site-relative route and viewport.' ); ?></p>
-			<table class="widefat striped" id="moltex-screenshot-table">
-				<thead><tr><th><?php echo esc_html( 'Attachment' ); ?></th><th><?php echo esc_html( 'Route' ); ?></th><th><?php echo esc_html( 'Viewport' ); ?></th><th><?php echo esc_html( 'Label' ); ?></th><th></th></tr></thead>
-				<tbody>
-				<?php foreach ( $reference_screenshots as $reference ) : ?>
-					<tr class="moltex-screenshot-row">
-						<td><input type="hidden" class="moltex-screenshot-id" value="<?php echo esc_attr( $reference['attachment_id'] ); ?>" /><span class="moltex-screenshot-name"><?php echo esc_html( basename( (string) get_attached_file( $reference['attachment_id'] ) ) ); ?></span></td>
-						<td><input type="text" class="moltex-screenshot-route" value="<?php echo esc_attr( $reference['route'] ); ?>" /></td>
-						<td><input type="text" class="moltex-screenshot-viewport" value="<?php echo esc_attr( $reference['viewport'] ); ?>" /></td>
-						<td><input type="text" class="moltex-screenshot-label" value="<?php echo esc_attr( $reference['label'] ); ?>" /></td>
-						<td><button type="button" class="button-link moltex-replace-screenshot"><?php echo esc_html( 'Replace' ); ?></button> <button type="button" class="button-link-delete moltex-remove-screenshot"><?php echo esc_html( 'Remove' ); ?></button></td>
-					</tr>
-				<?php endforeach; ?>
-				</tbody>
-			</table>
-			<p><button type="button" class="button" id="moltex-add-screenshot"><?php echo esc_html( 'Select PNG' ); ?></button> <button type="button" class="button button-primary" id="moltex-save-screenshots"><?php echo esc_html( 'Save screenshots' ); ?></button> <span id="moltex-screenshot-status"></span></p>
 		</div>
 
 		<div class="moltex-exporter-actions">

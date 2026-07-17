@@ -36,8 +36,9 @@ other project's internal state.
 
 `moltex_exporter` has completed E1 through E3: its executable baseline is green, it emits
 and enforces `moltex-export/1`, and the reviewed real WordPress Golden Export is frozen for
-harness intake. Current work hardens E3 into an uploadable staging-pilot release. There is
-no E4; H1 is the next product phase.
+harness intake. Current E3 release hardening keeps the WordPress export one-click and
+defers automatic source screenshot capture to the H2-to-H3 transition. There is no E4;
+H1 is the next product phase.
 
 `moltex_harness` has not yet been scaffolded. Its architecture and independently
 verifiable phases are specified in the companion plan.

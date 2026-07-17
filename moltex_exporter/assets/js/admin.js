@@ -24,8 +24,6 @@
 		const $warningContainer = $('#moltex-warning-container');
 		const $warningMessage = $('#moltex-warning-message');
 		const $exportMode = $('#moltex-export-mode');
-		const $screenshotTable = $('#moltex-screenshot-table tbody');
-		const $screenshotStatus = $('#moltex-screenshot-status');
 
 		let settingsOpen = false;
 
@@ -77,92 +75,6 @@
 				}
 			});
 		});
-
-		function openScreenshotFrame($replaceRow) {
-			if (!$replaceRow && $screenshotTable.find('.moltex-screenshot-row').length >= 10) {
-				$screenshotStatus.text('At most ten screenshots are allowed.').css('color', '#dc3232');
-				return;
-			}
-			const frame = wp.media({
-				title: 'Select a reviewed PNG screenshot',
-				button: { text: 'Use screenshot' },
-				library: { type: 'image/png' },
-				multiple: false
-			});
-			frame.on('select', function() {
-				const attachment = frame.state().get('selection').first().toJSON();
-				const name = attachment.filename || ('Attachment ' + attachment.id);
-				if ($replaceRow) {
-					$replaceRow.find('.moltex-screenshot-id').val(attachment.id);
-					$replaceRow.find('.moltex-screenshot-name').text(name);
-				} else {
-					appendScreenshotRow(attachment.id, name, '/', 'desktop-1440x1200', 'home');
-				}
-			});
-			frame.open();
-		}
-
-		$('#moltex-add-screenshot').on('click', function() {
-			openScreenshotFrame(null);
-		});
-
-		$screenshotTable.on('click', '.moltex-replace-screenshot', function() {
-			openScreenshotFrame($(this).closest('tr'));
-		});
-
-		$screenshotTable.on('click', '.moltex-remove-screenshot', function() {
-			$(this).closest('tr').remove();
-		});
-
-		$('#moltex-save-screenshots').on('click', function() {
-			const references = [];
-			$screenshotTable.find('.moltex-screenshot-row').each(function() {
-				const $row = $(this);
-				references.push({
-					attachment_id: parseInt($row.find('.moltex-screenshot-id').val(), 10),
-					route: $row.find('.moltex-screenshot-route').val(),
-					viewport: $row.find('.moltex-screenshot-viewport').val(),
-					label: $row.find('.moltex-screenshot-label').val()
-				});
-			});
-			$screenshotStatus.text('Saving...').css('color', '');
-			$.ajax({
-				url: moltexExporter.ajaxUrl,
-				type: 'POST',
-				data: {
-					action: 'moltex_save_reference_screenshots',
-					nonce: moltexExporter.nonce,
-					references: JSON.stringify(references)
-				},
-				success: function(response) {
-					if (response.success) {
-						$screenshotStatus.text('Screenshots saved. Reload to refresh preflight.').css('color', '#46b450');
-					} else {
-						$screenshotStatus.text(getResponseMessage(response, 'Could not save screenshots.')).css('color', '#dc3232');
-					}
-				},
-				error: function(xhr) {
-					$screenshotStatus.text(buildAjaxErrorMessage(xhr, 'request failed')).css('color', '#dc3232');
-				}
-			});
-		});
-
-		function appendScreenshotRow(id, name, route, viewport, label) {
-			const $row = $('<tr>', { class: 'moltex-screenshot-row' });
-			const $attachment = $('<td>');
-			$attachment.append($('<input>', { type: 'hidden', class: 'moltex-screenshot-id', value: id }));
-			$attachment.append($('<span>', { class: 'moltex-screenshot-name' }).text(name));
-			$row.append($attachment);
-			$row.append($('<td>').append($('<input>', { type: 'text', class: 'moltex-screenshot-route', value: route })));
-			$row.append($('<td>').append($('<input>', { type: 'text', class: 'moltex-screenshot-viewport', value: viewport })));
-			$row.append($('<td>').append($('<input>', { type: 'text', class: 'moltex-screenshot-label', value: label })));
-			const $actions = $('<td>');
-			$actions.append($('<button>', { type: 'button', class: 'button-link moltex-replace-screenshot' }).text('Replace'));
-			$actions.append(document.createTextNode(' '));
-			$actions.append($('<button>', { type: 'button', class: 'button-link-delete moltex-remove-screenshot' }).text('Remove'));
-			$row.append($actions);
-			$screenshotTable.append($row);
-		}
 
 		/**
 		 * Handle export button click.

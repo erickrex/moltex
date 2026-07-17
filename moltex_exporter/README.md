@@ -14,7 +14,7 @@ readiness blocker.
 
 ## Install the release
 
-Build or obtain `moltex-exporter-1.2.1.zip`, then use **Plugins → Add New → Upload Plugin**.
+Build or obtain `moltex-exporter-1.2.2.zip`, then use **Plugins → Add New → Upload Plugin**.
 The release requires WordPress 5.9+, PHP 7.4+, JSON, and `ZipArchive`. After activation,
 open **Moltex Exporter** and resolve every blocking preflight result.
 
@@ -27,28 +27,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File moltex_exporter/tools/build-
 
 Pilot on a staging clone before production.
 
-## Prepare visual evidence
-
-Complete exports default to bounded rendered HTML snapshots. Capture representative public
-routes locally with Chrome, Edge, or another Chromium installation:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File moltex_exporter/tools/capture-reference-screenshots.ps1 `
-  -BaseUrl https://staging.example.com `
-  -Routes /,/about/
-```
-
-Upload the generated PNGs to the WordPress Media Library, then register each route and
-viewport in **Reviewed Reference Screenshots**. At most ten reviewed PNGs are included;
-each must be within uploads, no larger than 10 MB, and free of private information.
-
 ## Export and validate
 
 1. Select **Complete migration**.
 2. Keep private content disabled for a public rebuild.
 3. Confirm the complete-export ceiling is above every eligible post-type count.
-4. Keep HTML snapshots enabled and register representative screenshots.
+4. Keep HTML snapshots enabled.
 5. Export and download the signed ZIP.
 6. Review `migration_readiness.json`, `export_completeness.json`, `error_log.json`, and the
    privacy state in `bundle.json`.
@@ -72,7 +56,8 @@ accessibility, SEO, and visual parity can require explicit downstream decisions.
 
 The release captures all exporter-owned evidence for supported content-led sites. It does
 not claim that an arbitrary site can already be rebuilt; H1 must prove intake, and later
-harness phases own normalization, Astro generation, and verification.
+harness phases own normalization, automated source screenshot capture, Astro generation,
+and verification. The WordPress user is never asked to capture or upload screenshots.
 
 ## Development
 

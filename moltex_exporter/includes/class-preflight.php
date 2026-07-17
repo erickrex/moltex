@@ -83,10 +83,6 @@ class Moltex_Exporter_Preflight {
 		if ( 'complete' === $mode && empty( $settings['include_html_snapshots'] ) ) {
 			$warnings[] = 'HTML snapshots are disabled for this complete export.';
 		}
-		$references = get_option( Moltex_Exporter_Reference_Screenshots::OPTION_NAME, array() );
-		if ( 'complete' === $mode && empty( $references ) ) {
-			$warnings[] = 'No reviewed desktop/mobile reference screenshots are registered.';
-		}
 		if ( is_multisite() ) {
 			$warnings[] = 'WordPress multisite is outside the initial static migration profile.';
 		}

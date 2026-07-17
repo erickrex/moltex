@@ -26,9 +26,7 @@ class PreflightTest extends TestCase {
 		$this->assertCount( 2, $result['blockers'] );
 	}
 
-	public function test_operational_limits_and_missing_evidence_are_warnings() {
-		global $mock_options;
-		$mock_options[ Moltex_Exporter_Reference_Screenshots::OPTION_NAME ] = array();
+	public function test_operational_limits_and_disabled_html_are_warnings() {
 		$preflight = new Moltex_Exporter_Preflight(
 			array(
 				'zip_available'    => true,
@@ -42,7 +40,8 @@ class PreflightTest extends TestCase {
 		$result = $preflight->evaluate( array( 'export_mode' => 'complete', 'include_html_snapshots' => false ) );
 
 		$this->assertTrue( $result['ready'] );
-		$this->assertCount( 5, $result['warnings'] );
+		$this->assertCount( 4, $result['warnings'] );
+		$this->assertNotContains( 'No reviewed desktop/mobile reference screenshots are registered.', $result['warnings'] );
 	}
 
 	public function test_admin_settings_default_complete_exports_to_snapshots() {
@@ -54,7 +53,6 @@ class PreflightTest extends TestCase {
 	public function test_unsupported_site_capabilities_warn_without_blocking() {
 		global $mock_options;
 		$mock_options['active_plugins'] = array( 'woocommerce/woocommerce.php' );
-		$mock_options[ Moltex_Exporter_Reference_Screenshots::OPTION_NAME ] = array( array( 'attachment_id' => 1 ) );
 		$preflight = new Moltex_Exporter_Preflight(
 			array(
 				'zip_available'      => true,

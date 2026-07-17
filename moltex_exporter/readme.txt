@@ -4,7 +4,7 @@ Tags: migration, export, astro, static-site
 Requires at least: 5.9
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.2.1
+Stable tag: 1.2.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -13,8 +13,8 @@ Create a privacy-filtered, checksummed WordPress evidence ZIP for a verified sta
 == Description ==
 
 Moltex Exporter captures public content, referenced media, navigation, site/theme/plugin evidence,
-resolved SEO, capabilities, readiness, bounded HTML, and optional reviewed screenshots in the
-versioned moltex-export/1 contract.
+resolved SEO, capabilities, readiness, and bounded rendered HTML in the versioned
+moltex-export/1 contract.
 
 The plugin is read-only with respect to WordPress content. It writes temporary export artifacts
 under uploads and removes them according to the configured retention period.
@@ -42,6 +42,9 @@ No. Transactional, account-heavy, multisite, and unknown custom behavior can pro
 blockers or manual-review items.
 
 == Changelog ==
+
+= 1.2.2 =
+* Removed WordPress screenshot collection; the planned harness will capture source visuals automatically between H2 and H3.
 
 = 1.2.1 =
 * Replaced obsolete AI-agent wording with the accurate Moltex Exporter and Export blueprint interface.

@@ -8,11 +8,10 @@ The Golden Export is a reviewed oracle. Tests must never regenerate or overwrite
    powershell -NoProfile -ExecutionPolicy Bypass -File moltex_exporter/tests/wordpress/run-golden-path.ps1
    ```
 
-   The runner auto-detects Chrome before Edge. Use `-BrowserPath` when the reviewed
-   environment requires a specific Chromium executable; confirm the recorded browser and
-   version in the candidate report.
+   The exporter runner captures bounded HTML but does not request, upload, or register
+   screenshots. Automated source visuals are acquired from the H2 capture plan before H3.
 
-2. Review `golden-output/candidate-report.json`, both screenshots, the capability inventory,
+2. Review `golden-output/candidate-report.json`, the bounded HTML, capability inventory,
    completeness counts, media map, and privacy canary result. Any count or validation
    mismatch stops the script before promotion.
 3. Compare the candidate with the current sample and explain every intentional contract or
@@ -20,7 +19,8 @@ The Golden Export is a reviewed oracle. Tests must never regenerate or overwrite
 4. Only after review, explicitly copy `golden-candidate.zip` to
    `samples/golden-export.zip` and the report to `samples/golden-export.validation.json`.
 5. Update `golden-export.bundle-id.txt`, `golden-export.expected.json`, the reconciliation,
-   capability/privacy review, and verification receipt in the same change.
+   capability/privacy review, and verification receipt in the same change. After H2 is
+   available, also regenerate and review the bundle-bound visual capture plan and receipt.
 6. Run the immutable Golden Export PHPUnit test, standalone validator, complete PHPUnit
    suite, standalone regressions, and a fresh disposable WordPress workflow.
 
