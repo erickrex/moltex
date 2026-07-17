@@ -484,38 +484,80 @@ class Moltex_Exporter_Packager {
 	 * @param string $zip_filename ZIP filename for download.
 	 */
 	public function serve_download( $zip_path, $zip_filename ) {
-		// Verify file exists
-		if ( ! file_exists( $zip_path ) ) {
+		// Verify the file before changing response headers.
+		if ( ! is_file( $zip_path ) || ! is_readable( $zip_path ) ) {
 			wp_die( 'File not found', 'Download Error', array( 'response' => 404 ) );
 		}
 
-		// Get file size
 		$file_size = filesize( $zip_path );
+		$handle    = fopen( $zip_path, 'rb' );
 
-		// Set headers for download
-		header( 'Content-Type: application/zip' );
-		header( 'Content-Disposition: attachment; filename="' . $zip_filename . '"' );
-		header( 'Content-Length: ' . $file_size );
-		header( 'Cache-Control: no-cache, must-revalidate' );
-		header( 'Expires: 0' );
-		header( 'Pragma: public' );
-
-		// Clear output buffer
-		if ( ob_get_level() ) {
-			ob_end_clean();
-		}
-
-		// Read and output file in chunks to handle large files
-		$chunk_size = 1024 * 1024; // 1MB chunks
-		$handle = fopen( $zip_path, 'rb' );
-
-		if ( $handle === false ) {
+		if ( false === $file_size || false === $handle ) {
+			if ( is_resource( $handle ) ) {
+				fclose( $handle );
+			}
 			wp_die( 'Failed to open file', 'Download Error', array( 'response' => 500 ) );
 		}
 
+		// Prevent output compression or stale buffers from changing the byte
+		// count after Content-Length has been declared. Multiple buffers are
+		// common in WordPress admin requests and every one must be discarded.
+		if ( function_exists( 'ini_set' ) ) {
+			@ini_set( 'zlib.output_compression', 'Off' );
+		}
+
+		if ( function_exists( 'apache_setenv' ) ) {
+			@apache_setenv( 'no-gzip', '1' );
+		}
+
+		@set_time_limit( 0 );
+		ignore_user_abort( true );
+
+		if ( function_exists( 'session_status' ) && PHP_SESSION_ACTIVE === session_status() ) {
+			session_write_close();
+		}
+
+		while ( ob_get_level() > 0 ) {
+			if ( ! @ob_end_clean() ) {
+				@ob_clean();
+				break;
+			}
+		}
+
+		if ( function_exists( 'header_remove' ) ) {
+			header_remove( 'Content-Encoding' );
+		}
+
+		$safe_filename = basename( str_replace( array( "\r", "\n", '"' ), '', $zip_filename ) );
+
+		header( 'Content-Type: application/zip' );
+		header( 'Content-Disposition: attachment; filename="' . $safe_filename . '"' );
+		header( 'Content-Length: ' . $file_size );
+		header( 'Content-Transfer-Encoding: binary' );
+		header( 'X-Content-Type-Options: nosniff' );
+		header( 'X-Accel-Buffering: no' );
+		header( 'Accept-Ranges: none' );
+		header( 'Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0' );
+		header( 'Expires: 0' );
+		header( 'Pragma: public' );
+
+		// Use bounded chunks so large archives do not need to be loaded into
+		// PHP memory and can begin transferring immediately.
+		$chunk_size = 512 * 1024;
 		while ( ! feof( $handle ) ) {
-			echo fread( $handle, $chunk_size );
+			$chunk = fread( $handle, $chunk_size );
+
+			if ( false === $chunk || ( '' === $chunk && ! feof( $handle ) ) ) {
+				$this->debug_log_download_failure( 'Failed while reading ZIP during download streaming.' );
+				break;
+			}
+
+			echo $chunk;
 			flush();
+
+			if ( connection_aborted() ) {
+				break;
+			}
 		}
 
 		fclose( $handle );

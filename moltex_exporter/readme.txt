@@ -4,7 +4,7 @@ Tags: migration, export, astro, static-site
 Requires at least: 5.9
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.2.4
+Stable tag: 1.2.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -45,6 +45,10 @@ No. Transactional, account-heavy, multisite, and unknown custom behavior can pro
 blockers or manual-review items.
 
 == Changelog ==
+
+= 1.2.5 =
+* Hardened large ZIP downloads against output-buffer and response-compression corruption.
+* Limited packaged scripts and styles to public frontend assets and their dependency closure.
 
 = 1.2.4 =
 * Removed the obsolete djamingo-exporter admin menu when the supported Moltex Exporter is active.

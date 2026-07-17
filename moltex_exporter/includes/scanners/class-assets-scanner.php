@@ -60,12 +60,10 @@ class Moltex_Exporter_Assets_Scanner extends Moltex_Exporter_Scanner_Base {
 			// Create assets directories.
 			$this->create_assets_directories();
 
-			// Capture enqueued assets from different contexts.
-			$frontend_assets = $this->capture_frontend_assets();
-			$admin_assets    = $this->capture_admin_assets();
-
-			// Merge and deduplicate.
-			$all_assets = $this->merge_assets( $frontend_assets, $admin_assets );
+			// Capture only public frontend assets. The exporter runs in an admin
+			// request, so the existing queues may contain editor and dashboard
+			// assets that are not evidence for the public site.
+			$all_assets = $this->capture_frontend_assets();
 
 			// Copy local files.
 			$copied_files = $this->copy_local_assets( $all_assets );
@@ -113,35 +111,41 @@ class Moltex_Exporter_Assets_Scanner extends Moltex_Exporter_Scanner_Base {
 	private function capture_frontend_assets() {
 		global $wp_scripts, $wp_styles;
 
-		// Trigger frontend hooks to ensure assets are enqueued.
-		do_action( 'wp_enqueue_scripts' );
-		do_action( 'wp_head' );
+		$original_scripts     = $wp_scripts;
+		$original_styles      = $wp_styles;
+		$original_script_queue = $wp_scripts instanceof WP_Scripts ? $wp_scripts->queue : array();
+		$original_style_queue  = $wp_styles instanceof WP_Styles ? $wp_styles->queue : array();
 
-		$assets = array(
-			'scripts' => $this->get_enqueued_scripts( $wp_scripts, 'frontend' ),
-			'styles'  => $this->get_enqueued_styles( $wp_styles, 'frontend' ),
-		);
+		if ( $wp_scripts instanceof WP_Scripts ) {
+			$wp_scripts->queue = array();
+		}
 
-		return $assets;
-	}
+		if ( $wp_styles instanceof WP_Styles ) {
+			$wp_styles->queue = array();
+		}
 
-	/**
-	 * Capture admin enqueued assets.
-	 *
-	 * @return array Admin assets.
-	 */
-	private function capture_admin_assets() {
-		global $wp_scripts, $wp_styles;
+		try {
+			// The enqueue hook is the supported boundary for public assets. Firing
+			// wp_head here would render arbitrary frontend markup into the AJAX
+			// export response and introduce unrelated side effects.
+			do_action( 'wp_enqueue_scripts' );
 
-		// Trigger admin hooks to ensure assets are enqueued.
-		do_action( 'admin_enqueue_scripts', 'index.php' );
+			return array(
+				'scripts' => $this->get_enqueued_scripts( $wp_scripts, 'frontend' ),
+				'styles'  => $this->get_enqueued_styles( $wp_styles, 'frontend' ),
+			);
+		} finally {
+			if ( $original_scripts instanceof WP_Scripts ) {
+				$original_scripts->queue = $original_script_queue;
+			}
 
-		$assets = array(
-			'scripts' => $this->get_enqueued_scripts( $wp_scripts, 'admin' ),
-			'styles'  => $this->get_enqueued_styles( $wp_styles, 'admin' ),
-		);
+			if ( $original_styles instanceof WP_Styles ) {
+				$original_styles->queue = $original_style_queue;
+			}
 
-		return $assets;
+			$wp_scripts = $original_scripts;
+			$wp_styles  = $original_styles;
+		}
 	}
 
 	/**
@@ -158,7 +162,10 @@ class Moltex_Exporter_Assets_Scanner extends Moltex_Exporter_Scanner_Base {
 
 		$scripts = array();
 
-		foreach ( $wp_scripts->registered as $handle => $script ) {
+		$handles = $this->resolve_dependency_handles( $wp_scripts->registered, $wp_scripts->queue );
+
+		foreach ( $handles as $handle ) {
+			$script = $wp_scripts->registered[ $handle ];
 			$script_info = array(
 				'handle'       => $handle,
 				'src'          => $this->normalize_url( $script->src ),
@@ -166,7 +173,7 @@ class Moltex_Exporter_Assets_Scanner extends Moltex_Exporter_Scanner_Base {
 				'version'      => $script->ver ? $script->ver : 'none',
 				'in_footer'    => isset( $script->extra['group'] ) && $script->extra['group'] === 1,
 				'context'      => $context,
-				'enqueued'     => in_array( $handle, $wp_scripts->queue, true ),
+				'enqueued'     => true,
 				'source'       => $this->identify_asset_source( $script->src ),
 				'is_local'     => $this->is_local_asset( $script->src ),
 				'inline'       => array(),
@@ -214,7 +221,10 @@ class Moltex_Exporter_Assets_Scanner extends Moltex_Exporter_Scanner_Base {
 
 		$styles = array();
 
-		foreach ( $wp_styles->registered as $handle => $style ) {
+		$handles = $this->resolve_dependency_handles( $wp_styles->registered, $wp_styles->queue );
+
+		foreach ( $handles as $handle ) {
+			$style = $wp_styles->registered[ $handle ];
 			$style_info = array(
 				'handle'       => $handle,
 				'src'          => $this->normalize_url( $style->src ),
@@ -222,7 +232,7 @@ class Moltex_Exporter_Assets_Scanner extends Moltex_Exporter_Scanner_Base {
 				'version'      => $style->ver ? $style->ver : 'none',
 				'media'        => $style->args,
 				'context'      => $context,
-				'enqueued'     => in_array( $handle, $wp_styles->queue, true ),
+				'enqueued'     => true,
 				'source'       => $this->identify_asset_source( $style->src ),
 				'is_local'     => $this->is_local_asset( $style->src ),
 				'inline'       => array(),
@@ -239,6 +249,53 @@ class Moltex_Exporter_Assets_Scanner extends Moltex_Exporter_Scanner_Base {
 		}
 
 		return $styles;
+	}
+
+	/**
+	 * Resolve queued handles and their registered dependency closure.
+	 *
+	 * Dependencies are returned before their consumers so the registry and
+	 * generated load order remain deterministic and usable.
+	 *
+	 * @param array $registered Registered WordPress dependencies.
+	 * @param array $queue Root handles queued for the public request.
+	 * @return string[] Selected handles in dependency order.
+	 */
+	private function resolve_dependency_handles( array $registered, array $queue ) {
+		$selected = array();
+		$visiting = array();
+
+		foreach ( array_values( array_unique( $queue ) ) as $handle ) {
+			$this->collect_dependency_handle( $handle, $registered, $selected, $visiting );
+		}
+
+		return array_keys( $selected );
+	}
+
+	/**
+	 * Add one registered handle and its dependencies to the selected set.
+	 *
+	 * @param string $handle Handle to collect.
+	 * @param array  $registered Registered WordPress dependencies.
+	 * @param array  $selected Selected handle set.
+	 * @param array  $visiting Handles currently being traversed.
+	 * @return void
+	 */
+	private function collect_dependency_handle( $handle, array $registered, array &$selected, array &$visiting ) {
+		if ( isset( $selected[ $handle ] ) || isset( $visiting[ $handle ] ) || ! isset( $registered[ $handle ] ) ) {
+			return;
+		}
+
+		$visiting[ $handle ] = true;
+		$dependency          = $registered[ $handle ];
+		$dependencies        = isset( $dependency->deps ) && is_array( $dependency->deps ) ? $dependency->deps : array();
+
+		foreach ( $dependencies as $dependency_handle ) {
+			$this->collect_dependency_handle( $dependency_handle, $registered, $selected, $visiting );
+		}
+
+		unset( $visiting[ $handle ] );
+		$selected[ $handle ] = true;
 	}
 
 	/**
@@ -392,50 +449,6 @@ class Moltex_Exporter_Assets_Scanner extends Moltex_Exporter_Scanner_Base {
 	}
 
 	/**
-	 * Merge assets from different contexts and deduplicate.
-	 *
-	 * @param array $frontend_assets Frontend assets.
-	 * @param array $admin_assets Admin assets.
-	 * @return array Merged assets.
-	 */
-	private function merge_assets( $frontend_assets, $admin_assets ) {
-		$merged = array(
-			'scripts' => array(),
-			'styles'  => array(),
-		);
-
-		// Merge scripts.
-		foreach ( $frontend_assets['scripts'] as $handle => $script ) {
-			$merged['scripts'][ $handle ] = $script;
-		}
-
-		foreach ( $admin_assets['scripts'] as $handle => $script ) {
-			if ( isset( $merged['scripts'][ $handle ] ) ) {
-				// Asset exists in both contexts, mark it.
-				$merged['scripts'][ $handle ]['context'] = 'both';
-			} else {
-				$merged['scripts'][ $handle ] = $script;
-			}
-		}
-
-		// Merge styles.
-		foreach ( $frontend_assets['styles'] as $handle => $style ) {
-			$merged['styles'][ $handle ] = $style;
-		}
-
-		foreach ( $admin_assets['styles'] as $handle => $style ) {
-			if ( isset( $merged['styles'][ $handle ] ) ) {
-				// Asset exists in both contexts, mark it.
-				$merged['styles'][ $handle ]['context'] = 'both';
-			} else {
-				$merged['styles'][ $handle ] = $style;
-			}
-		}
-
-		return $merged;
-	}
-
-	/**
 	 * Copy local assets to export directory.
 	 *
 	 * @param array $assets All assets.
@@ -446,7 +459,7 @@ class Moltex_Exporter_Assets_Scanner extends Moltex_Exporter_Scanner_Base {
 
 		// Copy scripts.
 		foreach ( $assets['scripts'] as $handle => $script ) {
-			if ( $script['is_local'] && ! empty( $script['src'] ) ) {
+			if ( $script['enqueued'] && $script['is_local'] && ! empty( $script['src'] ) ) {
 				$copied = $this->copy_asset_file( $script['src'], 'js' );
 				if ( $copied ) {
 					$copied_files[] = $copied;
@@ -456,7 +469,7 @@ class Moltex_Exporter_Assets_Scanner extends Moltex_Exporter_Scanner_Base {
 
 		// Copy styles.
 		foreach ( $assets['styles'] as $handle => $style ) {
-			if ( $style['is_local'] && ! empty( $style['src'] ) ) {
+			if ( $style['enqueued'] && $style['is_local'] && ! empty( $style['src'] ) ) {
 				$copied = $this->copy_asset_file( $style['src'], 'css' );
 				if ( $copied ) {
 					$copied_files[] = $copied;

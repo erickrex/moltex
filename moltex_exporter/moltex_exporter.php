@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Moltex Exporter
  * Description: Create a privacy-filtered WordPress evidence bundle for verified migration into a Git-managed Astro repository.
- * Version: 1.2.4
+ * Version: 1.2.5
  * Author: Moltex Contributors
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -22,7 +22,7 @@ if ( ! defined( 'WPINC' ) ) {
 /**
  * Currently plugin version.
  */
-define( 'MOLTEX_EXPORTER_VERSION', '1.2.4' );
+define( 'MOLTEX_EXPORTER_VERSION', '1.2.5' );
 
 /**
  * Plugin directory path.

@@ -7,8 +7,8 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $scriptDir))
 $composeFile = Join-Path $scriptDir 'docker-compose-release.yml'
 $outputDir = Join-Path $scriptDir 'release-output'
-$releasePath = Join-Path $repoRoot 'dist/moltex-exporter-1.2.4.zip'
-if (-not (Test-Path -LiteralPath $releasePath)) { throw 'Build dist/moltex-exporter-1.2.4.zip before running the release smoke.' }
+$releasePath = Join-Path $repoRoot 'dist/moltex-exporter-1.2.5.zip'
+if (-not (Test-Path -LiteralPath $releasePath)) { throw 'Build dist/moltex-exporter-1.2.5.zip before running the release smoke.' }
 
 function Invoke-Compose {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
