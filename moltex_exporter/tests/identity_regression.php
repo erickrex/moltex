@@ -14,7 +14,14 @@ $files      = array(
 	$plugin_dir . '/includes/class-admin-page.php',
 	$plugin_dir . '/includes/scanners/class-migration-readiness-scanner.php',
 );
-$patterns   = array( 'Strapi', 'Digital Ocean', 'ChatGPT Sites' );
+$patterns   = array(
+	'Strapi',
+	'Digital Ocean',
+	'ChatGPT Sites',
+	'Export with AI Agents',
+	'modern Python architecture using AI Agents',
+	'with Codex',
+);
 $failures   = array();
 
 foreach ( $files as $file ) {
@@ -28,6 +35,13 @@ foreach ( $files as $file ) {
 
 if ( ! empty( $failures ) ) {
 	fwrite( STDERR, "Stale user-facing identity found:\n- " . implode( "\n- ", $failures ) . "\n" );
+	exit( 1 );
+}
+
+$admin_class = file_get_contents( $plugin_dir . '/includes/class-admin-page.php' );
+$template    = file_get_contents( $plugin_dir . '/templates/admin-page.php' );
+if ( substr_count( $admin_class, "'Moltex Exporter'" ) < 2 || false === strpos( $template, "'Export blueprint'" ) ) {
+	fwrite( STDERR, "Current Moltex Exporter labels are missing.\n" );
 	exit( 1 );
 }
 

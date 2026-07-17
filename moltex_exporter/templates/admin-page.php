@@ -28,7 +28,7 @@ $reference_screenshots = isset( $reference_screenshots ) && is_array( $reference
 ?>
 
 <div class="wrap moltex-exporter-wrap">
-	<h1><?php echo esc_html( '🦞 Moltex Exporter' ); ?></h1>
+	<h1><?php echo esc_html( 'Moltex Exporter' ); ?></h1>
 	
 	<div class="moltex-exporter-container">
 		<div class="notice <?php echo $preflight['ready'] ? 'notice-success' : 'notice-error'; ?> inline">
@@ -42,7 +42,7 @@ $reference_screenshots = isset( $reference_screenshots ) && is_array( $reference
 		</div>
 		<div class="moltex-exporter-header">
 			<p class="moltex-exporter-tagline">
-				<?php echo esc_html( 'Create a complete local migration bundle for rebuilding as a Git-managed Astro site with Codex' ); ?>
+				<?php echo esc_html( 'Create a complete local migration blueprint for a future verified rebuild' ); ?>
 			</p>
 			
 			<p class="moltex-exporter-description">
@@ -175,8 +175,10 @@ $reference_screenshots = isset( $reference_screenshots ) && is_array( $reference
 		</div>
 
 		<div class="moltex-exporter-actions">
+			<h2><?php echo esc_html( 'Export blueprint' ); ?></h2>
+			<p><?php echo esc_html( 'Package the selected public site evidence into a validated, downloadable ZIP.' ); ?></p>
 			<button id="moltex-migrate-btn" class="button button-primary button-hero" <?php disabled( ! $preflight['ready'] ); ?>>
-				<?php echo esc_html( 'Export' ); ?>
+				<?php echo esc_html( 'Export blueprint' ); ?>
 			</button>
 		</div>
 
@@ -190,10 +192,10 @@ $reference_screenshots = isset( $reference_screenshots ) && is_array( $reference
 
 		<div id="moltex-success-container" class="moltex-success-container" style="display: none;">
 			<p class="moltex-success-message">
-				<?php echo esc_html( 'Export artifacts created successfully!' ); ?>
+				<?php echo esc_html( 'Blueprint artifacts created successfully!' ); ?>
 			</p>
 			<button id="moltex-download-btn" class="button button-primary">
-				<?php echo esc_html( 'Download Artifacts (.zip)' ); ?>
+				<?php echo esc_html( 'Download blueprint (.zip)' ); ?>
 			</button>
 		</div>
 

@@ -14,10 +14,10 @@ class ReleasePackagingTest extends TestCase {
 		$readme = file_get_contents( MOLTEX_PLUGIN_DIR . '/readme.txt' );
 		$exporter = file_get_contents( MOLTEX_PLUGIN_DIR . '/includes/class-exporter.php' );
 
-		$this->assertMatchesRegularExpression( '/^ \* Version:\s+1\.2\.0$/m', $entry );
-		$this->assertStringContainsString( "MOLTEX_EXPORTER_VERSION', '1.2.0'", $entry );
-		$this->assertMatchesRegularExpression( '/^Stable tag:\s+1\.2\.0$/m', $readme );
-		$this->assertMatchesRegularExpression( "/'exporter_version'\s*=>[^\n]+:\s*'1\\.2\\.0'/", $exporter );
+		$this->assertMatchesRegularExpression( '/^ \* Version:\s+1\.2\.1$/m', $entry );
+		$this->assertStringContainsString( "MOLTEX_EXPORTER_VERSION', '1.2.1'", $entry );
+		$this->assertMatchesRegularExpression( '/^Stable tag:\s+1\.2\.1$/m', $readme );
+		$this->assertMatchesRegularExpression( "/'exporter_version'\s*=>[^\n]+:\s*'1\\.2\\.1'/", $exporter );
 	}
 
 	public function test_release_manifest_requires_runtime_and_excludes_development_files() {

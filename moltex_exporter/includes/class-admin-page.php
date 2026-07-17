@@ -44,7 +44,7 @@ class Moltex_Exporter_Admin_Page {
 	public function add_admin_menu() {
 		add_menu_page(
 			'Moltex Exporter',
-			'🦞 Moltex Exporter',
+			'Moltex Exporter',
 			'manage_options',
 			'moltex-exporter',
 			array( $this, 'render_page' ),

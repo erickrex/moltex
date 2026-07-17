@@ -4,7 +4,7 @@ Tags: migration, export, astro, static-site
 Requires at least: 5.9
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.2.0
+Stable tag: 1.2.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -42,6 +42,9 @@ No. Transactional, account-heavy, multisite, and unknown custom behavior can pro
 blockers or manual-review items.
 
 == Changelog ==
+
+= 1.2.1 =
+* Replaced obsolete AI-agent wording with the accurate Moltex Exporter and Export blueprint interface.
 
 = 1.2.0 =
 * Added release packaging, live-site preflight, reviewed screenshot management, and installable ZIP verification.
