@@ -39,11 +39,13 @@ class MediaScannerTest extends TestCase {
 	 * Create a scanner using the current dependency contract.
 	 *
 	 * @param array $exported_content Canonical content scanner output.
+	 * @param string $export_dir Optional export directory.
 	 * @return Moltex_Exporter_Media_Scanner
 	 */
-	private function create_scanner( array $exported_content ) {
+	private function create_scanner( array $exported_content, $export_dir = '' ) {
 		return new Moltex_Exporter_Media_Scanner(
 			array(
+				'export_dir' => $export_dir,
 				'context' => array( 'content' => $exported_content ),
 			)
 		);
@@ -305,6 +307,56 @@ class MediaScannerTest extends TestCase {
 
 		// Same image referenced twice should only be counted once
 		$this->assertEquals( 1, $result['total_files'] );
+	}
+
+	public function test_byte_identical_media_share_one_exported_artifact() {
+		global $mock_upload_dir;
+
+		$root       = $this->create_temp_directory( 'moltex-media-deduplication' );
+		$uploads    = $root . '/uploads';
+		$export_dir = $root . '/export';
+		mkdir( $uploads . '/2024/01', 0755, true );
+		mkdir( $export_dir );
+		file_put_contents( $uploads . '/2024/01/first.jpg', 'identical-media-payload' );
+		file_put_contents( $uploads . '/2024/01/second.jpg', 'identical-media-payload' );
+
+		$mock_upload_dir = array(
+			'basedir' => $uploads,
+			'baseurl' => 'https://example.com/wp-content/uploads',
+			'error'   => false,
+		);
+		$content = array(
+			'posts' => array(
+				array(
+					'id'             => 1,
+					'featured_media' => array(
+						'id'  => 100,
+						'url' => 'https://example.com/wp-content/uploads/2024/01/first.jpg',
+						'alt' => '',
+					),
+					'raw_html'       => '<img src="https://example.com/wp-content/uploads/2024/01/second.jpg" />',
+				),
+			),
+		);
+
+		try {
+			$result = $this->create_scanner( $content, $export_dir )->scan();
+			$this->assertCount( 2, $result['media_map'] );
+			$this->assertSame( $result['media_map'][0]['artifact'], $result['media_map'][1]['artifact'] );
+
+			$files = array_values(
+				array_filter(
+					iterator_to_array( new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $export_dir . '/media' ) ) ),
+					function ( $item ) {
+						return $item->isFile();
+					}
+				)
+			);
+			$this->assertCount( 1, $files );
+		} finally {
+			$mock_upload_dir = null;
+			$this->remove_temp_directory( $root );
+		}
 	}
 
 	/**

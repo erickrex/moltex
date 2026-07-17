@@ -6,7 +6,7 @@ repositories. It has two internal projects:
 - [`moltex_exporter`](./moltex_exporter/) — the existing WordPress plugin that captures
   source content, media, configuration, relationships, and migration evidence in a
   versioned ZIP.
-- `moltex_harness` — the planned local Python project that safely parses exports,
+- [`moltex_harness`](./moltex_harness/) — the local Python project that safely parses exports,
   normalizes migration contracts, generates the Astro/Codex workspace, ships the
   self-contained verifier, and runs repository evals.
 
@@ -38,10 +38,14 @@ other project's internal state.
 and enforces `moltex-export/1`, and the reviewed real WordPress Golden Export is frozen for
 harness intake. Current E3 release hardening keeps the WordPress export one-click and
 defers automatic source screenshot capture to the H2-to-H3 transition. There is no E4;
-H1 is the next product phase.
+H1 safe intake and H2 canonical contract compilation are implemented; H3 is the
+next product phase.
 
-`moltex_harness` has not yet been scaffolded. Its architecture and independently
-verifiable phases are specified in the companion plan.
+`moltex_harness` now has its uv-managed package, bounded archive intake,
+`legacy-1` and `moltex-export/1` adapters, deterministic raw-source evidence, canonical
+route/asset/SEO/redirect/capability contracts, evidence lineage, parity seeds, and a
+bounded visual-capture plan. Later conversion and generation phases remain specified in
+the companion plan.
 
 ## Plans
 
@@ -82,8 +86,8 @@ disposable WordPress installations. The toolchain and fixtures are pinned in the
 verification receipts. Contract details are in
 [`docs/export-bundle-contract.md`](./docs/export-bundle-contract.md).
 
-The new `moltex_harness` project uses Python 3.11+, `uv`, pytest, Pydantic, Astro 5, Node,
-and Playwright. Once scaffolded, Python commands use the project explicitly:
+The `moltex_harness` project uses Python 3.11+, `uv`, pytest, Pydantic, Astro 5, Node,
+and Playwright. Python commands use the project explicitly:
 
 ```bash
 uv sync --project moltex_harness

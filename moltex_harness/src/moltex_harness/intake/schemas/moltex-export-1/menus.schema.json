@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/moltex-export-1/menus.schema.json",
+  "title": "Moltex menus",
+  "type": "object",
+  "required": ["schema_version", "menu_locations", "menus"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "menu_locations": {"type": ["object", "array"]},
+    "menus": {"type": "array"}
+  }
+}

@@ -20,6 +20,9 @@ if ( ! defined( 'WPINC' ) ) {
  */
 class Moltex_Exporter_Content_Scanner extends Moltex_Exporter_Scanner_Base {
 
+	/** Maximum representative rendered HTML snapshots per export. */
+	const MAX_HTML_SNAPSHOTS = 12;
+
 	/**
 	 * Block usage statistics.
 	 *
@@ -55,9 +58,14 @@ class Moltex_Exporter_Content_Scanner extends Moltex_Exporter_Scanner_Base {
 			'max_posts' => 100,
 			'max_pages' => 50,
 			'max_per_custom_post_type' => 10,
+			'html_snapshot_mode' => 'bounded',
+			'include_html_snapshots' => true,
 		);
 
 		$saved_settings = get_option( 'moltex_settings', array() );
+		if ( ! isset( $saved_settings['html_snapshot_mode'] ) && array_key_exists( 'include_html_snapshots', $saved_settings ) ) {
+			$saved_settings['html_snapshot_mode'] = $saved_settings['include_html_snapshots'] ? 'bounded' : 'off';
+		}
 		$this->settings = wp_parse_args( $saved_settings, $defaults );
 	}
 
@@ -80,6 +88,7 @@ class Moltex_Exporter_Content_Scanner extends Moltex_Exporter_Scanner_Base {
 			'custom_post_types' => $cpts,
 			'block_usage'       => $this->get_block_usage_stats(),
 		);
+		$this->generate_selected_html_snapshots( $content_data );
 		$content_data['completeness'] = $this->build_completeness_report( $content_data );
 
 		// Surface a warning when the content scanner finds nothing so the
@@ -390,11 +399,6 @@ class Moltex_Exporter_Content_Scanner extends Moltex_Exporter_Scanner_Base {
 			if ( ! empty( $geodir_data ) ) {
 				$content_item['geodirectory'] = $geodir_data;
 			}
-		}
-
-		// Generate HTML snapshot if export directory is set
-		if ( ! empty( $this->export_dir ) && $this->should_generate_html_snapshot() ) {
-			$this->generate_html_snapshot( $post );
 		}
 
 		return $content_item;
@@ -833,17 +837,168 @@ class Moltex_Exporter_Content_Scanner extends Moltex_Exporter_Scanner_Base {
 	}
 
 	/**
-	 * Check if HTML snapshots should be generated.
+	 * Generate the selected rendered HTML evidence after all content is known.
 	 *
-	 * @return bool True if snapshots should be generated.
+	 * @param array $content_data Exported content groups.
+	 * @return void
 	 */
-	private function should_generate_html_snapshot() {
-		// Check if setting is enabled (default to true)
-		$include_snapshots = isset( $this->settings['include_html_snapshots'] ) 
-			? $this->settings['include_html_snapshots'] 
-			: true;
+	private function generate_selected_html_snapshots( array $content_data ) {
+		if ( empty( $this->export_dir ) ) {
+			return;
+		}
 
-		return (bool) $include_snapshots;
+		$mode = $this->get_html_snapshot_mode();
+		if ( 'off' === $mode ) {
+			return;
+		}
+
+		$candidates = 'all' === $mode
+			? $this->flatten_snapshot_candidates( $content_data )
+			: $this->select_bounded_snapshot_candidates( $content_data );
+
+		foreach ( $candidates as $candidate ) {
+			if ( empty( $candidate['id'] ) ) {
+				continue;
+			}
+
+			$post = get_post( (int) $candidate['id'] );
+			if ( $post ) {
+				$this->generate_html_snapshot( $post );
+			}
+		}
+	}
+
+	/**
+	 * Resolve the normalized snapshot mode with legacy boolean compatibility.
+	 *
+	 * @return string One of bounded, off, or all.
+	 */
+	private function get_html_snapshot_mode() {
+		$mode = isset( $this->settings['html_snapshot_mode'] ) ? $this->settings['html_snapshot_mode'] : '';
+		if ( in_array( $mode, array( 'bounded', 'off', 'all' ), true ) ) {
+			return $mode;
+		}
+
+		return empty( $this->settings['include_html_snapshots'] ) ? 'off' : 'bounded';
+	}
+
+	/**
+	 * Flatten public content records into a stable candidate list.
+	 *
+	 * @param array $content_data Exported content groups.
+	 * @return array Snapshot candidates.
+	 */
+	private function flatten_snapshot_candidates( array $content_data ) {
+		$candidates = array();
+
+		foreach ( array( 'posts', 'pages' ) as $group ) {
+			if ( ! empty( $content_data[ $group ] ) && is_array( $content_data[ $group ] ) ) {
+				$candidates = array_merge( $candidates, $content_data[ $group ] );
+			}
+		}
+
+		if ( ! empty( $content_data['custom_post_types'] ) && is_array( $content_data['custom_post_types'] ) ) {
+			$custom_post_types = $content_data['custom_post_types'];
+			ksort( $custom_post_types );
+			foreach ( $custom_post_types as $items ) {
+				if ( is_array( $items ) ) {
+					$candidates = array_merge( $candidates, $items );
+				}
+			}
+		}
+
+		return array_values(
+			array_filter(
+				$candidates,
+				function ( $candidate ) {
+					return is_array( $candidate ) && ! empty( $candidate['id'] );
+				}
+			)
+		);
+	}
+
+	/**
+	 * Select representative source routes without making target decisions.
+	 *
+	 * The front/posts pages, every public content type, distinct source template
+	 * families, and content with form/shortcode markers are preferred. Remaining
+	 * capacity is filled deterministically up to MAX_HTML_SNAPSHOTS.
+	 *
+	 * @param array $content_data Exported content groups.
+	 * @return array Bounded snapshot candidates.
+	 */
+	private function select_bounded_snapshot_candidates( array $content_data ) {
+		$candidates = $this->flatten_snapshot_candidates( $content_data );
+		$by_id      = array();
+		$selected   = array();
+		$seen       = array();
+
+		foreach ( $candidates as $candidate ) {
+			$by_id[ (int) $candidate['id'] ] = $candidate;
+		}
+
+		$add = function ( $candidate ) use ( &$selected, &$seen ) {
+			$id = isset( $candidate['id'] ) ? (int) $candidate['id'] : 0;
+			if ( $id < 1 || isset( $seen[ $id ] ) || count( $selected ) >= self::MAX_HTML_SNAPSHOTS ) {
+				return;
+			}
+			$seen[ $id ] = true;
+			$selected[]  = $candidate;
+		};
+
+		foreach ( array( 'page_on_front', 'page_for_posts' ) as $option ) {
+			$id = (int) get_option( $option, 0 );
+			if ( isset( $by_id[ $id ] ) ) {
+				$add( $by_id[ $id ] );
+			}
+		}
+
+		$by_type = array();
+		foreach ( $candidates as $candidate ) {
+			$type = isset( $candidate['type'] ) ? (string) $candidate['type'] : '';
+			if ( ! isset( $by_type[ $type ] ) ) {
+				$by_type[ $type ] = $candidate;
+			}
+		}
+		ksort( $by_type );
+		foreach ( $by_type as $candidate ) {
+			$add( $candidate );
+		}
+
+		$by_template = array();
+		foreach ( $candidates as $candidate ) {
+			$type     = isset( $candidate['type'] ) ? (string) $candidate['type'] : '';
+			$template = isset( $candidate['template'] ) ? (string) $candidate['template'] : 'default';
+			$key      = $type . '|' . $template;
+			if ( ! isset( $by_template[ $key ] ) ) {
+				$by_template[ $key ] = $candidate;
+			}
+		}
+		ksort( $by_template );
+		foreach ( $by_template as $candidate ) {
+			$add( $candidate );
+		}
+
+		foreach ( $candidates as $candidate ) {
+			$html = isset( $candidate['raw_html'] ) ? (string) $candidate['raw_html'] : '';
+			if ( false !== stripos( $html, '<form' ) || preg_match( '/\[[a-z][a-z0-9_-]*(?:\s|\])/i', $html ) ) {
+				$add( $candidate );
+			}
+		}
+
+		usort(
+			$candidates,
+			function ( $left, $right ) {
+				$left_key  = sprintf( '%s|%010d|%s', isset( $left['type'] ) ? $left['type'] : '', (int) $left['id'], isset( $left['slug'] ) ? $left['slug'] : '' );
+				$right_key = sprintf( '%s|%010d|%s', isset( $right['type'] ) ? $right['type'] : '', (int) $right['id'], isset( $right['slug'] ) ? $right['slug'] : '' );
+				return strcmp( $left_key, $right_key );
+			}
+		);
+		foreach ( $candidates as $candidate ) {
+			$add( $candidate );
+		}
+
+		return $selected;
 	}
 
 	/**

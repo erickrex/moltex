@@ -1,0 +1,10 @@
+{
+  "assets": 2,
+  "capabilities": 3,
+  "content": 8,
+  "parity_rows": 11,
+  "route_families": ["home", "listing", "page", "post"],
+  "routes": 8,
+  "seo": 8,
+  "visual_targets": 8
+}

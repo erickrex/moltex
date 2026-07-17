@@ -122,7 +122,7 @@ function Invoke-Export {
         max_posts = $(if ($Mode -eq 'discovery') { '1' } else { '100' })
         max_pages = $(if ($Mode -eq 'discovery') { '1' } else { '100' })
         max_per_custom_post_type = $(if ($Mode -eq 'discovery') { '1' } else { '100' })
-        include_html_snapshots = '1'
+        html_snapshot_mode = 'bounded'
         batch_size = '50'
         cleanup_after_hours = '24'
     }

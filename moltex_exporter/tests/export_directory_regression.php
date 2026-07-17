@@ -87,9 +87,7 @@ assert_true( is_dir( $base_dir ), 'Cleanup guard must not delete the base artifa
 rmdir( $export_dir . '/assets/js' );
 rmdir( $export_dir . '/assets/css' );
 rmdir( $export_dir . '/assets' );
-rmdir( $export_dir . '/plugins/readmes' );
 rmdir( $export_dir . '/plugins/feature_maps' );
-rmdir( $export_dir . '/plugins/templates' );
 rmdir( $export_dir . '/plugins' );
 rmdir( $export_dir . '/theme/templates' );
 rmdir( $export_dir . '/theme' );

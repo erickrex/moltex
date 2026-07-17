@@ -159,12 +159,14 @@ class Moltex_Exporter_Admin_Page {
 			$sanitized['max_per_custom_post_type'] = absint( $input['max_per_custom_post_type'] );
 		}
 
-		if ( isset( $input['include_html_snapshots'] ) ) {
-			$sanitized['include_html_snapshots'] = (bool) $input['include_html_snapshots'];
+		if ( isset( $input['html_snapshot_mode'] ) && in_array( $input['html_snapshot_mode'], array( 'bounded', 'off', 'all' ), true ) ) {
+			$sanitized['html_snapshot_mode'] = $input['html_snapshot_mode'];
+		} elseif ( isset( $input['include_html_snapshots'] ) ) {
+			$sanitized['html_snapshot_mode'] = $input['include_html_snapshots'] ? 'bounded' : 'off';
 		} else {
-			// If checkbox is not checked, it won't be in the input array
-			$sanitized['include_html_snapshots'] = true;
+			$sanitized['html_snapshot_mode'] = 'bounded';
 		}
+		$sanitized['include_html_snapshots'] = 'off' !== $sanitized['html_snapshot_mode'];
 
 		if ( isset( $input['batch_size'] ) ) {
 			$sanitized['batch_size'] = absint( $input['batch_size'] );
@@ -217,6 +219,9 @@ class Moltex_Exporter_Admin_Page {
 		}
 		if ( isset( $_POST['include_html_snapshots'] ) ) {
 			$input['include_html_snapshots'] = $_POST['include_html_snapshots'];
+		}
+		if ( isset( $_POST['html_snapshot_mode'] ) ) {
+			$input['html_snapshot_mode'] = sanitize_key( $_POST['html_snapshot_mode'] );
 		}
 		if ( isset( $_POST['batch_size'] ) ) {
 			$input['batch_size'] = $_POST['batch_size'];

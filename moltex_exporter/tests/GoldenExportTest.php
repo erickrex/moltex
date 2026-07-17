@@ -86,6 +86,7 @@ class GoldenExportTest extends TestCase {
 
 			$media_map = $this->read_json( $zip, 'media/media_map.json' );
 			$mapped    = array_column( $media_map, 'artifact' );
+			$mapped    = array_values( array_unique( $mapped ) );
 			sort( $mapped );
 			$this->assertSame( $media, $mapped );
 			foreach ( $media_map as $item ) {

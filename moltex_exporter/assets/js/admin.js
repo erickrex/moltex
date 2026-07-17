@@ -55,7 +55,7 @@
 					max_posts: $('#moltex-max-posts').val(),
 					max_pages: $('#moltex-max-pages').val(),
 					max_per_custom_post_type: $('#moltex-max-cpt').val(),
-					include_html_snapshots: $('#moltex-html-snapshots').is(':checked') ? 1 : 0,
+					html_snapshot_mode: $('#moltex-html-snapshot-mode').val(),
 					batch_size: $('#moltex-batch-size').val(),
 					cleanup_after_hours: $('#moltex-cleanup-hours').val()
 				},

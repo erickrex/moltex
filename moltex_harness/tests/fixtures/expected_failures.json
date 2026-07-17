@@ -1,0 +1,9 @@
+[
+  {"code": "unsafe_path", "classification": "invalid_input"},
+  {"code": "compression_ratio_limit", "classification": "invalid_input"},
+  {"code": "duplicate_path", "classification": "invalid_input"},
+  {"code": "case_collision", "classification": "invalid_input"},
+  {"code": "checksum_mismatch", "classification": "invalid_input"},
+  {"code": "missing_artifact", "classification": "invalid_input"},
+  {"code": "unsupported_export", "classification": "unsupported_version"}
+]

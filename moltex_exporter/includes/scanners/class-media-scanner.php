@@ -39,6 +39,12 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 	 */
 	private $media_map = array();
 
+	/** Export artifact path keyed by source media URL. */
+	private $media_artifacts = array();
+
+	/** First exported artifact path keyed by source-file SHA-256. */
+	private $artifacts_by_hash = array();
+
 	/**
 	 * WordPress uploads directory info.
 	 *
@@ -63,7 +69,9 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 	 * @return array Media data including map and metadata.
 	 */
 	public function scan() {
-		$this->media_map = array();
+		$this->media_map         = array();
+		$this->media_artifacts   = array();
+		$this->artifacts_by_hash = array();
 
 		// Identify all referenced media
 		$this->identify_referenced_media();
@@ -404,6 +412,7 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 	 *
 	 * @param array  $media Media data.
 	 * @param string $media_dir Media directory path.
+	 * @return string|false Exported artifact path or false on failure.
 	 */
 	private function copy_single_media_file( $media, $media_dir ) {
 		$url = $media['url'];
@@ -416,7 +425,7 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 				'media',
 				sprintf( 'Media file not found on disk (may be a deleted thumbnail): %s', $url )
 			);
-			return;
+			return false;
 		}
 
 		// Get relative path to preserve directory structure
@@ -427,7 +436,14 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 				'media',
 				sprintf( 'Could not determine relative path for: %s', $url )
 			);
-			return;
+			return false;
+		}
+
+		$artifact_path = 'media/' . str_replace( '\\', '/', $relative_path );
+		$file_hash     = hash_file( 'sha256', $file_path );
+		if ( false !== $file_hash && isset( $this->artifacts_by_hash[ $file_hash ] ) ) {
+			$this->media_artifacts[ $url ] = $this->artifacts_by_hash[ $file_hash ];
+			return $this->media_artifacts[ $url ];
 		}
 
 		// Create destination path
@@ -447,7 +463,15 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 				'media',
 				sprintf( 'Failed to copy media file: %s to %s', $file_path, $dest_path )
 			);
+			return false;
 		}
+
+		$this->media_artifacts[ $url ] = $artifact_path;
+		if ( false !== $file_hash ) {
+			$this->artifacts_by_hash[ $file_hash ] = $artifact_path;
+		}
+
+		return $artifact_path;
 	}
 
 	/**
@@ -517,9 +541,13 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 				continue;
 			}
 
+			$artifact = isset( $this->media_artifacts[ $url ] )
+				? $this->media_artifacts[ $url ]
+				: 'media/' . str_replace( '\\', '/', $relative_path );
+
 			$map_entry = array(
 				'wp_src'   => $url,
-				'artifact' => 'media/' . $relative_path,
+				'artifact' => $artifact,
 			);
 
 			// Add attachment metadata if available

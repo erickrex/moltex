@@ -147,7 +147,7 @@ try {
         max_posts = '100'
         max_pages = '100'
         max_per_custom_post_type = '100'
-        include_html_snapshots = '1'
+        html_snapshot_mode = 'bounded'
         batch_size = '50'
         cleanup_after_hours = '24'
     }
@@ -182,7 +182,8 @@ try {
 
     if (-not $validation.valid -or -not $validation.complete_migration_eligible) { throw 'Golden Path bundle is not complete-migration eligible.' }
     if ($archiveCounts.content_json -ne [int]$fixture.public_content) { throw 'WordPress/content artifact count mismatch.' }
-    if ($archiveCounts.media_files -ne [int]$fixture.referenced_media -or $mediaMap.Count -ne [int]$fixture.referenced_media) { throw 'WordPress/media artifact count mismatch.' }
+    $mappedMediaArtifacts = @($mediaMap | ForEach-Object { $_.artifact } | Sort-Object -Unique)
+    if ($mediaMap.Count -ne [int]$fixture.referenced_media -or $archiveCounts.media_files -ne $mappedMediaArtifacts.Count) { throw 'WordPress/media artifact count mismatch.' }
     if (@($seo.pages).Count -ne [int]$fixture.public_content) { throw 'Resolved SEO count mismatch.' }
     if (@($integrations.integrations | Where-Object { $_.integration_id -eq 'embed:youtube' }).Count -ne 1) { throw 'The YouTube capability evidence is missing.' }
     Assert-NoPrivateMarkers -Path $candidatePath

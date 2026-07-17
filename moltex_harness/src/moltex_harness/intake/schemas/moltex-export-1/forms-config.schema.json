@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/moltex-export-1/forms-config.schema.json",
+  "title": "Moltex forms capability evidence",
+  "type": "object",
+  "required": ["schema_version", "detected_plugins", "forms", "forms_in_content", "summary"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "detected_plugins": {"type": "array"},
+    "forms": {"type": ["object", "array"]},
+    "forms_in_content": {"type": "array"},
+    "summary": {"type": ["object", "array"]}
+  }
+}

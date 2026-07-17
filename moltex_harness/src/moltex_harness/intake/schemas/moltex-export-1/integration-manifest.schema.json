@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/moltex-export-1/integration-manifest.schema.json",
+  "title": "Moltex integration capability evidence",
+  "type": "object",
+  "required": ["schema_version", "integrations"],
+  "properties": {
+    "schema_version": {"type": ["integer", "string"]},
+    "integrations": {"type": "array"}
+  }
+}

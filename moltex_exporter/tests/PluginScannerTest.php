@@ -130,6 +130,18 @@ class PluginScannerTest extends TestCase {
 		$this->assertIsArray( $readme_exports['readmes'] );
 	}
 
+	public function test_scan_omits_raw_plugin_readmes_and_templates() {
+		$result = $this->create_scanner()->scan();
+
+		$this->assertSame( 0, $result['readme_exports']['exported_count'] );
+		$this->assertTrue( $result['readme_exports']['omitted'] );
+		$this->assertSame( 0, $result['template_exports']['total_templates'] );
+		$this->assertTrue( $result['template_exports']['omitted'] );
+		$this->assertDirectoryDoesNotExist( $this->export_dir . '/plugins/readmes' );
+		$this->assertDirectoryDoesNotExist( $this->export_dir . '/plugins/templates' );
+		$this->assertFileDoesNotExist( $this->export_dir . '/plugins/plugins_templates_manifest.json' );
+	}
+
 	/**
 	 * Test behavioral fingerprints structure.
 	 */

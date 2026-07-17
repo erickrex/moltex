@@ -66,7 +66,7 @@ class Moltex_Exporter_Artifact_Registry {
 			$this->pattern_definition( 'media/*', 'binary', 'media', false, null, 'public media', 52428800, false ),
 			$this->pattern_definition( 'theme/*', 'evidence', 'theme', false, null, 'presentation evidence', 52428800, false ),
 			$this->pattern_definition( 'assets/*', 'evidence', 'assets', false, null, 'public assets', 52428800, false ),
-			$this->pattern_definition( 'plugins/*', 'evidence', 'plugins', false, null, 'plugin configuration or templates', 52428800, false ),
+			$this->pattern_definition( 'plugins/*', 'evidence', 'plugins', false, null, 'structured plugin configuration and capability evidence', 52428800, false ),
 			$this->definition( 'redirects_candidates.csv', 'csv', 'redirects', false, null, 'public URLs', 10485760, false ),
 			$this->definition( 'schema_mysql.sql', 'sql', 'database', false, null, 'sensitive structural evidence', 10485760, false ),
 		);

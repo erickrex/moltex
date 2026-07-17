@@ -191,6 +191,48 @@ class ContentScannerTest extends TestCase {
 		$this->assertFalse( $result['completeness']['complete'] );
 	}
 
+	public function test_bounded_snapshot_selection_is_representative_and_capped() {
+		global $mock_options;
+		$mock_options['page_on_front'] = 20;
+		$content = array(
+			'posts' => array(),
+			'pages' => array(
+				array( 'id' => 20, 'type' => 'page', 'slug' => 'home', 'template' => 'front-page.php', 'raw_html' => '' ),
+				array( 'id' => 21, 'type' => 'page', 'slug' => 'contact', 'template' => 'contact.php', 'raw_html' => '[forminator_form id="1"]' ),
+			),
+			'custom_post_types' => array(),
+		);
+
+		for ( $index = 1; $index <= 15; $index++ ) {
+			$content['posts'][] = array(
+				'id'       => $index,
+				'type'     => 'post',
+				'slug'     => 'post-' . $index,
+				'template' => 'default',
+				'raw_html' => '',
+			);
+		}
+		$content['custom_post_types']['event'] = array(
+			array( 'id' => 30, 'type' => 'event', 'slug' => 'event', 'template' => 'single-event.php', 'raw_html' => '' ),
+		);
+
+		$scanner = new Moltex_Exporter_Content_Scanner();
+		$method  = new ReflectionMethod( $scanner, 'select_bounded_snapshot_candidates' );
+		$method->setAccessible( true );
+		$selected = $method->invoke( $scanner, $content );
+		$ids      = array_map(
+			function ( $item ) {
+				return $item['id'];
+			},
+			$selected
+		);
+
+		$this->assertCount( 12, $selected );
+		$this->assertSame( 20, $ids[0], 'The configured front page must be selected first.' );
+		$this->assertContains( 21, $ids, 'A distinct page template and form route must be represented.' );
+		$this->assertContains( 30, $ids, 'Every public content type must be represented.' );
+	}
+
 	/**
 	 * Test GeoDirectory CPT detection.
 	 */

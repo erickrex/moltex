@@ -4,7 +4,7 @@ Tags: migration, export, astro, static-site
 Requires at least: 5.9
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.2.5
+Stable tag: 1.2.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -45,6 +45,11 @@ No. Transactional, account-heavy, multisite, and unknown custom behavior can pro
 blockers or manual-review items.
 
 == Changelog ==
+
+= 1.2.6 =
+* Limited rendered HTML evidence to 12 representative routes by default, with explicit off and all-content modes.
+* Deduplicated byte-identical media while preserving every source URL in the media map.
+* Replaced raw plugin readmes and PHP templates with the structured plugin and capability evidence used by the migration harness.
 
 = 1.2.5 =
 * Hardened large ZIP downloads against output-buffer and response-compression corruption.

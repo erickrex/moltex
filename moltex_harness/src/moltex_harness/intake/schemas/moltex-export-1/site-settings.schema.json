@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/moltex-export-1/site-settings.schema.json",
+  "title": "Moltex site settings",
+  "type": "object",
+  "required": ["schema_version", "core", "language", "reading", "discussion", "media"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "core": {"type": ["object", "array"]},
+    "language": {"type": ["object", "array"]},
+    "reading": {"type": ["object", "array"]},
+    "discussion": {"type": ["object", "array"]},
+    "media": {"type": ["object", "array"]}
+  }
+}

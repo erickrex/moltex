@@ -3,7 +3,7 @@
  * Plugin Scanner Class
  *
  * Collects comprehensive plugin information including installed plugins,
- * active status, versions, README files, behavioral fingerprints,
+ * active status, versions, behavioral fingerprints,
  * registered custom post types, taxonomies, shortcodes, blocks,
  * and database tables created by plugins.
  *
@@ -74,7 +74,13 @@ class Moltex_Exporter_Plugin_Scanner extends Moltex_Exporter_Scanner_Base {
 		$this->create_export_directories();
 
 		$plugins_list = $this->collect_plugins_list();
-		$readme_exports = $this->export_readme_files();
+		$readme_exports = array(
+			'success'        => true,
+			'exported_count' => 0,
+			'readmes'        => array(),
+			'omitted'        => true,
+			'reason'         => 'Raw plugin readmes are not required by the migration contract.',
+		);
 		$behavioral_fingerprints = $this->create_behavioral_fingerprints();
 		$custom_post_types = $this->document_custom_post_types();
 		$taxonomies = $this->document_taxonomies();
@@ -82,7 +88,14 @@ class Moltex_Exporter_Plugin_Scanner extends Moltex_Exporter_Scanner_Base {
 		$blocks = $this->document_blocks();
 		$database_tables = $this->identify_database_tables();
 		$enhanced_detection = $this->detect_known_plugins();
-		$template_exports = $this->export_plugin_templates();
+		$template_exports = array(
+			'success'         => true,
+			'plugins_count'   => 0,
+			'total_templates' => 0,
+			'exported'        => array(),
+			'omitted'         => true,
+			'reason'          => 'Raw plugin PHP templates are replaced by structured capability evidence.',
+		);
 
 		return array(
 			'plugins_list'            => $plugins_list,
@@ -104,9 +117,7 @@ class Moltex_Exporter_Plugin_Scanner extends Moltex_Exporter_Scanner_Base {
 	private function create_export_directories() {
 		$directories = array(
 			$this->plugins_export_dir,
-			$this->plugins_export_dir . 'readmes/',
 			$this->plugins_export_dir . 'feature_maps/',
-			$this->plugins_export_dir . 'templates/',
 		);
 
 		foreach ( $directories as $dir ) {
@@ -152,67 +163,6 @@ class Moltex_Exporter_Plugin_Scanner extends Moltex_Exporter_Scanner_Base {
 			'total_count'  => count( $plugins_data ),
 			'active_count' => count( $this->active_plugins ),
 			'plugins'      => $plugins_data,
-		);
-	}
-
-	/**
-	 * Export README.txt files for all plugins.
-	 *
-	 * @return array Export status with list of exported READMEs.
-	 */
-	private function export_readme_files() {
-		$exported_readmes = array();
-		$readmes_dir = $this->plugins_export_dir . 'readmes/';
-
-		foreach ( $this->all_plugins as $plugin_file => $plugin_data ) {
-			$plugin_slug = dirname( $plugin_file );
-			
-			// Handle single-file plugins
-			if ( $plugin_slug === '.' ) {
-				$plugin_slug = basename( $plugin_file, '.php' );
-			}
-
-			$plugin_dir = WP_PLUGIN_DIR . '/' . $plugin_slug;
-			
-			// Look for README files (case-insensitive)
-			$readme_files = array( 'readme.txt', 'README.txt', 'readme.md', 'README.md' );
-			$readme_found = false;
-
-			foreach ( $readme_files as $readme_file ) {
-				$readme_path = $plugin_dir . '/' . $readme_file;
-				
-				if ( file_exists( $readme_path ) ) {
-					$destination = $readmes_dir . $plugin_slug . '_' . $readme_file;
-					
-					if ( copy( $readme_path, $destination ) ) {
-						$exported_readmes[] = array(
-							'plugin_slug' => $plugin_slug,
-							'plugin_name' => $plugin_data['Name'],
-							'readme_file' => $readme_file,
-							'path'        => 'plugins/readmes/' . $plugin_slug . '_' . $readme_file,
-						);
-						$readme_found = true;
-						break; // Only export the first README found
-					}
-				}
-			}
-
-			if ( ! $readme_found ) {
-				$exported_readmes[] = array(
-					'plugin_slug' => $plugin_slug,
-					'plugin_name' => $plugin_data['Name'],
-					'readme_file' => null,
-					'message'     => 'No README file found',
-				);
-			}
-		}
-
-		return array(
-			'success'        => true,
-			'exported_count' => count( array_filter( $exported_readmes, function( $item ) {
-				return isset( $item['path'] );
-			} ) ),
-			'readmes'        => $exported_readmes,
 		);
 	}
 

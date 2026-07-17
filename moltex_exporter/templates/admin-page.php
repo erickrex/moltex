@@ -17,11 +17,15 @@ $defaults = array(
 	'max_posts'                => 100,
 	'max_pages'                => 50,
 	'max_per_custom_post_type' => 50,
+	'html_snapshot_mode'       => 'bounded',
 	'include_html_snapshots'   => true,
 	'batch_size'               => 50,
 	'cleanup_after_hours'      => 24,
 );
 $settings = get_option( 'moltex_settings', $defaults );
+$settings['html_snapshot_mode'] = isset( $settings['html_snapshot_mode'] )
+	? $settings['html_snapshot_mode']
+	: ( empty( $settings['include_html_snapshots'] ) ? 'off' : 'bounded' );
 $settings = wp_parse_args( $settings, $defaults );
 $preflight = isset( $preflight ) && is_array( $preflight ) ? $preflight : array( 'ready' => false, 'blockers' => array( 'Preflight was unavailable.' ), 'warnings' => array() );
 ?>
@@ -114,14 +118,15 @@ $preflight = isset( $preflight ) && is_array( $preflight ) ? $preflight : array(
 					</tr>
 					<tr>
 						<th scope="row">
-							<label for="moltex-html-snapshots"><?php echo esc_html( 'Include HTML Snapshots' ); ?></label>
+							<label for="moltex-html-snapshot-mode"><?php echo esc_html( 'HTML Snapshot Evidence' ); ?></label>
 						</th>
 						<td>
-							<label>
-								<input type="checkbox" id="moltex-html-snapshots" value="1" <?php checked( $settings['include_html_snapshots'], true ); ?> />
-								<?php echo esc_html( 'Generate HTML snapshots of content' ); ?>
-							</label>
-							<p class="description"><?php echo esc_html( 'Capture bounded rendered HTML for each content item (default: on).' ); ?></p>
+							<select id="moltex-html-snapshot-mode">
+								<option value="bounded" <?php selected( $settings['html_snapshot_mode'], 'bounded' ); ?>><?php echo esc_html( 'Bounded representative set (recommended)' ); ?></option>
+								<option value="off" <?php selected( $settings['html_snapshot_mode'], 'off' ); ?>><?php echo esc_html( 'Off' ); ?></option>
+								<option value="all" <?php selected( $settings['html_snapshot_mode'], 'all' ); ?>><?php echo esc_html( 'All content (large diagnostic export)' ); ?></option>
+							</select>
+							<p class="description"><?php echo esc_html( 'The recommended mode captures at most 12 representative public routes. All content can substantially increase export time and ZIP size.' ); ?></p>
 						</td>
 					</tr>
 					<tr>

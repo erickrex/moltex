@@ -47,7 +47,16 @@ class PreflightTest extends TestCase {
 	public function test_admin_settings_default_complete_exports_to_snapshots() {
 		$settings = ( new Moltex_Exporter_Admin_Page() )->sanitize_settings( array( 'export_mode' => 'complete' ) );
 		$this->assertTrue( $settings['include_html_snapshots'] );
+		$this->assertSame( 'bounded', $settings['html_snapshot_mode'] );
 		$this->assertFalse( $settings['include_private_content'] );
+	}
+
+	public function test_snapshot_mode_accepts_bounded_off_and_all_only() {
+		$admin = new Moltex_Exporter_Admin_Page();
+
+		$this->assertSame( 'off', $admin->sanitize_settings( array( 'html_snapshot_mode' => 'off' ) )['html_snapshot_mode'] );
+		$this->assertSame( 'all', $admin->sanitize_settings( array( 'html_snapshot_mode' => 'all' ) )['html_snapshot_mode'] );
+		$this->assertSame( 'bounded', $admin->sanitize_settings( array( 'html_snapshot_mode' => 'invalid' ) )['html_snapshot_mode'] );
 	}
 
 	public function test_unsupported_site_capabilities_warn_without_blocking() {

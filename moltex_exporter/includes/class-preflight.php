@@ -80,8 +80,13 @@ class Moltex_Exporter_Preflight {
 		}
 
 		$mode = isset( $settings['export_mode'] ) && 'discovery' === $settings['export_mode'] ? 'discovery' : 'complete';
-		if ( 'complete' === $mode && empty( $settings['include_html_snapshots'] ) ) {
+		$snapshot_mode = isset( $settings['html_snapshot_mode'] )
+			? $settings['html_snapshot_mode']
+			: ( empty( $settings['include_html_snapshots'] ) ? 'off' : 'bounded' );
+		if ( 'complete' === $mode && 'off' === $snapshot_mode ) {
 			$warnings[] = 'HTML snapshots are disabled for this complete export.';
+		} elseif ( 'all' === $snapshot_mode ) {
+			$warnings[] = 'All-page HTML snapshots can substantially increase export time and ZIP size.';
 		}
 		if ( is_multisite() ) {
 			$warnings[] = 'WordPress multisite is outside the initial static migration profile.';

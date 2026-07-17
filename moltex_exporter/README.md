@@ -2,8 +2,7 @@
 
 Moltex Exporter is a read-only WordPress plugin that creates a privacy-filtered,
 checksummed `moltex-export/1` evidence ZIP for later rebuilding as a Git-managed Astro
-site. The exporter observes and packages WordPress; the future `moltex_harness` interprets
-the ZIP. H1 has not yet proved that consumer handshake.
+site. The exporter observes and packages WordPress; `moltex_harness` interprets the ZIP.
 
 ## Supported scope
 
@@ -14,7 +13,7 @@ readiness blocker.
 
 ## Install the release
 
-Build or obtain `moltex-exporter-1.2.5.zip`, then use **Plugins → Add New → Upload Plugin**.
+Build or obtain `moltex-exporter-1.2.6.zip`, then use **Plugins → Add New → Upload Plugin**.
 The release requires WordPress 5.9+, PHP 7.4+, JSON, and `ZipArchive`. After activation,
 open **Moltex Exporter** and resolve every blocking preflight result.
 
@@ -36,7 +35,8 @@ Pilot on a staging clone before production.
 1. Select **Complete migration**.
 2. Keep private content disabled for a public rebuild.
 3. Confirm the complete-export ceiling is above every eligible post-type count.
-4. Keep HTML snapshots enabled.
+4. Keep HTML snapshots on **Bounded (recommended)**. This captures at most 12
+   representative routes; use **All** only for targeted diagnostics.
 5. Export and download the signed ZIP.
 6. Review `migration_readiness.json`, `export_completeness.json`, `error_log.json`, and the
    privacy state in `bundle.json`.
@@ -58,10 +58,12 @@ content are filtered or excluded by default. Manual review is still mandatory be
 is shared. Forms, shortcodes, hooks, external APIs, authentication, redirects,
 accessibility, SEO, and visual parity can require explicit downstream decisions.
 
-The release captures all exporter-owned evidence for supported content-led sites. It does
-not claim that an arbitrary site can already be rebuilt; H1 must prove intake, and later
-harness phases own normalization, automated source screenshot capture, Astro generation,
-and verification. The WordPress user is never asked to capture or upload screenshots.
+The release captures the exporter-owned evidence needed for supported content-led sites.
+Repeated media bytes are stored once while every source URL remains in the media map. Raw
+plugin readmes and PHP templates are omitted because structured plugin, capability, and
+theme evidence owns those migration decisions. The harness owns normalization, automated
+source screenshot capture, Astro generation, and verification. The WordPress user is
+never asked to capture or upload screenshots.
 
 ## Development
 
