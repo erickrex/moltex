@@ -50,6 +50,15 @@ class Moltex_Exporter_Admin_Page {
 			'dashicons-migrate',
 			80
 		);
+
+		add_submenu_page(
+			'moltex-exporter',
+			'Export blueprints',
+			'Export blueprints',
+			'manage_options',
+			'moltex-exporter',
+			array( $this, 'render_page' )
+		);
 	}
 
 	/**

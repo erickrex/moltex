@@ -40,7 +40,12 @@ if ( ! empty( $failures ) ) {
 
 $admin_class = file_get_contents( $plugin_dir . '/includes/class-admin-page.php' );
 $template    = file_get_contents( $plugin_dir . '/templates/admin-page.php' );
-if ( substr_count( $admin_class, "'Moltex Exporter'" ) < 2 || false === strpos( $template, "'Export blueprint'" ) ) {
+if (
+	substr_count( $admin_class, "'Moltex Exporter'" ) < 2
+	|| false === strpos( $admin_class, "'Export blueprints'" )
+	|| false === strpos( $template, "'Export blueprint'" )
+	|| false === strpos( $template, 'Astro' )
+) {
 	fwrite( STDERR, "Current Moltex Exporter labels are missing.\n" );
 	exit( 1 );
 }

@@ -4,7 +4,7 @@ Tags: migration, export, astro, static-site
 Requires at least: 5.9
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.2.2
+Stable tag: 1.2.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -26,6 +26,9 @@ under uploads and removes them according to the configured retention period.
 3. Open Moltex Exporter in wp-admin and resolve blocking preflight results.
 4. Pilot on a staging clone before production.
 
+If wp-admin also shows a separate AI-branded export menu, deactivate and remove that legacy
+plugin installation. It does not produce the supported moltex-export/1 bundle.
+
 PHP ZipArchive is required. Complete exports exclude private content by default. Always review an
 export for private material before sharing it.
 
@@ -42,6 +45,10 @@ No. Transactional, account-heavy, multisite, and unknown custom behavior can pro
 blockers or manual-review items.
 
 == Changelog ==
+
+= 1.2.3 =
+* Added the Export blueprints submenu and explicit Astro rebuild wording.
+* Removed false repeated execution-time warnings and kept bundled diagnostics aligned with the admin result.
 
 = 1.2.2 =
 * Removed WordPress screenshot collection; the planned harness will capture source visuals automatically between H2 and H3.

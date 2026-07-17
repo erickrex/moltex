@@ -802,7 +802,11 @@ class Moltex_Exporter_Scanner {
 	}
 
 	/**
-	 * Check resource limits (memory and execution time).
+	 * Check memory limits.
+	 *
+	 * refresh_runtime_budget() removes or restarts PHP's execution timer before
+	 * scanner work. Comparing total export wall time with max_execution_time
+	 * would therefore report false warnings for healthy long-running exports.
 	 *
 	 * @param string $scanner_name Current scanner name.
 	 * @throws Exception If resource limits are critically low.
@@ -846,38 +850,6 @@ class Moltex_Exporter_Scanner {
 			);
 		}
 
-		// Check execution time (if max_execution_time is set)
-		$max_execution_time = ini_get( 'max_execution_time' );
-		if ( $max_execution_time > 0 ) {
-			// Get progress to check elapsed time
-			$progress = $this->get_progress();
-			if ( $progress && isset( $progress['started_at'] ) ) {
-				$elapsed_time = current_time( 'timestamp' ) - $progress['started_at'];
-				$time_percent = ( $elapsed_time / $max_execution_time ) * 100;
-
-				// Warn if approaching time limit
-				if ( $time_percent > 80 ) {
-					$this->log_error(
-						$scanner_name,
-						sprintf(
-							'Approaching execution time limit: %d seconds elapsed of %d maximum',
-							$elapsed_time,
-							$max_execution_time
-						),
-						'warning'
-					);
-				}
-
-				if ( $time_percent > 90 ) {
-					throw new Exception(
-						sprintf(
-							'The export is approaching the PHP execution time limit after %d seconds. Increase max_execution_time or reduce the export settings and try again.',
-							$elapsed_time
-						)
-					);
-				}
-			}
-		}
 	}
 
 	/**
@@ -966,7 +938,7 @@ class Moltex_Exporter_Scanner {
 			$this->refresh_runtime_budget();
 
 			// Create exporter instance
-			$exporter = new Moltex_Exporter_Exporter( $this->export_dir, $this->results );
+			$exporter = new Moltex_Exporter_Exporter( $this->export_dir, $this->prepare_export_results() );
 
 			// Export all data
 			$result = $exporter->export_all();
@@ -1030,6 +1002,22 @@ class Moltex_Exporter_Scanner {
 				'error'   => $e->getMessage(),
 			);
 		}
+	}
+
+	/**
+	 * Add orchestrator diagnostics to the payload consumed by the exporter.
+	 *
+	 * error_log.json is written before packaging, so the exporter must receive
+	 * the same scanner errors and warnings that the admin response will show.
+	 *
+	 * @return array Scan results with top-level diagnostics.
+	 */
+	private function prepare_export_results() {
+		$results = $this->results;
+		$results['errors'] = $this->get_errors();
+		$results['warnings'] = $this->get_warnings();
+
+		return $results;
 	}
 
 	/**

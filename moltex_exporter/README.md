@@ -14,9 +14,13 @@ readiness blocker.
 
 ## Install the release
 
-Build or obtain `moltex-exporter-1.2.2.zip`, then use **Plugins → Add New → Upload Plugin**.
+Build or obtain `moltex-exporter-1.2.3.zip`, then use **Plugins → Add New → Upload Plugin**.
 The release requires WordPress 5.9+, PHP 7.4+, JSON, and `ZipArchive`. After activation,
 open **Moltex Exporter** and resolve every blocking preflight result.
+
+If wp-admin still shows a separate AI-branded export menu, deactivate and remove that
+legacy plugin installation. It is not the Moltex Exporter release and does not produce the
+versioned `moltex-export/1` bundle.
 
 Do not upload a ZIP of the development directory: it contains tests, fixtures, and PHPUnit.
 The supported release is built from a clean commit:

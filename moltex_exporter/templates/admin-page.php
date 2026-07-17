@@ -41,13 +41,13 @@ $preflight = isset( $preflight ) && is_array( $preflight ) ? $preflight : array(
 		</div>
 		<div class="moltex-exporter-header">
 			<p class="moltex-exporter-tagline">
-				<?php echo esc_html( 'Create a complete local migration blueprint for a future verified rebuild' ); ?>
+				<?php echo esc_html( 'Create a complete local migration blueprint for a verified Astro rebuild' ); ?>
 			</p>
 			
 			<p class="moltex-exporter-description">
 				<?php
 				echo esc_html(
-					'This plugin creates a local migration bundle containing public content, media, theme evidence, plugin configuration, routes, SEO data, and a compatibility report. Credentials and sensitive user data are excluded.'
+					'This plugin exports the WordPress evidence needed to rebuild the site as a Git-managed Astro website. The bundle includes public content, media, theme evidence, plugin configuration, routes, SEO data, and a compatibility report. Credentials and sensitive user data are excluded.'
 				);
 				?>
 			</p>
