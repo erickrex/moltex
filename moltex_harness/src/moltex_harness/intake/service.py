@@ -84,10 +84,20 @@ class IntakeService:
                 exit_code=error.exit_code,
             )
         except ValidationError as error:
+            validation_errors = [
+                {
+                    "location": "/" + "/".join(str(part) for part in item["loc"]),
+                    "type": item["type"],
+                }
+                for item in error.errors(include_input=False, include_url=False)
+            ]
             failure = IntakeError(
                 "invalid_source_model",
                 "Accepted source evidence could not satisfy the H1 model",
-                context={"errors": len(error.errors())},
+                context={
+                    "errors": len(validation_errors),
+                    "validation_errors": validation_errors,
+                },
             )
             report = self._rejection_report(
                 archive,

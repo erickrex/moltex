@@ -141,6 +141,30 @@ def _build_deferred_media_export(source: Path, destination: Path) -> Path:
     )
 
 
+def _build_numeric_internal_links_export(source: Path, destination: Path) -> Path:
+    with zipfile.ZipFile(source) as input_zip:
+        files = {
+            info.filename: input_zip.read(info.filename)
+            for info in input_zip.infolist()
+            if not info.is_dir() and info.filename != "bundle.json"
+        }
+        manifest = json.loads(input_zip.read("bundle.json"))
+
+    path = "content/page/home.json"
+    content = json.loads(files[path])
+    links = content["internal_links"]
+    content["internal_links"] = {
+        "0": links[0],
+        "7": links[1],
+    }
+    files[path] = json.dumps(content, ensure_ascii=False, indent=2).encode() + b"\n"
+    for receipt in manifest["artifacts"]:
+        if receipt["path"] == path:
+            receipt["bytes"] = len(files[path])
+            receipt["sha256"] = hashlib.sha256(files[path]).hexdigest()
+    return _write_export(files, manifest, destination)
+
+
 @pytest.mark.parametrize(
     ("filename", "adapter", "content_count"),
     [
@@ -238,6 +262,23 @@ def test_deferred_media_inventory_is_preserved_without_a_binary(
     assert deferred.acquisition.status == "deferred"
     assert deferred.acquisition.method == "source-fetch"
     assert deferred.acquisition.runtime_policy == "local-only"
+
+
+def test_numeric_key_internal_links_from_exporter_129_are_normalized(
+    samples_dir: Path, tmp_path: Path
+) -> None:
+    archive = _build_numeric_internal_links_export(
+        samples_dir / "golden-export.zip", tmp_path / "numeric-links.zip"
+    )
+
+    outcome = IntakeService().inspect(archive, tmp_path / "report")
+
+    assert outcome.exit_code == 0
+    assert outcome.result.evidence is not None
+    home = next(
+        item for item in outcome.result.evidence.content if item.slug == "home"
+    )
+    assert home.internal_links == ["/visit/", "/stories/"]
 
 
 @pytest.mark.parametrize(

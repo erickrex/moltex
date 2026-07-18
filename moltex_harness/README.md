@@ -6,6 +6,11 @@ source visual evidence and creates a conservative, buildable Astro 5 baseline.
 
 ## Development
 
+Generated Astro workspaces and their verifier use exactly Node 24.14.0 and npm
+10.9.2. Install or select those versions before running the Node commands; the
+generated `.node-version`, `.npmrc`, package metadata, and build script enforce
+the same contract.
+
 ```powershell
 uv sync --project moltex_harness
 uv run --project moltex_harness pytest

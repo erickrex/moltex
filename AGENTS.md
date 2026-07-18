@@ -76,6 +76,9 @@ the missing prerequisite and run the available static checks.
 
 Generated Astro workspaces use their own committed `package-lock.json`:
 
+Use Node 24.14.0 and npm 10.9.2 exactly. Generated workspaces enforce these
+versions through `.node-version`, `.npmrc`, package metadata, and build checks.
+
 ```bash
 npm ci
 npm run build

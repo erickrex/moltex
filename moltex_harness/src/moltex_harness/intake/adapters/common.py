@@ -123,6 +123,26 @@ def _content(
                 artifact=path,
                 context={"fields": sorted(missing)},
             )
+        internal_links = value.get("internal_links", [])
+        if isinstance(internal_links, dict):
+            if not all(str(key).isdigit() for key in internal_links):
+                raise IntakeError(
+                    "invalid_content",
+                    "Content internal links must be an array or a numeric-key object",
+                    artifact=path,
+                    pointer="/internal_links",
+                )
+            internal_links = [
+                internal_links[key]
+                for key in sorted(internal_links, key=lambda item: int(item))
+            ]
+        if not isinstance(internal_links, list):
+            raise IntakeError(
+                "invalid_content",
+                "Content internal links must be an array",
+                artifact=path,
+                pointer="/internal_links",
+            )
         result.append(
             RawContentEvidence(
                 source_id=value["id"],
@@ -138,7 +158,7 @@ def _content(
                 blocks=value.get("blocks"),
                 postmeta=value["postmeta"],
                 featured_media=value.get("featured_media"),
-                internal_links=value.get("internal_links", []),
+                internal_links=internal_links,
                 legacy_permalink=str(value["legacy_permalink"]),
                 template=value.get("template"),
                 geodirectory=(

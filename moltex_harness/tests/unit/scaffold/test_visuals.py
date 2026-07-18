@@ -7,7 +7,11 @@ import pytest
 from PIL import Image
 
 from moltex_harness.contracts import ContractStore
-from moltex_harness.visuals.service import CaptureResult, SourceVisualService
+from moltex_harness.visuals.service import (
+    CaptureResult,
+    RouteProbeResult,
+    SourceVisualService,
+)
 
 
 class FakeCapture:
@@ -46,6 +50,14 @@ class BlankCapture:
         )
 
 
+class FakeProbe:
+    def __init__(self, results=None) -> None:
+        self.results = results or {}
+
+    def probe(self, url):
+        return self.results.get(url, RouteProbeResult(200, url))
+
+
 def test_visual_receipt_is_bundle_bound_and_checksum_verified(
     golden_contracts, capture_png, tmp_path
 ) -> None:
@@ -56,12 +68,70 @@ def test_visual_receipt_is_bundle_bound_and_checksum_verified(
         contracts_dir, source, FakeCapture(capture_png)
     )
 
+    assert all(":" not in item.artifact for item in receipt.evidence)
+
     destination = tmp_path / "protected"
     verified = SourceVisualService().verify_and_copy(contracts_dir, source, destination)
 
     assert verified.bundle_id == golden_contracts.source_manifest.bundle_id
     assert len(receipt.evidence) == len(golden_contracts.visual_capture_plan.targets)
     assert (destination / "capture-receipt.json").is_file()
+
+
+def test_confirmed_unavailable_route_is_recorded_and_not_captured(
+    golden_contracts, capture_png, tmp_path
+) -> None:
+    contracts_dir = tmp_path / "contracts"
+    ContractStore().write(contracts_dir, golden_contracts)
+    omitted_target = golden_contracts.visual_capture_plan.targets[0]
+    source = tmp_path / "source"
+
+    receipt = SourceVisualService().capture(
+        contracts_dir,
+        source,
+        FakeCapture(capture_png),
+        FakeProbe(
+            {
+                omitted_target.source_url: RouteProbeResult(
+                    404, omitted_target.source_url
+                )
+            }
+        ),
+    )
+
+    omitted = [
+        item for item in receipt.route_availability if item.disposition == "omitted"
+    ]
+    assert [item.route_contract_id for item in omitted] == [
+        omitted_target.route_contract_id
+    ]
+    assert omitted[0].reason == "http_404"
+    assert not any(
+        item.route_contract_id == omitted_target.route_contract_id
+        for item in receipt.evidence
+    )
+    SourceVisualService().verify_and_copy(
+        contracts_dir, source, tmp_path / "protected"
+    )
+
+
+def test_transient_or_server_route_failure_is_not_omitted(
+    golden_contracts, capture_png, tmp_path
+) -> None:
+    contracts_dir = tmp_path / "contracts"
+    ContractStore().write(contracts_dir, golden_contracts)
+    target = golden_contracts.visual_capture_plan.targets[0]
+    output = tmp_path / "source"
+
+    with pytest.raises(ValueError, match="HTTP 500"):
+        SourceVisualService().capture(
+            contracts_dir,
+            output,
+            FakeCapture(capture_png),
+            FakeProbe({target.source_url: RouteProbeResult(500, target.source_url)}),
+        )
+
+    assert not output.exists()
 
 
 def test_capture_rejects_off_origin_and_blank_evidence(
@@ -74,10 +144,12 @@ def test_capture_rejects_off_origin_and_blank_evidence(
         SourceVisualService().capture(
             contracts_dir, tmp_path / "off-origin", OffOriginCapture(capture_png)
         )
+    assert not (tmp_path / "off-origin").exists()
     with pytest.raises(ValueError, match="blank"):
         SourceVisualService().capture(
             contracts_dir, tmp_path / "blank", BlankCapture()
         )
+    assert not (tmp_path / "blank").exists()
 
 
 @pytest.mark.parametrize("mutation", ["missing", "duplicate", "checksum"])

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Any, Literal
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 
 from moltex_harness.intake.security import redact_text
@@ -59,6 +59,8 @@ class _ContentCompilerMixin(_CompilerSupport):
                     urljoin(origin.rstrip("/") + "/", value)
                 )
                 normalized = normalize_internal_url(value, origin, trailing)
+                if normalized and self._is_wordpress_control_path(normalized):
+                    continue
                 if route is None:
                     route = route_by_path.get(normalized) if normalized else None
                 if route:
@@ -142,6 +144,19 @@ class _ContentCompilerMixin(_CompilerSupport):
                 )
             )
         return records
+
+    @staticmethod
+    def _is_wordpress_control_path(value: str) -> bool:
+        path = urlsplit(value).path.rstrip("/") or "/"
+        return (
+            path == "/wp-admin"
+            or path.startswith("/wp-admin/")
+            or path
+            in {
+                "/wp-login.php",
+                "/wp-register.php",
+            }
+        )
 
     @staticmethod
     def _author_ids(value: dict[str, Any] | list[Any]) -> tuple[str, ...]:

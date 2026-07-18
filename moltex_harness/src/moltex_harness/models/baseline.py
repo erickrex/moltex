@@ -65,13 +65,23 @@ class SourceVisualEvidence(BaselineModel):
     sha256: str
 
 
+class RouteAvailabilityEvidence(BaselineModel):
+    route_contract_id: str
+    source_url: str
+    final_url: str
+    status_code: int = Field(ge=100, le=599)
+    disposition: Literal["available", "omitted"]
+    reason: str | None = None
+
+
 class SourceVisualReceipt(BaselineModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     bundle_id: str
     capture_plan_id: str
     capture_plan_sha256: str
     browser: str
     browser_version: str
+    route_availability: tuple[RouteAvailabilityEvidence, ...]
     evidence: tuple[SourceVisualEvidence, ...]
 
 

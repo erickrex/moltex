@@ -218,7 +218,7 @@ Technology choices:
 - `uv` for Python environments, dependencies, and commands
 - pytest, pytest-asyncio where needed, and Hypothesis for invariants
 - Astro 5 and strict TypeScript in generated repositories
-- Static output, pinned Node compatibility, and committed `package-lock.json`
+- Static output, Node 24.14.0, npm 10.9.2, and committed `package-lock.json`
 - Self-contained Node verification scripts in generated repositories
 - Playwright for production-preview browser checks
 - FastAPI plus minimal HTMX only after the CLI Golden Path is stable
@@ -814,6 +814,10 @@ implementation of route, link, or SEO semantics that can drift from the shipped 
 ### `HarnessProfile`
 
 Captures every input that can change behavior:
+
+The repository and generated-workspace runtime is fixed to Node 24.14.0 and npm
+10.9.2. A run with any other version fails toolchain validation before build or
+verification work and records the observed versions in its report.
 
 - Moltex source revision and dirty-state flag
 - Fixture ID, bundle checksum, and expected-contract revision
@@ -1633,17 +1637,27 @@ uv run --project moltex_harness moltex capture-source output/golden-contracts \
 The capture runner:
 
 - visits only the plan's public HTTP(S) source URLs in a fresh isolated browser context;
+- probes every public route contract and records one bundle-bound availability result for
+  each route before taking screenshots;
+- classifies HTTP 401, 403, 404, and 410 responses, redirects to authentication routes, and
+  redirects away from the source origin as confirmed omissions that Moltex will not rebuild;
+- treats HTTP 5xx responses, unexpected statuses, and transient connection failures as
+  blockers rather than silently dropping routes;
 - uses the exact declared desktop and mobile viewports and a bounded timeout;
 - writes PNGs under `source-visuals/` and never changes the accepted exporter ZIP;
 - emits `source-visuals/manifest.json` and `capture-receipt.json` containing the bundle ID,
-  plan hash, browser/version, final URL, viewport, byte size, and SHA-256 for every image;
-- rejects missing, duplicate, redirected-off-origin, blank, or failed captures; and
+  plan hash, complete route-availability evidence, browser/version, final URL, viewport,
+  byte size, and SHA-256 for every captured image;
+- requires images for available planned routes, skips planned targets whose route has a
+  confirmed omission, and rejects missing, duplicate, blank, or failed required captures; and
 - produces no interactive prompt or fallback asking the operator for screenshots.
 
-A valid capture receipt is required to enter H3 for a supported migration and the Golden
-Path. Capture failure is a visual-readiness blocker, never an exporter ZIP validation
-failure. Frozen tests use reviewed source visuals and receipts; normal verification never
-silently refreshes them.
+A valid capture receipt with exact availability coverage is required to enter H3 for a
+supported migration and the Golden Path. H3 excludes confirmed omitted routes, their
+content records, navigation/SEO/redirect/listing entries, and assets used only by that
+omitted content. Other capture or availability failures are visual-readiness blockers,
+never exporter ZIP validation failures. Frozen tests use reviewed source visuals and
+receipts; normal verification never silently refreshes them.
 
 ### Phase H3 — Compile content and a buildable Astro baseline
 
@@ -1659,10 +1673,11 @@ Build:
 - Implement the audited HTML sanitizer/converter, shortcode parser/dispositions,
   frontmatter normalizer, URL/media rewriting, large-content fallback, and failure
   classification behind Moltex-owned Python interfaces.
-- Scaffold Astro 5, strict TypeScript, static output, pinned Node compatibility,
+- Scaffold Astro 5, strict TypeScript, static output, pinned Node 24.14.0 and npm 10.9.2,
   `package.json`, and committed `package-lock.json`.
 - Materialize editable Astro content collections, routes, listings, navigation, media,
-  metadata, sitemap inputs, redirects, and 404 behavior from contracts.
+  metadata, sitemap inputs, redirects, and 404 behavior from contracts after applying the
+  immutable route-availability receipt. Do not materialize confirmed omitted source routes.
 - Copy bundled media and acquire deferred public source binaries into their H2-declared local
   paths before rewriting content. Record final byte size, checksum, source URL, and acquisition
   method in conversion receipts; a later media-only exporter may fulfill the same contract without
@@ -1697,11 +1712,13 @@ Required artifacts:
 Exit gate:
 
 - A clean locked install and production build pass.
-- Every expected content item, route, and required local asset is materialized.
+- Every available expected content item, route, and required local asset is materialized;
+  every confirmed omitted route remains absent and traceable to availability evidence.
 - Production content contains no runtime media dependency on WordPress or an external CDN.
 - Sanitized content preserves required markers and contains no known executable source
   payload.
-- Every planned source visual resolves by evidence ID and its recorded checksum verifies.
+- Every required source visual for an available planned route resolves by evidence ID and
+  its recorded checksum verifies; planned targets on confirmed omitted routes have no image.
 - WordPress is not required to build or edit the generated site.
 - No Codex task generation or mutation harness is required to prove H3.
 

@@ -28,6 +28,14 @@ const expectations = readJson(".moltex/verification/baseline-expectations.json")
 const errors = [];
 const routes = [];
 const assets = [];
+const actualNode = process.versions.node;
+const actualNpm = process.env.npm_config_user_agent?.match(/(?:^|\s)npm\/([^\s]+)/)?.[1] ?? null;
+if (actualNode !== expectations.toolchain.node) {
+  errors.push(`Node toolchain mismatch: expected ${expectations.toolchain.node}, received ${actualNode}`);
+}
+if (actualNpm !== expectations.toolchain.npm) {
+  errors.push(`npm toolchain mismatch: expected ${expectations.toolchain.npm}, received ${actualNpm ?? "unknown"}`);
+}
 
 const expectedHtml = new Set(expectations.routes.map((route) => route.output));
 expectedHtml.add("404.html");
@@ -84,6 +92,22 @@ for (const asset of expectations.assets) {
 }
 
 const receipt = readJson(expectations.visualReceipt);
+const expectedAvailability = new Map(
+  expectations.routeAvailability.map((item) => [item.route_contract_id, item]),
+);
+const actualAvailability = new Map(
+  receipt.route_availability.map((item) => [item.route_contract_id, item]),
+);
+if (
+  actualAvailability.size !== receipt.route_availability.length ||
+  actualAvailability.size !== expectedAvailability.size
+) errors.push("route availability receipt coverage mismatch");
+for (const [routeId, expected] of expectedAvailability) {
+  const actual = actualAvailability.get(routeId);
+  if (!actual || JSON.stringify(actual) !== JSON.stringify(expected)) {
+    errors.push(`route availability binding mismatch: ${routeId}`);
+  }
+}
 const expectedVisuals = new Map(
   expectations.visualPlan.evidence.map((item) => [item.evidenceId, item]),
 );
@@ -137,13 +161,16 @@ const report = {
   schema_version: 1,
   status: errors.length ? "fail" : "pass",
   checks: {
+    toolchain: !errors.some((item) => item.includes("toolchain mismatch")),
     route_inventory: routes.length === expectations.routes.length,
     content_records: !errors.some((item) => item.includes("content record")),
     assets: assets.length === expectations.assets.length,
     visuals: !errors.some((item) => item.includes("visual")),
+    route_availability: !errors.some((item) => item.includes("route availability")),
     no_production_media_hotlinks: !errors.some((item) => item.includes("hotlink")),
     no_executable_source_payloads: !errors.some((item) => item.includes("executable") || item.includes("script element")),
   },
+  toolchain: { node: actualNode, npm: actualNpm },
   errors,
 };
 fs.writeFileSync(

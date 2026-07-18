@@ -25,6 +25,7 @@ from moltex_harness.models import BaselineCompilationReport
 from moltex_harness.visuals import CaptureBackend, SourceVisualService
 
 from .media import AssetMaterializer, MediaFetcher
+from .toolchain import NODE_VERSION, NPM_VERSION
 
 
 TEMPLATES = Path(__file__).parent / "templates"
@@ -82,17 +83,45 @@ class BaselineService:
                 extraction = root / "bundle"
                 safe_archive = SafeArchive(archive, extraction, ArchiveLimits())
                 safe_archive.prepare()
+                omitted_route_ids = {
+                    item.route_contract_id
+                    for item in visual_receipt.route_availability
+                    if item.disposition == "omitted"
+                }
+                omitted_content = {
+                    route.content_record_id
+                    for route in contracts.routes
+                    if route.contract_id in omitted_route_ids
+                    and route.content_record_id is not None
+                }
+                omitted_source_ids = {
+                    record.source_id
+                    for record in contracts.content_records
+                    if record.record_id in omitted_content
+                }
+                omitted_content_keys = omitted_content | omitted_source_ids
+                materialized_assets = tuple(
+                    asset
+                    for asset in contracts.assets
+                    if not asset.referencing_content_ids
+                    or not set(asset.referencing_content_ids).issubset(
+                        omitted_content_keys
+                    )
+                )
                 receipts = AssetMaterializer(self.media_fetcher).materialize(
-                    contracts.assets, extraction, workspace
+                    materialized_assets, extraction, workspace
                 )
                 write_json(workspace / ".moltex" / "receipts" / "assets.json", receipts)
-                conversion_receipts = self._generate(workspace, contracts)
+                conversion_receipts = self._generate(
+                    workspace, contracts, omitted_route_ids
+                )
                 self._write_expectations(
                     workspace,
                     contracts,
                     receipts,
                     conversion_receipts,
                     visual_receipt,
+                    omitted_route_ids,
                 )
             except Exception as error:
                 classification: FailureClassification = classify_failure(error).value
@@ -112,10 +141,15 @@ class BaselineService:
             code="baseline_compiled",
             message="H3 Astro baseline compiled successfully",
             counts={
-                "content": len(contracts.content_records),
-                "routes": len(contracts.routes),
+                "content": len(conversion_receipts),
+                "routes": sum(
+                    1
+                    for route in contracts.routes
+                    if route.public and route.contract_id not in omitted_route_ids
+                ),
                 "assets": len(receipts),
-                "visuals": len(contracts.visual_capture_plan.targets),
+                "visuals": len(visual_receipt.evidence),
+                "omitted_routes": len(omitted_route_ids),
             },
             outputs={
                 "workspace": ".",
@@ -127,10 +161,17 @@ class BaselineService:
         write_json(output / ".moltex" / "reports" / "baseline-compilation-report.json", report)
         return BaselineOutcome(report, 0)
 
-    def _generate(self, workspace: Path, contracts: Any) -> tuple[Any, ...]:
+    def _generate(
+        self,
+        workspace: Path,
+        contracts: Any,
+        omitted_route_ids: set[str],
+    ) -> tuple[Any, ...]:
         workspace.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(TEMPLATES / "package.json", workspace / "package.json")
         shutil.copyfile(TEMPLATES / "package-lock.json", workspace / "package-lock.json")
+        shutil.copyfile(TEMPLATES / ".node-version", workspace / ".node-version")
+        shutil.copyfile(TEMPLATES / ".npmrc", workspace / ".npmrc")
         (workspace / "astro.config.mjs").write_text(
             "import { defineConfig } from 'astro/config';\nexport default defineConfig({ output: 'static', trailingSlash: 'always' });\n",
             encoding="utf-8",
@@ -140,6 +181,16 @@ class BaselineService:
             {"extends": "astro/tsconfigs/strict", "compilerOptions": {"baseUrl": ".", "paths": {"@/*": ["src/*"]}}},
         )
         routes_by_id = {route.contract_id: route for route in contracts.routes}
+        included_routes = tuple(
+            route
+            for route in contracts.routes
+            if route.public and route.contract_id not in omitted_route_ids
+        )
+        included_record_ids = {
+            route.content_record_id
+            for route in included_routes
+            if route.content_record_id is not None
+        }
         seo_by_route = {item.route_contract_id: item for item in contracts.seo}
         url_map = {entry.source_url: entry.target_url for entry in contracts.url_map}
         media_map = {entry.source_url: entry.target_url for entry in contracts.media_map}
@@ -149,6 +200,8 @@ class BaselineService:
         content_by_id: dict[str, dict[str, Any]] = {}
         receipts = []
         for record in contracts.content_records:
+            if record.record_id not in included_record_ids:
+                continue
             receipt = converter.convert(record)
             if any(finding.severity == "error" for finding in receipt.findings):
                 raise ValueError(f"Unsafe content conversion: {record.record_id}")
@@ -179,12 +232,14 @@ class BaselineService:
             write_json(workspace / "src" / "content" / "records" / safe_name, document)
         write_json(workspace / ".moltex" / "receipts" / "conversion.json", receipts)
         self._write_shell(workspace, contracts.site_spec.site_name)
-        self._write_navigation(workspace, contracts, routes_by_id)
+        self._write_navigation(
+            workspace, contracts, routes_by_id, omitted_route_ids
+        )
         posts = [item for item in content_by_id.values() if item["contentType"] == "post"]
         geodirectory = [
             item for item in content_by_id.values() if item["contentType"].startswith("gd_")
         ]
-        for route in contracts.routes:
+        for route in included_routes:
             document = content_by_id.get(route.content_record_id or "", {
                 "recordId": route.contract_id,
                 "title": route.page_family.replace("_", " ").title(),
@@ -214,7 +269,7 @@ class BaselineService:
                 "404.html",
                 {"recordId": "system:404", "title": "Page not found", "renderedHtml": "<p>The requested page could not be found.</p>", "seo": {"robots": "noindex"}},
             )
-        self._write_metadata(workspace, contracts)
+        self._write_metadata(workspace, contracts, omitted_route_ids)
         self._write_scripts(workspace)
         return tuple(receipts)
 
@@ -246,7 +301,12 @@ class BaselineService:
         )
 
     @staticmethod
-    def _write_navigation(workspace: Path, contracts: Any, routes: dict[str, Any]) -> None:
+    def _write_navigation(
+        workspace: Path,
+        contracts: Any,
+        routes: dict[str, Any],
+        omitted_route_ids: set[str],
+    ) -> None:
         items = {
             item.navigation_id: {
                 "id": item.navigation_id,
@@ -260,9 +320,12 @@ class BaselineService:
                 "children": [],
             }
             for item in contracts.site_spec.global_navigation
+            if item.route_contract_id not in omitted_route_ids
         }
         navigation = []
         for source in contracts.site_spec.global_navigation:
+            if source.navigation_id not in items:
+                continue
             target = items[source.navigation_id]
             if source.parent_navigation_id in items:
                 items[source.parent_navigation_id]["children"].append(target)
@@ -313,12 +376,15 @@ class BaselineService:
         )
 
     @staticmethod
-    def _write_metadata(workspace: Path, contracts: Any) -> None:
+    def _write_metadata(
+        workspace: Path, contracts: Any, omitted_route_ids: set[str]
+    ) -> None:
         seo_by_route = {item.route_contract_id: item for item in contracts.seo}
         sitemap = [
             route.target_url
             for route in contracts.routes
             if route.public
+            and route.contract_id not in omitted_route_ids
             and route.expected_status == 200
             and "noindex"
             not in (
@@ -330,7 +396,9 @@ class BaselineService:
         write_json(workspace / "src" / "data" / "sitemap.json", sitemap)
         redirects = "\n".join(
             f"{item.source_url} {item.target_url} {item.status_code}"
-            for item in contracts.redirects if not item.needs_decision
+            for item in contracts.redirects
+            if not item.needs_decision
+            and item.target_route_contract_id not in omitted_route_ids
         )
         public = workspace / "public"
         public.mkdir(exist_ok=True)
@@ -366,6 +434,7 @@ class BaselineService:
         receipts: Any,
         conversion_receipts: Any,
         visual_receipt: Any,
+        omitted_route_ids: set[str],
     ) -> None:
         conversion_by_id = {
             receipt.record_id: receipt for receipt in conversion_receipts
@@ -375,6 +444,7 @@ class BaselineService:
             workspace / ".moltex" / "verification" / "baseline-expectations.json",
             {
                 "bundleId": contracts.source_manifest.bundle_id,
+                "toolchain": {"node": NODE_VERSION, "npm": NPM_VERSION},
                 "sourceOrigin": contracts.site_spec.source_origin,
                 "routes": [
                     {
@@ -394,6 +464,7 @@ class BaselineService:
                         ],
                     }
                     for route in contracts.routes if route.public
+                    and route.contract_id not in omitted_route_ids
                 ],
                 "assets": [
                     {"id": receipt.asset_id, "path": receipt.target_path.removeprefix("public/"), "sha256": receipt.sha256}
@@ -404,6 +475,16 @@ class BaselineService:
                     + record.record_id.replace(":", "-")
                     + ".json"
                     for record in contracts.content_records
+                    if record.record_id in conversion_by_id
+                ],
+                "omittedRoutes": [
+                    item.model_dump(mode="json")
+                    for item in visual_receipt.route_availability
+                    if item.disposition == "omitted"
+                ],
+                "routeAvailability": [
+                    item.model_dump(mode="json")
+                    for item in visual_receipt.route_availability
                 ],
                 "visualPlan": {
                     "id": plan.plan_id,

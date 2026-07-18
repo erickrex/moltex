@@ -52,6 +52,31 @@ def test_missing_internal_reference_is_preserved_as_decision(
     assert contracts.site_spec.static_eligibility == StaticEligibility.NEEDS_DECISION
 
 
+def test_wordpress_control_links_do_not_create_public_route_decisions(
+    golden_raw_evidence,
+) -> None:
+    content = list(golden_raw_evidence.content)
+    content[0] = content[0].model_copy(
+        update={"internal_links": [*content[0].internal_links, "/wp-admin/"]}
+    )
+
+    contracts = ContractCompiler().compile(
+        golden_raw_evidence.model_copy(update={"content": content})
+    )
+    record = next(
+        item
+        for item in contracts.content_records
+        if item.source_id == str(content[0].source_id)
+    )
+
+    assert "/wp-admin/" not in record.unresolved_internal_links
+    assert not any(
+        decision.kind == "missing-internal-route"
+        and decision.subject_id.startswith(record.record_id)
+        for decision in contracts.decisions
+    )
+
+
 def test_conflicting_seo_evidence_needs_decision(golden_raw_evidence) -> None:
     seo_artifact = golden_raw_evidence.seo[0]
     data = copy.deepcopy(seo_artifact.data)
