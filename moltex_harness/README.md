@@ -1,8 +1,9 @@
 # Moltex Harness
 
 `moltex_harness` safely inspects versioned Moltex evidence bundles. H1 provides
-bounded intake, H2 compiles evidence-linked migration contracts, and H3 captures
-source visual evidence and creates a conservative, buildable Astro 5 baseline.
+bounded intake, H2 compiles evidence-linked migration contracts, H3 captures
+source visual evidence and creates a conservative, buildable Astro 5 baseline,
+and H4 generates and validates a bounded Codex migration task graph.
 
 ## Development
 
@@ -24,6 +25,8 @@ uv run --project moltex_harness moltex capture-source output/golden-contracts --
 uv run --project moltex_harness moltex compile samples/golden-export.zip --output output/golden-site --through baseline --source-visuals output/golden-source-visuals
 npm --prefix output/golden-site ci
 npm --prefix output/golden-site run build
+uv run --project moltex_harness moltex plan-workspace output/golden-site
+uv run --project moltex_harness moltex verify-task-graph output/golden-site
 ```
 
 The default output directory is `output/intake/<archive-name>/`. Use
@@ -57,6 +60,20 @@ members are symlinks/special files; or when normalized names collide.
 | 5 | Harness/internal failure |
 | 6 | Contract compilation or verification failure |
 | 7 | Source capture or baseline generation failure |
+| 8 | Task planning, graph verification, or execution-evidence failure |
+
+## H4 Codex workspace
+
+`moltex plan-workspace` adds `AGENTS.md`, `EXECPLAN.md`, `MIGRATION.md`, a
+workspace README, Codex goal, QA plan, planning parity matrix, and one JSON and
+Markdown definition per bounded task. `moltex verify-task-graph` independently
+checks the DAG, timeboxes, file scope, protected paths, evidence, available and
+omitted route coverage, capabilities, decisions, and planning artifacts.
+
+After completing a task in Codex Desktop, pass its versioned
+`TaskExecutionEvidence` JSON to `moltex record-task-execution`. The recorder
+rejects out-of-scope changes, protected-authority changes, missing checksums, or
+failed/missing verification commands before retaining the execution record.
 
 ## H3 baseline
 

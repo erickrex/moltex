@@ -11,6 +11,8 @@ from .contracts import CompilationService, ContractVerifier
 from .intake.serialization import deterministic_json
 from .intake.serialization import write_json
 from .intake.service import IntakeService
+from .models import TaskExecutionEvidence
+from .planning import PlanningService, TaskExecutionRecorder, TaskGraphVerifier
 from .scaffold import BaselineService
 from .visuals import SourceVisualService
 
@@ -159,6 +161,77 @@ def compile_command(
         typer.echo(f"Baseline compilation failed: {outcome.report.message}", err=True)
     if outcome.exit_code:
         raise typer.Exit(outcome.exit_code)
+
+
+@app.command("plan-workspace")
+def plan_workspace_command(
+    workspace: Annotated[
+        Path, typer.Argument(help="Passing generated H3 Astro repository")
+    ],
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Write the H4 compilation report as JSON")
+    ] = False,
+) -> None:
+    """Generate the bounded H4 Codex task graph and planning workspace."""
+
+    outcome = PlanningService().compile_workspace(workspace)
+    if as_json:
+        typer.echo(deterministic_json(outcome.report), nl=False)
+    elif outcome.exit_code == 0:
+        typer.echo(
+            f"Compiled {outcome.report.counts['tasks']} H4 tasks into {workspace}"
+        )
+    else:
+        typer.echo(f"H4 planning failed: {outcome.report.message}", err=True)
+    if outcome.exit_code:
+        raise typer.Exit(outcome.exit_code)
+
+
+@app.command("verify-task-graph")
+def verify_task_graph_command(
+    workspace: Annotated[
+        Path, typer.Argument(help="Generated H4 Astro/Codex repository")
+    ],
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Write the graph report as JSON")
+    ] = False,
+) -> None:
+    """Validate H4 task dependencies, scope, evidence, and coverage."""
+
+    report = TaskGraphVerifier().verify(workspace)
+    reports = workspace / ".moltex" / "reports"
+    if reports.is_dir():
+        write_json(reports / "task-graph-verification-report.json", report)
+    if as_json:
+        typer.echo(deterministic_json(report), nl=False)
+    elif report.status == "pass":
+        typer.echo(f"H4 task graph passed ({report.tasks_checked} tasks)")
+    else:
+        typer.echo(f"H4 task graph failed: {report.errors[0]}", err=True)
+    if report.status != "pass":
+        raise typer.Exit(8)
+
+
+@app.command("record-task-execution")
+def record_task_execution_command(
+    workspace: Annotated[
+        Path, typer.Argument(help="Generated H4 Astro/Codex repository")
+    ],
+    evidence_file: Annotated[
+        Path, typer.Argument(help="TaskExecutionEvidence JSON file")
+    ],
+) -> None:
+    """Validate and retain evidence from one real Codex Desktop task."""
+
+    try:
+        evidence = TaskExecutionEvidence.model_validate_json(
+            evidence_file.read_text(encoding="utf-8")
+        )
+        TaskExecutionRecorder().record(workspace, evidence)
+    except (OSError, ValueError) as error:
+        typer.echo(f"Task execution evidence rejected: {error}", err=True)
+        raise typer.Exit(8) from error
+    typer.echo(f"Recorded Codex Desktop evidence for {evidence.task_id}")
 
 
 if __name__ == "__main__":

@@ -51,6 +51,21 @@ from .baseline import (
     SourceVisualEvidence,
     SourceVisualReceipt,
 )
+from .planning import (
+    AcceptanceCheck,
+    CompletionEvidence,
+    MigrationTask,
+    PlanningCompilationReport,
+    PlanningParityMatrix,
+    PlanningParityRow,
+    TaskCommandResult,
+    TaskEvidence,
+    TaskExecutionEvidence,
+    TaskFamily,
+    TaskGraph,
+    TaskGraphVerificationReport,
+    TaskState,
+)
 
 __all__ = [
     "ArtifactInventoryItem",
@@ -98,4 +113,17 @@ __all__ = [
     "ShortcodeDisposition",
     "SourceVisualEvidence",
     "SourceVisualReceipt",
+    "AcceptanceCheck",
+    "CompletionEvidence",
+    "MigrationTask",
+    "PlanningCompilationReport",
+    "PlanningParityMatrix",
+    "PlanningParityRow",
+    "TaskCommandResult",
+    "TaskEvidence",
+    "TaskExecutionEvidence",
+    "TaskFamily",
+    "TaskGraph",
+    "TaskGraphVerificationReport",
+    "TaskState",
 ]

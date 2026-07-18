@@ -1768,7 +1768,11 @@ specifications rather than one monolithic prompt.
 
 Build:
 
-- Derive only required task families and a dependency DAG.
+- Add versioned `MigrationTask`, `TaskGraph`, planning parity, graph-report, and real
+  `TaskExecutionEvidence` models. Reject unknown fields and unsafe workspace paths.
+- Derive only required task families and a deterministic dependency DAG. Always bound route-family
+  tasks to at most five available routes, create visual tasks only for captured available routes,
+  and create capability tasks only for observed capability contracts.
 - Generate `AGENTS.md`, `EXECPLAN.md`, `MIGRATION.md`, `.moltex/codex-goal.md`, task JSON
   and Markdown, parity matrix, QA plan, and workspace README.
 - Attach minimal relevant evidence, contracts, allowed file scope, constraints, acceptance
@@ -1776,6 +1780,11 @@ Build:
 - Split tasks that exceed the 30-to-60-minute target.
 - Protect source contracts, verifier expectations, and unrelated files from ordinary task
   edits.
+- Validate exact available-route, visual, capability, and blocking-decision task coverage;
+  preserve confirmed unavailable routes as omitted parity rows with no implementation task.
+- Record real Codex Desktop completion evidence only when changed files remain in the task's
+  allowed scope, protected paths are unchanged, artifact checksums bind the diff/session, and
+  every declared verification command passed.
 - Execute one representative task in Codex Desktop and refine instructions based on the
   observed session, not hypothetical prompting.
 
@@ -1783,23 +1792,33 @@ Verify:
 
 ```bash
 uv run --project moltex_harness pytest moltex_harness/tests/unit/planning moltex_harness/tests/integration/workspace
+uv run --project moltex_harness moltex plan-workspace output/golden-site
 uv run --project moltex_harness moltex verify-task-graph output/golden-site
+uv run --project moltex_harness moltex record-task-execution output/golden-site \
+  output/golden-site/.moltex/task-evidence/T001/execution-input.json
 npm --prefix output/golden-site run build
 ```
 
 Required artifacts:
 
-- validated task DAG
-- generated planning/proof files
-- one real Codex task diff and session evidence
+- `.moltex/tasks/task-graph.json` plus one versioned JSON and Markdown brief per task
+- generated `AGENTS.md`, `EXECPLAN.md`, `MIGRATION.md`, workspace `README.md`, Codex goal,
+  planning parity matrix, and QA plan
+- task-graph compilation and verification reports
+- one checksummed real Codex task diff, session summary, command report, and execution record
 - post-task build result
 
 Exit gate:
 
 - Every task has resolved dependencies, bounded scope, evidence, and executable acceptance
   checks.
+- Every H2 route/capability/decision and every available source visual has exact task or
+  omission coverage, with no task assigned to a confirmed omitted route.
 - Codex completes one meaningful task without extra migration instructions.
-- The project remains buildable and no source contract is weakened.
+- The execution recorder proves the representative task stayed inside scope, retained
+  protected authority, and passed its declared build and verification commands.
+- The project remains buildable and no source contract, evidence, expectation, verifier,
+  or lockfile is weakened.
 - The full verifier may still be incomplete; H4 is proven by graph validation, task schema,
   real execution evidence, and the build.
 
