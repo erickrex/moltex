@@ -153,6 +153,32 @@ class AssetContract(LineagedModel):
     runtime_policy: Literal["local-only"]
     needs_decision: bool
 
+    @model_validator(mode="after")
+    def require_consistent_acquisition(self) -> "AssetContract":
+        if self.acquisition_status == "bundled":
+            if (
+                not self.bundle_path
+                or self.acquisition_method != "bundle"
+                or self.needs_decision
+                or self.checksum is None
+                or self.bytes is None
+            ):
+                raise ValueError("bundled asset acquisition is internally inconsistent")
+        elif self.acquisition_status == "deferred":
+            if (
+                self.bundle_path is not None
+                or self.acquisition_method != "source-fetch"
+                or self.needs_decision
+            ):
+                raise ValueError("deferred asset acquisition is internally inconsistent")
+        elif (
+            self.bundle_path is not None
+            or self.acquisition_method != "operator-decision"
+            or not self.needs_decision
+        ):
+            raise ValueError("missing asset acquisition is internally inconsistent")
+        return self
+
 
 class SeoContract(LineagedModel):
     contract_id: str
@@ -267,11 +293,21 @@ class ContractFileReceipt(ContractModel):
     records: int = Field(ge=0)
 
 
+class EvidenceResolution(ContractModel):
+    evidence_id: str
+    bundle_id: str
+    artifact: str
+    pointer: str
+    artifact_sha256: str
+    value_sha256: str
+
+
 class ContractIndex(ContractModel):
     schema_version: Literal[1] = 1
     bundle_id: str
     compiler_version: str
     files: tuple[ContractFileReceipt, ...]
+    evidence_resolutions: tuple[EvidenceResolution, ...]
 
 
 class ContractSet(ContractModel):
@@ -289,6 +325,7 @@ class ContractSet(ContractModel):
     parity_matrix: tuple[ParityRow, ...]
     findings: tuple[NormalizationFinding, ...]
     decisions: tuple[DecisionItem, ...]
+    evidence_resolutions: tuple[EvidenceResolution, ...] = ()
 
 
 class ContractVerificationReport(ContractModel):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from moltex_harness.models import CapabilityDispositionKind, MediaAcquisition
 from moltex_harness.normalize import ContractCompiler
+from moltex_harness.models import ArtifactInventoryItem
 
 
 def test_geodirectory_fields_and_gallery_are_compiled(golden_raw_evidence) -> None:
@@ -114,13 +115,23 @@ def test_geodirectory_behavior_has_explicit_h2_dispositions(
             "evidence": evidence,
         }
     )
+    inventory = [
+        *golden_raw_evidence.inventory,
+        ArtifactInventoryItem(
+            path="geodirectory.json",
+            bytes=1,
+            compressed_bytes=1,
+            sha256=evidence.sha256,
+        ),
+    ]
     contracts = ContractCompiler().compile(
         golden_raw_evidence.model_copy(
             update={
                 "capabilities": [
                     *golden_raw_evidence.capabilities,
                     geodirectory,
-                ]
+                    ],
+                    "inventory": inventory,
             }
         )
     )
@@ -180,9 +191,22 @@ def test_geodirectory_visual_plan_uses_one_capability_representative(
         }
     )
 
+    inventory = [
+        *golden_raw_evidence.inventory,
+        ArtifactInventoryItem(
+            path="geodirectory.json",
+            bytes=1,
+            compressed_bytes=1,
+            sha256=geodirectory.evidence.sha256,
+        ),
+    ]
     contracts = ContractCompiler().compile(
         golden_raw_evidence.model_copy(
-            update={"content": content, "capabilities": [geodirectory]}
+            update={
+                "content": content,
+                "capabilities": [geodirectory],
+                "inventory": inventory,
+            }
         )
     )
 

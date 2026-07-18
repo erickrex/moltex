@@ -1,0 +1,32 @@
+{
+  "public": [
+    "public/_redirects",
+    "public/media/asset-4-lakeside-pavilion-d02995fe7d0f.png",
+    "public/media/asset-5-community-workshop-1d6af6ec7872.png",
+    "public/sitemap.xml"
+  ],
+  "src": [
+    "src/components/NavigationList.astro",
+    "src/content.config.ts",
+    "src/content/records/content-page-201.json",
+    "src/content/records/content-page-202.json",
+    "src/content/records/content-page-203.json",
+    "src/content/records/content-page-204.json",
+    "src/content/records/content-page-205.json",
+    "src/content/records/content-post-101.json",
+    "src/content/records/content-post-102.json",
+    "src/content/records/content-post-103.json",
+    "src/data/navigation.json",
+    "src/data/sitemap.json",
+    "src/layouts/BaseLayout.astro",
+    "src/pages/404.astro",
+    "src/pages/about/index.astro",
+    "src/pages/autumn-workshops/index.astro",
+    "src/pages/contact/index.astro",
+    "src/pages/index.astro",
+    "src/pages/shoreline-notes/index.astro",
+    "src/pages/stories/index.astro",
+    "src/pages/visit/index.astro",
+    "src/pages/volunteer-table/index.astro"
+  ]
+}

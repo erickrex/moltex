@@ -1,9 +1,8 @@
 # Moltex Harness
 
-`moltex_harness` safely inspects versioned Moltex evidence bundles. Phase H1
-provides bounded ZIP intake, manifest and checksum validation, version adapters,
-and deterministic raw-source evidence. Phase H2 normalizes that evidence into
-versioned, evidence-linked migration contracts without generating an Astro site.
+`moltex_harness` safely inspects versioned Moltex evidence bundles. H1 provides
+bounded intake, H2 compiles evidence-linked migration contracts, and H3 captures
+source visual evidence and creates a conservative, buildable Astro 5 baseline.
 
 ## Development
 
@@ -13,6 +12,11 @@ uv run --project moltex_harness pytest
 uv run --project moltex_harness moltex inspect samples/golden-export.zip --json
 uv run --project moltex_harness moltex compile-contracts samples/golden-export.zip --output output/golden-contracts
 uv run --project moltex_harness moltex verify-contracts output/golden-contracts
+uv run --project moltex_harness playwright install chromium
+uv run --project moltex_harness moltex capture-source output/golden-contracts --output output/golden-source-visuals
+uv run --project moltex_harness moltex compile samples/golden-export.zip --output output/golden-site --through baseline --source-visuals output/golden-source-visuals
+npm --prefix output/golden-site ci
+npm --prefix output/golden-site run build
 ```
 
 The default output directory is `output/intake/<archive-name>/`. Use
@@ -45,6 +49,20 @@ members are symlinks/special files; or when normalized names collide.
 | 4 | Unsupported export format |
 | 5 | Harness/internal failure |
 | 6 | Contract compilation or verification failure |
+| 7 | Source capture or baseline generation failure |
+
+## H3 baseline
+
+H3 sanitizes HTML without executing WordPress code, converts known shortcodes,
+retains visible placeholders for unsupported constructs, and rewrites routes and
+media from the immutable H2 maps. Bundled and deferred media are materialized at
+their declared `public/media/` paths before content is emitted. The generated
+repository contains conversion and acquisition receipts, protected visual
+evidence, a strict static Astro configuration, and a standalone Node verifier.
+
+`npm run build` writes the Astro log, built route/asset inventories, and baseline
+verification report under `.moltex/reports/`. It fails on missing route markers,
+missing or changed assets, production media hotlinks, or changed visual evidence.
 
 ## H2 contract output
 

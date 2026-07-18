@@ -92,6 +92,7 @@ class ContractStore:
             bundle_id=contracts.source_manifest.bundle_id,
             compiler_version=self.compiler_version,
             files=tuple(receipts),
+            evidence_resolutions=contracts.evidence_resolutions,
         )
         write_json(destination / "contract-index.json", index)
         return index
@@ -106,4 +107,6 @@ class ContractStore:
             path = source / Path(relative_path)
             data = json.loads(path.read_text(encoding="utf-8"))
             values[attribute] = MODEL_ADAPTERS[attribute].validate_python(data)
-        return ContractSet(**values), index
+        return ContractSet(
+            **values, evidence_resolutions=index.evidence_resolutions
+        ), index

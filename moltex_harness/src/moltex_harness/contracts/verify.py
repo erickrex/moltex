@@ -222,6 +222,11 @@ class ContractVerifier:
             item.path: item.sha256 for item in contracts.source_manifest.inventory
         }
         references = list(self._evidence_references(contracts))
+        resolutions = {
+            item.evidence_id: item for item in contracts.evidence_resolutions
+        }
+        if len(resolutions) != len(contracts.evidence_resolutions):
+            errors.append("evidence_resolution_ids: resolution IDs are not unique")
         for reference in references:
             if reference.bundle_id != contracts.source_manifest.bundle_id:
                 errors.append(f"evidence_bundle: {reference.evidence_id}")
@@ -229,6 +234,18 @@ class ContractVerifier:
                 errors.append(f"evidence_artifact: {reference.evidence_id}")
             if reference.pointer and not reference.pointer.startswith("/"):
                 errors.append(f"evidence_pointer: {reference.evidence_id}")
+            resolution = resolutions.get(reference.evidence_id)
+            if resolution is None or (
+                resolution.bundle_id != reference.bundle_id
+                or resolution.artifact != reference.artifact
+                or resolution.pointer != reference.pointer
+                or resolution.artifact_sha256 != reference.sha256
+            ):
+                errors.append(f"evidence_resolution: {reference.evidence_id}")
+        if set(resolutions) != {item.evidence_id for item in references}:
+            errors.append(
+                "evidence_resolution_coverage: resolutions and lineage references disagree"
+            )
         if not references:
             errors.append("evidence_empty: no evidence references were found")
         return errors

@@ -25,6 +25,7 @@ from .contracts import (
     CustomField,
     DecisionItem,
     DerivedLineage,
+    EvidenceResolution,
     MediaMapEntry,
     NavigationItem,
     NormalizationFinding,
@@ -39,6 +40,15 @@ from .contracts import (
     ViewportProfile,
     VisualCapturePlan,
     VisualCaptureTarget,
+)
+from .baseline import (
+    AssetAcquisitionReceipt,
+    BaselineCompilationReport,
+    ContentConversionReceipt,
+    ConversionFinding,
+    ShortcodeDisposition,
+    SourceVisualEvidence,
+    SourceVisualReceipt,
 )
 
 __all__ = [
@@ -64,6 +74,7 @@ __all__ = [
     "CustomField",
     "DecisionItem",
     "DerivedLineage",
+    "EvidenceResolution",
     "MediaMapEntry",
     "NavigationItem",
     "NormalizationFinding",
@@ -78,4 +89,11 @@ __all__ = [
     "ViewportProfile",
     "VisualCapturePlan",
     "VisualCaptureTarget",
+    "AssetAcquisitionReceipt",
+    "BaselineCompilationReport",
+    "ContentConversionReceipt",
+    "ConversionFinding",
+    "ShortcodeDisposition",
+    "SourceVisualEvidence",
+    "SourceVisualReceipt",
 ]

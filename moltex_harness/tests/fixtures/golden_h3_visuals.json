@@ -1,0 +1,10 @@
+{
+  "desktop-1440x1200": {
+    "bytes": 7242,
+    "sha256": "6adf29e4c8804f483c3cf051628817f50b0a1c532fe24d485ded178a7b0b1fc6"
+  },
+  "mobile-500x844": {
+    "bytes": 2404,
+    "sha256": "e401ea2f910538bb1e7fd2da71aadafcad8df0a68be16148f9d4a9bd4bd84764"
+  }
+}

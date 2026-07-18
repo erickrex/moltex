@@ -3,11 +3,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
+
 from moltex_harness.contracts import ContractStore, ContractVerifier
 from moltex_harness.contracts.store import FILE_LAYOUT, MODEL_ADAPTERS
 from moltex_harness.intake.serialization import deterministic_json
 from moltex_harness.intake.service import IntakeService
 from moltex_harness.normalize import ContractCompiler
+from moltex_harness.models import AssetContract
 
 
 def _contract_files(root: Path) -> dict[str, bytes]:
@@ -91,6 +95,43 @@ def test_verifier_rejects_runtime_media_hotlink(
 
     assert report.status == "fail"
     assert f"media_local_target: {first.asset_contract_id}" in report.errors
+
+
+def test_verifier_rejects_unresolved_evidence_pointer(
+    golden_contracts, tmp_path: Path
+) -> None:
+    first = golden_contracts.evidence_resolutions[0]
+    contracts = golden_contracts.model_copy(
+        update={
+            "evidence_resolutions": (
+                first.model_copy(update={"pointer": "/does/not/exist"}),
+                *golden_contracts.evidence_resolutions[1:],
+            )
+        }
+    )
+    destination = tmp_path / "contracts"
+    ContractStore().write(destination, contracts)
+
+    report = ContractVerifier().verify(destination)
+
+    assert report.status == "fail"
+    assert any("evidence_resolution:" in error for error in report.errors)
+
+
+def test_asset_model_rejects_contradictory_missing_acquisition(
+    golden_contracts,
+) -> None:
+    value = golden_contracts.assets[0].model_dump(mode="json")
+    value.update(
+        {
+            "acquisition_status": "missing",
+            "acquisition_method": "bundle",
+            "needs_decision": False,
+        }
+    )
+
+    with pytest.raises(ValidationError, match="internally inconsistent"):
+        AssetContract.model_validate(value)
 
 
 def test_all_accepted_h1_versions_compile_and_verify(

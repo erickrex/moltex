@@ -1,0 +1,258 @@
+"""Character-scanned WordPress shortcode conversion with visible fallbacks."""
+
+from __future__ import annotations
+
+import html
+from collections import Counter
+from dataclasses import dataclass
+from html.parser import HTMLParser
+
+from moltex_harness.models import ConversionFinding, ShortcodeDisposition
+
+
+@dataclass(frozen=True, slots=True)
+class ShortcodeResult:
+    html: str
+    dispositions: tuple[ShortcodeDisposition, ...]
+    findings: tuple[ConversionFinding, ...]
+
+
+class ShortcodeConverter:
+    """Parse brackets without executing source-site shortcode handlers."""
+
+    def convert(self, source: str, subject_id: str) -> ShortcodeResult:
+        counts: Counter[tuple[str, str]] = Counter()
+        findings: list[ConversionFinding] = []
+        parser = _HtmlShortcodeParser(self, subject_id, counts, findings)
+        parser.feed(source)
+        parser.close()
+        output = "".join(parser.output)
+        dispositions = tuple(
+            ShortcodeDisposition(name=name, disposition=kind, count=count)
+            for (name, kind), count in sorted(counts.items())
+        )
+        return ShortcodeResult(output, dispositions, tuple(findings))
+
+    def _convert_range(
+        self,
+        text: str,
+        subject_id: str,
+        counts: Counter[tuple[str, str]],
+        findings: list[ConversionFinding],
+    ) -> str:
+        out: list[str] = []
+        cursor = 0
+        while cursor < len(text):
+            start = text.find("[", cursor)
+            if start < 0:
+                out.append(text[cursor:])
+                break
+            if start + 1 < len(text) and text[start + 1] == "[":
+                escaped_end = text.find("]]", start + 2)
+                if escaped_end >= 0:
+                    out.append(text[cursor:start] + text[start + 1 : escaped_end + 1])
+                    cursor = escaped_end + 2
+                else:
+                    out.append(text[cursor:start] + "[")
+                    cursor = start + 2
+                continue
+            token = self._token(text, start)
+            if token is None or token[0].startswith("/"):
+                out.append(text[cursor : start + 1])
+                cursor = start + 1
+                continue
+            raw_name, attributes, end, self_closing = token
+            name = raw_name.lower()
+            out.append(text[cursor:start])
+            inner = ""
+            next_cursor = end
+            if not self_closing:
+                closing = self._closing(text, end, name)
+                if closing is not None:
+                    inner_start, close_end = closing
+                    inner = self._convert_range(
+                        text[end:inner_start], subject_id, counts, findings
+                    )
+                    next_cursor = close_end
+                elif name == "caption":
+                    out.append(text[start:end])
+                    cursor = end
+                    continue
+            replacement, kind = self._replacement(name, attributes, inner)
+            counts[(name, kind)] += 1
+            if kind == "placeholder":
+                findings.append(
+                    ConversionFinding(
+                        severity="warning",
+                        code="shortcode_placeholder",
+                        classification="blocked",
+                        subject_id=subject_id,
+                        message=f"Shortcode [{name}] is represented by a baseline placeholder",
+                        context={"shortcode": name},
+                    )
+                )
+            elif name != "caption":
+                findings.append(
+                    ConversionFinding(
+                        severity="warning",
+                        code="unknown_shortcode_preserved",
+                        classification="blocked",
+                        subject_id=subject_id,
+                        message=f"Shortcode [{name}] requires target-behavior review",
+                        context={"shortcode": name},
+                    )
+                )
+            out.append(replacement)
+            cursor = next_cursor
+        return "".join(out)
+
+    @staticmethod
+    def _token(text: str, start: int) -> tuple[str, str, int, bool] | None:
+        quote: str | None = None
+        index = start + 1
+        while index < len(text):
+            char = text[index]
+            if quote:
+                if char == quote and text[index - 1] != "\\":
+                    quote = None
+            elif char in {'"', "'"}:
+                quote = char
+            elif char == "]":
+                body = text[start + 1 : index].strip()
+                if not body:
+                    return None
+                self_closing = body.endswith("/")
+                if self_closing:
+                    body = body[:-1].rstrip()
+                parts = body.split(None, 1)
+                return parts[0], parts[1] if len(parts) > 1 else "", index + 1, self_closing
+            index += 1
+        return None
+
+    def _closing(self, text: str, cursor: int, name: str) -> tuple[int, int] | None:
+        depth = 1
+        while cursor < len(text):
+            start = text.find("[", cursor)
+            if start < 0:
+                return None
+            token = self._token(text, start)
+            if token is None:
+                cursor = start + 1
+                continue
+            raw, _, end, self_closing = token
+            lower = raw.lower()
+            if lower == name and not self_closing:
+                depth += 1
+            elif lower == f"/{name}":
+                depth -= 1
+                if depth == 0:
+                    return start, end
+            cursor = end
+        return None
+
+    @staticmethod
+    def _replacement(name: str, attributes: str, inner: str) -> tuple[str, str]:
+        if name == "caption":
+            return f'<figure class="wp-caption">{inner}</figure>', "converted"
+        if name == "gallery":
+            label = html.escape(attributes or "gallery")
+            return f'<div class="moltex-placeholder" data-shortcode="gallery">Gallery: {label}</div>', "placeholder"
+        if name in {"contact-form-7", "wpforms", "forminator_form"}:
+            return '<div class="moltex-placeholder" data-shortcode="form">Form requires integration</div>', "placeholder"
+        if name in {
+            "gd_map",
+            "gd_search",
+            "gd_listings",
+            "gd_post_images",
+            "gd_post_meta",
+            "gd_loop",
+            "gd_loop_paging",
+        }:
+            label = html.escape(name)
+            return (
+                f'<div class="moltex-placeholder" data-shortcode="{label}">'
+                f"GeoDirectory component: {label}</div>",
+                "placeholder",
+            )
+        label = html.escape(f"[{name}{(' ' + attributes) if attributes else ''}]")
+        content = inner or label
+        return f'<div class="moltex-placeholder" data-shortcode="{html.escape(name)}">{content}</div>', "preserved"
+
+
+class _HtmlShortcodeParser(HTMLParser):
+    """Apply shortcode parsing only to visible text, never comments or attributes."""
+
+    def __init__(
+        self,
+        converter: ShortcodeConverter,
+        subject_id: str,
+        counts: Counter[tuple[str, str]],
+        findings: list[ConversionFinding],
+    ) -> None:
+        super().__init__(convert_charrefs=False)
+        self.converter = converter
+        self.subject_id = subject_id
+        self.counts = counts
+        self.findings = findings
+        self.output: list[str] = []
+        self.form_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag.lower() == "form":
+            self.form_depth += 1
+            if self.form_depth == 1:
+                self.output.append(
+                    '<div class="moltex-placeholder" data-shortcode="html-form">'
+                    "Form requires integration</div>"
+                )
+                self.counts[("html-form", "placeholder")] += 1
+                self.findings.append(
+                    ConversionFinding(
+                        severity="warning",
+                        code="form_placeholder",
+                        classification="blocked",
+                        subject_id=self.subject_id,
+                        message="An HTML form is represented by a safe baseline placeholder",
+                    )
+                )
+            return
+        if self.form_depth:
+            return
+        self.output.append(self.get_starttag_text())
+
+    def handle_startendtag(
+        self, tag: str, attrs: list[tuple[str, str | None]]
+    ) -> None:
+        if self.form_depth:
+            return
+        self.output.append(self.get_starttag_text())
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.lower() == "form" and self.form_depth:
+            self.form_depth -= 1
+            return
+        if self.form_depth:
+            return
+        self.output.append(f"</{tag}>")
+
+    def handle_data(self, data: str) -> None:
+        if self.form_depth:
+            return
+        self.output.append(
+            self.converter._convert_range(
+                data, self.subject_id, self.counts, self.findings
+            )
+        )
+
+    def handle_entityref(self, name: str) -> None:
+        if self.form_depth:
+            return
+        self.output.append(f"&{name};")
+
+    def handle_charref(self, name: str) -> None:
+        if self.form_depth:
+            return
+        self.output.append(f"&#{name};")
+
+    def handle_decl(self, decl: str) -> None:
+        self.output.append(f"<!{decl}>")

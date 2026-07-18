@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Callable
 
 import pytest
+from PIL import Image, ImageDraw
+from io import BytesIO
 
 from moltex_harness.intake.service import IntakeService
 from moltex_harness.normalize import ContractCompiler
@@ -102,3 +104,20 @@ def golden_raw_evidence(tmp_path_factory: pytest.TempPathFactory):
 @pytest.fixture(scope="session")
 def golden_contracts(golden_raw_evidence):
     return ContractCompiler().compile(golden_raw_evidence)
+
+
+@pytest.fixture
+def capture_png():
+    def render(width: int, height: int) -> bytes:
+        image = Image.new("RGB", (width, height), "white")
+        draw = ImageDraw.Draw(image)
+        draw.rectangle((0, 0, width, max(1, height // 5)), fill="#17324d")
+        draw.rectangle(
+            (width // 8, height // 3, width * 7 // 8, height * 2 // 3),
+            fill="#d7e8c5",
+        )
+        buffer = BytesIO()
+        image.save(buffer, format="PNG", optimize=True)
+        return buffer.getvalue()
+
+    return render

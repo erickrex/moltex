@@ -11,6 +11,8 @@ from .contracts import CompilationService, ContractVerifier
 from .intake.serialization import deterministic_json
 from .intake.serialization import write_json
 from .intake.service import IntakeService
+from .scaffold import BaselineService
+from .visuals import SourceVisualService
 
 
 app = typer.Typer(
@@ -105,6 +107,58 @@ def verify_contracts_command(
         typer.echo(f"H2 contract verification failed: {report.errors[0]}", err=True)
     if report.status != "pass":
         raise typer.Exit(6)
+
+
+@app.command("capture-source")
+def capture_source_command(
+    contract_dir: Annotated[
+        Path, typer.Argument(help="Verified H2 contract directory")
+    ],
+    output: Annotated[
+        Path, typer.Option("--output", help="Protected source visual evidence directory")
+    ],
+) -> None:
+    """Capture bundle-bound desktop and mobile source visual evidence."""
+
+    try:
+        receipt = SourceVisualService().capture(contract_dir, output)
+    except Exception as error:
+        typer.echo(f"Source capture failed: {error}", err=True)
+        raise typer.Exit(7) from error
+    typer.echo(f"Captured {len(receipt.evidence)} source visual targets into {output}")
+
+
+@app.command("compile")
+def compile_command(
+    archive: Annotated[Path, typer.Argument(help="Accepted Moltex export ZIP")],
+    output: Annotated[
+        Path, typer.Option("--output", help="Generated Astro baseline repository")
+    ],
+    through: Annotated[
+        str, typer.Option("--through", help="Compilation phase; H3 supports baseline")
+    ] = "baseline",
+    source_visuals: Annotated[
+        Path | None,
+        typer.Option("--source-visuals", help="Pre-captured bundle-bound visual receipt"),
+    ] = None,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Write the compilation report as JSON")
+    ] = False,
+) -> None:
+    """Compile an export through the conservative H3 Astro baseline."""
+
+    if through != "baseline":
+        typer.echo("H3 only supports --through baseline", err=True)
+        raise typer.Exit(2)
+    outcome = BaselineService().compile_archive(archive, output, source_visuals)
+    if as_json:
+        typer.echo(deterministic_json(outcome.report), nl=False)
+    elif outcome.exit_code == 0:
+        typer.echo(f"Compiled H3 Astro baseline into {output}")
+    else:
+        typer.echo(f"Baseline compilation failed: {outcome.report.message}", err=True)
+    if outcome.exit_code:
+        raise typer.Exit(outcome.exit_code)
 
 
 if __name__ == "__main__":

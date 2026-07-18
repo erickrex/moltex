@@ -10,6 +10,8 @@ from pathlib import PurePosixPath
 from typing import Any, Iterable, Literal, TypeVar
 from urllib.parse import urljoin, urlsplit
 
+from pydantic import BaseModel
+
 from moltex_harness.intake.serialization import deterministic_json
 from moltex_harness.intake.security import redact_text
 from moltex_harness.models import (
@@ -22,6 +24,7 @@ from moltex_harness.models import (
     DecisionItem,
     DerivedLineage,
     EvidenceReference,
+    EvidenceResolution,
     MediaMapEntry,
     NavigationItem,
     NormalizationFinding,
@@ -235,7 +238,7 @@ class ContractCompiler:
         parity = self._parity(routes, capabilities)
         visual_plan = self._visual_plan(raw, routes, capabilities, origin)
 
-        return ContractSet(
+        contracts = ContractSet(
             source_manifest=source_manifest,
             site_spec=site_spec,
             content_records=tuple(
@@ -257,6 +260,133 @@ class ContractCompiler:
             findings=tuple(sorted(findings, key=lambda item: item.finding_id)),
             decisions=tuple(sorted(decisions, key=lambda item: item.decision_id)),
         )
+        return contracts.model_copy(
+            update={
+                "evidence_resolutions": self._evidence_resolutions(raw, contracts)
+            }
+        )
+
+    def _evidence_resolutions(
+        self, raw: RawSourceEvidence, contracts: ContractSet
+    ) -> tuple[EvidenceResolution, ...]:
+        documents = self._source_documents(raw)
+        inventory = {item.path: item.sha256 for item in raw.inventory}
+        resolutions: dict[str, EvidenceResolution] = {}
+        for reference in self._evidence_references(contracts):
+            artifact_hash = inventory.get(reference.artifact)
+            if artifact_hash != reference.sha256:
+                raise ContractCompilationError(
+                    "evidence_artifact_mismatch",
+                    f"Evidence artifact cannot be resolved: {reference.artifact}",
+                )
+            value: Any = None
+            if reference.pointer:
+                if reference.artifact not in documents:
+                    raise ContractCompilationError(
+                        "evidence_document_missing",
+                        f"No typed source document is available for {reference.artifact}",
+                    )
+                try:
+                    value = self._resolve_pointer(
+                        documents[reference.artifact], reference.pointer
+                    )
+                except (KeyError, IndexError, TypeError, ValueError) as error:
+                    raise ContractCompilationError(
+                        "evidence_pointer_missing",
+                        f"Evidence pointer does not resolve: {reference.artifact}{reference.pointer}",
+                    ) from error
+            resolution = EvidenceResolution(
+                evidence_id=reference.evidence_id,
+                bundle_id=reference.bundle_id,
+                artifact=reference.artifact,
+                pointer=reference.pointer,
+                artifact_sha256=reference.sha256,
+                value_sha256=hashlib.sha256(
+                    deterministic_json(value).encode("utf-8")
+                ).hexdigest(),
+            )
+            existing = resolutions.get(reference.evidence_id)
+            if existing and existing != resolution:
+                raise ContractCompilationError(
+                    "evidence_id_collision",
+                    f"Evidence ID maps to conflicting source locations: {reference.evidence_id}",
+                )
+            resolutions[reference.evidence_id] = resolution
+        return tuple(sorted(resolutions.values(), key=lambda item: item.evidence_id))
+
+    @staticmethod
+    def _evidence_references(value: Any) -> Iterable[EvidenceReference]:
+        if isinstance(value, EvidenceReference):
+            yield value
+        elif isinstance(value, BaseModel):
+            for field in type(value).model_fields:
+                if field != "evidence_resolutions":
+                    yield from ContractCompiler._evidence_references(
+                        getattr(value, field)
+                    )
+        elif isinstance(value, dict):
+            for item in value.values():
+                yield from ContractCompiler._evidence_references(item)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                yield from ContractCompiler._evidence_references(item)
+
+    @staticmethod
+    def _source_documents(raw: RawSourceEvidence) -> dict[str, Any]:
+        documents = {
+            item.artifact: item.data
+            for collection in (
+                raw.site,
+                raw.navigation,
+                raw.seo,
+                raw.redirects,
+                raw.capabilities,
+            )
+            for item in collection
+        }
+        for item in raw.content:
+            document = item.model_dump(mode="json", exclude={"evidence"})
+            document["raw_html"] = document.pop("original_html")
+            documents[item.evidence.artifact] = document
+        media_by_artifact: dict[str, list[RawMediaEvidence]] = defaultdict(list)
+        for item in raw.media:
+            media_by_artifact[item.evidence.artifact].append(item)
+        for artifact, items in media_by_artifact.items():
+            documents[artifact] = [
+                item.model_dump(mode="json", exclude={"evidence"}) for item in items
+            ]
+        source = raw.source_manifest
+        documents.setdefault(
+            "bundle.json",
+            {
+                "privacy": source.privacy,
+                "counts": source.counts,
+                "readiness": source.readiness,
+            },
+        )
+        documents.setdefault(
+            "export_completeness.json",
+            {"post_types": source.counts, "excluded_statuses": []},
+        )
+        documents.setdefault("migration_readiness.json", source.readiness)
+        return documents
+
+    @staticmethod
+    def _resolve_pointer(document: Any, pointer: str) -> Any:
+        if not pointer:
+            return document
+        if not pointer.startswith("/"):
+            raise ValueError("JSON pointer must be absolute")
+        value = document
+        for token in pointer[1:].split("/"):
+            token = token.replace("~1", "/").replace("~0", "~")
+            if isinstance(value, list):
+                value = value[int(token)]
+            elif isinstance(value, dict):
+                value = value[token]
+            else:
+                raise TypeError("JSON pointer traverses a scalar")
+        return value
 
     @staticmethod
     def _artifact(raw: RawSourceEvidence, path: str) -> RawArtifactEvidence:
