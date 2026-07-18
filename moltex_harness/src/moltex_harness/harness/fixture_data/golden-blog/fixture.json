@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "fixture_id": "golden-blog",
+  "source_archive": "samples/golden-export.zip",
+  "source_sha256": "12929f58f44ce82d2f22de84bd05ce4bd24dc7a5d4160d4ff6e3fa0224253478",
+  "bundle_id": "sha256:1700381e5023e1ee456439f62ba00e17bd5af18917169c76679fd17fe5aba03f",
+  "expected_contract_artifact": "moltex_harness/tests/fixtures/golden_h2_expectations.json",
+  "expected_contract_revision": "50806be286e1d5ac5d7afeb2a27110cf2f3a0888574d09b45c75365ba253de7b",
+  "provenance": "Sanitized Moltex golden export committed under samples/golden-export.zip",
+  "sanitization": "Private, draft, credential, and user-secret markers are excluded by the reviewed exporter fixture.",
+  "license": "Moltex project fixture",
+  "supported_modes": ["contract", "build", "serve", "browser", "mutation", "repair", "repro"],
+  "expected_warnings": [],
+  "viewport_hashes": {
+    "desktop-1440x1200": {"bytes": 7242, "sha256": "6adf29e4c8804f483c3cf051628817f50b0a1c532fe24d485ded178a7b0b1fc6"},
+    "mobile-500x844": {"bytes": 2404, "sha256": "e401ea2f910538bb1e7fd2da71aadafcad8df0a68be16148f9d4a9bd4bd84764"}
+  },
+  "mutation_ids": [
+    "route.delete-output", "content.remove-marker", "link.break-internal",
+    "asset.delete-local", "asset.corrupt-bytes", "nav.change-target",
+    "seo.empty-title", "seo.wrong-canonical", "redirect.create-loop",
+    "capability.remove-disposition", "parity.duplicate-row", "task.false-complete",
+    "browser.console-error", "a11y.remove-name"
+  ]
+}

@@ -234,5 +234,96 @@ def record_task_execution_command(
     typer.echo(f"Recorded Codex Desktop evidence for {evidence.task_id}")
 
 
+@app.command("eval")
+def eval_command(
+    fixture: Annotated[
+        str, typer.Option("--fixture", help="Immutable fixture ID")
+    ] = "golden-blog",
+    suite: Annotated[
+        str,
+        typer.Option(
+            "--suite", help="clean, browser, mutations, repro, or repair"
+        ),
+    ] = "clean",
+    mutation: Annotated[
+        str | None, typer.Option("--mutation", help="Run one published mutation")
+    ] = None,
+    repeat: Annotated[
+        int, typer.Option("--repeat", min=2, help="Fresh runs for repro suite")
+    ] = 3,
+    report_dir: Annotated[
+        Path | None,
+        typer.Option("--report-dir", help="Portable H6 report destination"),
+    ] = None,
+    keep_workspace: Annotated[
+        bool, typer.Option("--keep-workspace", help="Retain every disposable workspace")
+    ] = False,
+    keep_workspace_on_failure: Annotated[
+        bool,
+        typer.Option(
+            "--keep-workspace-on-failure",
+            help="Retain only failed or harness-error workspaces",
+        ),
+    ] = False,
+    seed: Annotated[int, typer.Option("--seed", help="Reproducible case seed")] = 1337,
+    jobs: Annotated[
+        int, typer.Option("--jobs", min=1, help="Bounded independent case jobs")
+    ] = 1,
+    timeout: Annotated[
+        float,
+        typer.Option("--timeout", min=1, help="Per-transition timeout in seconds"),
+    ] = 180,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Write the H6 suite report as JSON")
+    ] = False,
+    list_fixtures: Annotated[
+        bool, typer.Option("--list-fixtures", help="List immutable fixtures and exit")
+    ] = False,
+    list_mutations: Annotated[
+        bool, typer.Option("--list-mutations", help="List published mutations and exit")
+    ] = False,
+) -> None:
+    """Run isolated clean, mutation, reproducibility, or repair evaluations."""
+
+    from .harness import FixtureRegistry, HarnessRunner
+    from .harness.mutations import MutationCatalog
+
+    if list_fixtures:
+        typer.echo("\n".join(FixtureRegistry().list()))
+        return
+    if list_mutations:
+        for item in MutationCatalog().list():
+            typer.echo(f"{item.mutation_id}\t{item.check_id}")
+        return
+    try:
+        report, destination = HarnessRunner(report_dir=report_dir).run(
+            fixture_id=fixture,
+            suite=suite,
+            mutation_id=mutation,
+            repeat=repeat,
+            seed=seed,
+            jobs=jobs,
+            timeout_seconds=timeout,
+            keep_workspace=keep_workspace,
+            keep_workspace_on_failure=keep_workspace_on_failure,
+        )
+    except ValueError as error:
+        typer.echo(f"Eval configuration rejected: {error}", err=True)
+        raise typer.Exit(2) from error
+    if as_json:
+        typer.echo(deterministic_json(report), nl=False)
+    else:
+        typer.echo(
+            f"H6 {suite} suite {report.status}: {report.metrics.passed_cases}/"
+            f"{report.metrics.total_cases} cases; artifacts: {destination}"
+        )
+    if report.status == "fail":
+        raise typer.Exit(1)
+    if report.status == "error":
+        raise typer.Exit(10)
+    if report.status == "blocked":
+        raise typer.Exit(11)
+
+
 if __name__ == "__main__":
     app()

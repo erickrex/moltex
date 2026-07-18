@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "runner": "codex-desktop",
+  "provenance": "Reviewed deterministic Codex repair case authored during H6 implementation",
+  "task": "Restore one deleted Astro route source without changing contracts, verifier code, expectations, or the lockfile.",
+  "allowed_change": "src/pages/<selected-route>.astro",
+  "required_checks": ["route.expected-output", "migration final gate"],
+  "notes": "This fixture records the bounded repair protocol; each run records fresh before/after evidence and independently verifies the result."
+}

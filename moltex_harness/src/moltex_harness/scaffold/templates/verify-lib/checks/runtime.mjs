@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { chromium } from "playwright";
 import { checkResult } from "../results.mjs";
 import { requestArtifact } from "../http.mjs";
 
@@ -47,6 +46,7 @@ export const httpChecks = async (contracts, baseUrl) => {
 const accessibleNameFailures = (nodes) => nodes.filter((node) => !node.name.trim()).map((node) => node.element);
 
 export const browserChecks = async (contracts, baseUrl) => {
+  const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: true });
   const checks = [];
   const artifactRecords = [];
@@ -72,9 +72,9 @@ export const browserChecks = async (contracts, baseUrl) => {
           const consoleArtifact = `.moltex/reports/browser/${safeName(route.contract_id)}-${profile.name}.console.json`;
           await page.screenshot({ path: screenshot, fullPage: true });
           const landmarks = await page.locator("main, nav[aria-label]").evaluateAll((items) => items.map((item) => item.tagName.toLowerCase()));
-          const named = await page.locator("a, button, input, select, textarea, img").evaluateAll((items) => items.map((item) => ({
+          const named = await page.locator("nav, a, button, input, select, textarea, img").evaluateAll((items) => items.map((item) => ({
             element: item.tagName.toLowerCase(),
-            name: item.getAttribute("aria-label") || item.getAttribute("alt") || item.textContent || item.getAttribute("value") || item.getAttribute("name") || "",
+            name: item.tagName.toLowerCase() === "nav" ? (item.getAttribute("aria-label") || "") : (item.getAttribute("aria-label") || item.getAttribute("alt") || item.textContent || item.getAttribute("value") || item.getAttribute("name") || ""),
           })));
           const unnamed = accessibleNameFailures(named);
           fs.writeFileSync(consoleArtifact, JSON.stringify({ schema_version: 1, route: route.target_url, viewport: profile, messages: consoleErrors }, null, 2) + "\n");

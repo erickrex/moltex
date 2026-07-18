@@ -269,7 +269,14 @@ export const redirectChecks = (contracts) => {
   return loopChecks;
 };
 
-export const capabilityChecks = (contracts) => contracts.capabilities.map((capability) => {
+export const capabilityChecks = (contracts) => {
+  const expectedIds = new Set(contracts.siteSpec.capability_ids ?? []);
+  const actualIds = new Set(contracts.capabilities.map((item) => item.capability_id));
+  const missing = [...expectedIds].filter((id) => !actualIds.has(id)).map((capabilityId) => result("capability.disposition", capabilityId, false, {
+    status: "fail", contractIds: [capabilityId], evidenceRefs: [".moltex/contracts/site-spec.json", ".moltex/contracts/contracts/capabilities.json"],
+    expected: "one declared capability disposition", actual: null, message: `Capability disposition is missing: ${capabilityId}`,
+  }));
+  const declared = contracts.capabilities.map((capability) => {
   const decided = capability.disposition !== "needs_decision" && Boolean(capability.target_behavior) && Boolean(capability.verification_method);
   return result("capability.disposition", capability.capability_id, decided, {
     status: capability.disposition === "needs_decision" ? "needs_decision" : "fail",
@@ -277,7 +284,9 @@ export const capabilityChecks = (contracts) => contracts.capabilities.map((capab
     expected: "a decided disposition with target behavior and verification method", actual: capability.disposition,
     message: `Capability disposition is incomplete: ${capability.capability_id}`,
   });
-});
+  });
+  return [...missing, ...declared];
+};
 
 export const taskChecks = (contracts) => {
   if (!contracts.taskGraph) return [result("task.completion-evidence", "task-graph", true, { passMessage: "No H4 task graph is present" })];

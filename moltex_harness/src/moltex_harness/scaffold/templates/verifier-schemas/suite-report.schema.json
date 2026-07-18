@@ -9,9 +9,9 @@
     "schema_version": {"const": 1}, "suite": {"type": "string"}, "level": {"enum": ["baseline", "migration", "parity", "task"]},
     "bundle_id": {"type": ["string", "null"]}, "status": {"enum": ["pass", "fail", "review", "blocked", "needs_decision", "error"]},
     "started_at": {"type": "string", "format": "date-time"}, "duration_ms": {"type": "integer", "minimum": 0}, "counts": {"type": "object"},
-    "checks": {"type": "array", "items": {"$ref": "check-result.schema.json"}},
-    "findings": {"type": "array", "items": {"$ref": "finding.schema.json"}},
-    "processes": {"type": "array", "items": {"$ref": "process-result.schema.json"}},
-    "artifacts": {"type": "array", "items": {"$ref": "artifact.schema.json"}}
+    "checks": {"type": "array", "items": {"$ref": "https://moltex.dev/schemas/verifier/check-result-v1.json"}},
+    "findings": {"type": "array", "items": {"$ref": "https://moltex.dev/schemas/verifier/finding-v1.json"}},
+    "processes": {"type": "array", "items": {"$ref": "https://moltex.dev/schemas/verifier/process-result-v1.json"}},
+    "artifacts": {"type": "array", "items": {"$ref": "https://moltex.dev/schemas/verifier/artifact-v1.json"}}
   }
 }
