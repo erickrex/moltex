@@ -10,7 +10,7 @@ import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import Any, Literal
 
 from moltex_harness.contracts import CompilationService, ContractStore, ContractVerifier
 from moltex_harness.conversion import (
@@ -28,6 +28,7 @@ from .media import AssetMaterializer, MediaFetcher
 
 
 TEMPLATES = Path(__file__).parent / "templates"
+FailureClassification = Literal["permanent", "blocked", "transient", "harness"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,7 +95,7 @@ class BaselineService:
                     visual_receipt,
                 )
             except Exception as error:
-                classification = classify_failure(error).value
+                classification: FailureClassification = classify_failure(error).value
                 return self._failure(
                     output,
                     contracts.source_manifest.bundle_id,
@@ -193,7 +194,7 @@ class BaselineService:
             listing_items: list[dict[str, Any]] = []
             if route.page_family == "listing":
                 listing_items = posts
-            receipt = next(
+            route_receipt = next(
                 (
                     item
                     for item in receipts
@@ -201,9 +202,9 @@ class BaselineService:
                 ),
                 None,
             )
-            if receipt and any(
+            if route_receipt and any(
                 disposition.name in {"gd_listings", "gd_loop", "gd_search"}
-                for disposition in receipt.shortcodes
+                for disposition in route_receipt.shortcodes
             ):
                 listing_items = geodirectory
             self._write_page(workspace, route.output_path, document, listing_items)
@@ -320,7 +321,11 @@ class BaselineService:
             if route.public
             and route.expected_status == 200
             and "noindex"
-            not in (seo_by_route.get(route.contract_id).robots.lower() if seo_by_route.get(route.contract_id) else "")
+            not in (
+                seo.robots.lower()
+                if (seo := seo_by_route.get(route.contract_id))
+                else ""
+            )
         ]
         write_json(workspace / "src" / "data" / "sitemap.json", sitemap)
         redirects = "\n".join(
@@ -440,7 +445,7 @@ class BaselineService:
         bundle_id: str | None,
         code: str,
         message: str,
-        classification: str | None = None,
+        classification: FailureClassification | None = None,
     ) -> BaselineOutcome:
         report = BaselineCompilationReport(
             status="failed",

@@ -9,7 +9,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Protocol
+from typing import Literal, Protocol
 from urllib.parse import urlsplit
 
 from moltex_harness.models import AssetAcquisitionReceipt, AssetContract
@@ -92,6 +92,7 @@ class AssetMaterializer:
             if root not in target.parents or target == root:
                 raise ValueError(f"Asset target escapes workspace: {asset.target_path}")
             target.parent.mkdir(parents=True, exist_ok=True)
+            method: Literal["bundle", "source-fetch"]
             if asset.acquisition_status == "bundled":
                 if not asset.bundle_path:
                     raise ValueError(f"Bundled asset has no artifact: {asset.asset_id}")

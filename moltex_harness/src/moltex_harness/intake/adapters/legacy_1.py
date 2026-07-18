@@ -95,12 +95,10 @@ class Legacy1Adapter:
                 "content_count_mismatch", "Site blueprint content total is inconsistent"
             )
 
-        site = blueprint.get("site") if isinstance(blueprint.get("site"), dict) else {}
-        plugins = (
-            blueprint.get("plugins")
-            if isinstance(blueprint.get("plugins"), list)
-            else []
-        )
+        site_value = blueprint.get("site")
+        site: dict[str, Any] = site_value if isinstance(site_value, dict) else {}
+        plugins_value = blueprint.get("plugins")
+        plugins: list[Any] = plugins_value if isinstance(plugins_value, list) else []
         exporter_version = None
         for plugin in plugins:
             if (

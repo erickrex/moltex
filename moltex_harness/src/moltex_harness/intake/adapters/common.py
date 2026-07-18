@@ -5,11 +5,12 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
-from typing import Any
+from typing import Any, Literal, cast
 
 from moltex_harness.models import (
     ArtifactInventoryItem,
     EvidenceReference,
+    MediaAcquisition,
     RawArtifactEvidence,
     RawContentEvidence,
     RawMediaEvidence,
@@ -172,17 +173,22 @@ def _media(
             )
         artifact = value.get("artifact")
         acquisition = value.get("acquisition")
+        acquisition_model: MediaAcquisition | None = None
         if acquisition is not None:
             expected = {
                 "bundled": ("bundle", True),
                 "deferred": ("source-fetch", False),
                 "unavailable": ("operator-decision", False),
             }
-            declaration = (
-                expected.get(acquisition.get("status"))
-                if isinstance(acquisition, dict)
-                else None
-            )
+            if not isinstance(acquisition, dict):
+                raise IntakeError(
+                    "invalid_media_acquisition",
+                    "Media acquisition declaration must be an object",
+                    artifact=path,
+                    pointer=f"/{index}/acquisition",
+                )
+            status = acquisition.get("status")
+            declaration = expected.get(status) if isinstance(status, str) else None
             if (
                 declaration is None
                 or acquisition.get("method") != declaration[0]
@@ -195,6 +201,7 @@ def _media(
                     artifact=path,
                     pointer=f"/{index}/acquisition",
                 )
+            acquisition_model = MediaAcquisition.model_validate(acquisition)
         if artifact is not None and (
             not isinstance(artifact, str) or not bundle.has(artifact)
         ):
@@ -204,8 +211,9 @@ def _media(
                 artifact=path,
                 pointer=f"/{index}/artifact",
             )
-        metadata = (
-            value.get("metadata") if isinstance(value.get("metadata"), dict) else {}
+        metadata_value = value.get("metadata")
+        metadata: dict[str, Any] = (
+            metadata_value if isinstance(metadata_value, dict) else {}
         )
         file_item = bundle.item(artifact) if artifact else None
         result.append(
@@ -218,7 +226,7 @@ def _media(
                 bytes=file_item.bytes if file_item else None,
                 sha256=file_item.sha256 if file_item else None,
                 metadata=metadata,
-                acquisition=acquisition if isinstance(acquisition, dict) else None,
+                acquisition=acquisition_model,
                 evidence=evidence_ref(bundle, validation.bundle_id, path, f"/{index}"),
             )
         )
@@ -333,7 +341,9 @@ def compile_raw_evidence(
         and (path.startswith("html_snapshots/") or path.startswith("snapshots/"))
     ]
     source_manifest = RawSourceManifest(
-        source_schema=validation.adapter,
+        source_schema=cast(
+            Literal["legacy-1", "moltex-export/1"], validation.adapter
+        ),
         bundle_id=validation.bundle_id,
         archive_sha256=bundle.archive_sha256,
         exporter_version=validation.exporter_version,

@@ -184,7 +184,7 @@ class ContractVerifier:
         media_target_paths: set[str] = set()
         media_target_urls: set[str] = set()
         for entry in contracts.media_map:
-            asset = assets.get(entry.asset_contract_id)
+            mapped_asset = assets.get(entry.asset_contract_id)
             expected_url = "/" + entry.target_path.removeprefix("public/")
             if (
                 not entry.target_path.startswith("public/media/")
@@ -199,10 +199,10 @@ class ContractVerifier:
                 errors.append(f"media_target_collision: {entry.asset_contract_id}")
             media_target_paths.add(entry.target_path)
             media_target_urls.add(entry.target_url)
-            if asset and (
-                asset.target_path != entry.target_path
-                or asset.acquisition_status != entry.acquisition_status
-                or asset.runtime_policy != entry.runtime_policy
+            if mapped_asset and (
+                mapped_asset.target_path != entry.target_path
+                or mapped_asset.acquisition_status != entry.acquisition_status
+                or mapped_asset.runtime_policy != entry.runtime_policy
             ):
                 errors.append(f"media_asset_map_mismatch: {entry.asset_contract_id}")
         for asset in assets.values():

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import re
 from html.parser import HTMLParser
+from typing import Literal
 from urllib.parse import urlsplit
 
 import nh3
@@ -70,8 +71,8 @@ class ContentConverter:
                     removed_media += 1
                     return None
             elif name == "srcset":
-                value, changed = self.rewriter.rewrite_srcset(value)
-                rewritten_count += changed
+                value, changed_count = self.rewriter.rewrite_srcset(value)
+                rewritten_count += changed_count
                 candidates = []
                 for candidate in value.split(","):
                     parts = candidate.strip().split()
@@ -118,6 +119,7 @@ class ContentConverter:
                 )
             )
         fallback_reason: str | None = None
+        body_format: Literal["markdown", "sanitized_html"]
         if len(sanitized) > 100_000:
             body_format = "sanitized_html"
             fallback_reason = "large_content"

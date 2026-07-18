@@ -9,6 +9,8 @@ source visual evidence and creates a conservative, buildable Astro 5 baseline.
 ```powershell
 uv sync --project moltex_harness
 uv run --project moltex_harness pytest
+uv run --project moltex_harness ruff check moltex_harness/src moltex_harness/tests
+uv run --project moltex_harness mypy --config-file moltex_harness/pyproject.toml moltex_harness/src/moltex_harness
 uv run --project moltex_harness moltex inspect samples/golden-export.zip --json
 uv run --project moltex_harness moltex compile-contracts samples/golden-export.zip --output output/golden-contracts
 uv run --project moltex_harness moltex verify-contracts output/golden-contracts

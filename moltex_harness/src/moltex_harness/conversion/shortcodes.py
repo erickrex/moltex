@@ -6,8 +6,12 @@ import html
 from collections import Counter
 from dataclasses import dataclass
 from html.parser import HTMLParser
+from typing import Literal
 
 from moltex_harness.models import ConversionFinding, ShortcodeDisposition
+
+
+ShortcodeKind = Literal["converted", "placeholder", "preserved"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,7 +25,7 @@ class ShortcodeConverter:
     """Parse brackets without executing source-site shortcode handlers."""
 
     def convert(self, source: str, subject_id: str) -> ShortcodeResult:
-        counts: Counter[tuple[str, str]] = Counter()
+        counts: Counter[tuple[str, ShortcodeKind]] = Counter()
         findings: list[ConversionFinding] = []
         parser = _HtmlShortcodeParser(self, subject_id, counts, findings)
         parser.feed(source)
@@ -37,7 +41,7 @@ class ShortcodeConverter:
         self,
         text: str,
         subject_id: str,
-        counts: Counter[tuple[str, str]],
+        counts: Counter[tuple[str, ShortcodeKind]],
         findings: list[ConversionFinding],
     ) -> str:
         out: list[str] = []
@@ -151,7 +155,9 @@ class ShortcodeConverter:
         return None
 
     @staticmethod
-    def _replacement(name: str, attributes: str, inner: str) -> tuple[str, str]:
+    def _replacement(
+        name: str, attributes: str, inner: str
+    ) -> tuple[str, ShortcodeKind]:
         if name == "caption":
             return f'<figure class="wp-caption">{inner}</figure>', "converted"
         if name == "gallery":
@@ -186,7 +192,7 @@ class _HtmlShortcodeParser(HTMLParser):
         self,
         converter: ShortcodeConverter,
         subject_id: str,
-        counts: Counter[tuple[str, str]],
+        counts: Counter[tuple[str, ShortcodeKind]],
         findings: list[ConversionFinding],
     ) -> None:
         super().__init__(convert_charrefs=False)
@@ -218,14 +224,18 @@ class _HtmlShortcodeParser(HTMLParser):
             return
         if self.form_depth:
             return
-        self.output.append(self.get_starttag_text())
+        start_tag = self.get_starttag_text()
+        if start_tag is not None:
+            self.output.append(start_tag)
 
     def handle_startendtag(
         self, tag: str, attrs: list[tuple[str, str | None]]
     ) -> None:
         if self.form_depth:
             return
-        self.output.append(self.get_starttag_text())
+        start_tag = self.get_starttag_text()
+        if start_tag is not None:
+            self.output.append(start_tag)
 
     def handle_endtag(self, tag: str) -> None:
         if tag.lower() == "form" and self.form_depth:
