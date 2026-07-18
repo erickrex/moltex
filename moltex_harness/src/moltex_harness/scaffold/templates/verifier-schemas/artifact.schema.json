@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/verifier/artifact-v1.json",
+  "title": "Moltex VerificationArtifact v1",
+  "type": "object",
+  "required": ["schema_version", "artifact_id", "kind", "path"],
+  "properties": {
+    "schema_version": {"const": 1}, "artifact_id": {"type": "string"}, "kind": {"type": "string"}, "path": {"type": "string"},
+    "route": {"type": "string"}, "viewport": {"type": "object"}, "status": {"type": ["integer", "string", "null"]}
+  }
+}

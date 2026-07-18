@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/verifier/check-result-v1.json",
+  "title": "Moltex CheckResult v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "check_id", "status", "severity", "subject", "contract_ids", "evidence_refs", "expected", "actual", "message", "artifacts", "duration_ms"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "check_id": {"type": "string", "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$"},
+    "status": {"enum": ["pass", "fail", "review", "blocked", "needs_decision", "error"]},
+    "severity": {"enum": ["info", "warning", "error", "critical"]},
+    "subject": {"type": "string", "minLength": 1},
+    "contract_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "evidence_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "expected": {}, "actual": {},
+    "message": {"type": "string", "minLength": 1},
+    "artifacts": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "duration_ms": {"type": "integer", "minimum": 0}
+  }
+}

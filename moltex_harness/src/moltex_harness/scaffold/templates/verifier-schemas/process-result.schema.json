@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/verifier/process-result-v1.json",
+  "title": "Moltex ProcessResult v1",
+  "type": "object",
+  "required": ["schema_version", "process_id", "command", "pid", "host", "port", "status", "started_at", "duration_ms", "exit_code", "log_artifact"],
+  "properties": {
+    "schema_version": {"const": 1}, "process_id": {"type": "string"}, "command": {"type": "array", "items": {"type": "string"}},
+    "pid": {"type": "integer"}, "host": {"const": "127.0.0.1"}, "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+    "status": {"enum": ["starting", "ready", "stopped", "error"]}, "started_at": {"type": "string", "format": "date-time"},
+    "duration_ms": {"type": "integer", "minimum": 0}, "exit_code": {"type": ["integer", "null"]}, "log_artifact": {"type": "string"},
+    "readiness_attempts": {"type": "integer", "minimum": 1}, "readiness_status": {"type": "integer"}, "error": {"type": "string"}
+  }
+}

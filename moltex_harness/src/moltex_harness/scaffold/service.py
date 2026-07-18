@@ -519,6 +519,13 @@ class BaselineService:
         shutil.copyfile(
             TEMPLATES / "verify-baseline.mjs", scripts / "verify-baseline.mjs"
         )
+        shutil.copyfile(TEMPLATES / "verify.mjs", scripts / "verify.mjs")
+        shutil.copyfile(TEMPLATES / "verify-task.mjs", scripts / "verify-task.mjs")
+        shutil.copytree(TEMPLATES / "verify-lib", scripts / "verify-lib")
+        shutil.copytree(
+            TEMPLATES / "verifier-schemas",
+            workspace / ".moltex" / "schemas" / "verifier",
+        )
 
     @staticmethod
     def _failure(

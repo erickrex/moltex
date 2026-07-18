@@ -9,11 +9,15 @@
     "npm": "10.9.2"
   },
   "scripts": {
+    "postinstall": "playwright install chromium",
     "dev": "astro dev",
     "build": "node scripts/build.mjs",
-    "verify": "node scripts/verify-baseline.mjs"
+    "verify": "node scripts/verify.mjs",
+    "verify:baseline": "node scripts/verify-baseline.mjs",
+    "verify:task": "node scripts/verify-task.mjs"
   },
   "dependencies": {
-    "astro": "5.18.2"
+    "astro": "5.18.2",
+    "playwright": "1.61.0"
   }
 }

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/verifier/finding-v1.json",
+  "title": "Moltex Finding v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "finding_id", "check_id", "status", "severity", "subject", "contract_ids", "evidence_refs", "message"],
+  "properties": {
+    "schema_version": {"const": 1}, "finding_id": {"type": "string"}, "check_id": {"type": "string"},
+    "status": {"enum": ["fail", "review", "blocked", "needs_decision", "error"]},
+    "severity": {"enum": ["info", "warning", "error", "critical"]}, "subject": {"type": "string"},
+    "contract_ids": {"type": "array", "items": {"type": "string"}}, "evidence_refs": {"type": "array", "items": {"type": "string"}},
+    "message": {"type": "string"}
+  }
+}

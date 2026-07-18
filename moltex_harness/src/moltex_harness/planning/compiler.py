@@ -30,6 +30,10 @@ PROTECTED_PATHS = (
     ".moltex/verification/**",
     "scripts/build.mjs",
     "scripts/verify-baseline.mjs",
+    "scripts/verify.mjs",
+    "scripts/verify-task.mjs",
+    "scripts/verify-lib/**",
+    ".moltex/schemas/verifier/**",
     "package-lock.json",
 )
 MAX_ROUTES_PER_TASK = 5

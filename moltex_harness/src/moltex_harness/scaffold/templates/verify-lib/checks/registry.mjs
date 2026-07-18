@@ -1,0 +1,40 @@
+export const CHECK_REGISTRY = Object.fromEntries([
+  ["contract.integrity", "contract", true],
+  ["build.output-inventory", "build", true],
+  ["route.expected-output", "build", true],
+  ["content.required-marker", "build", true],
+  ["link.internal-target", "build", true],
+  ["navigation.contract", "build", true],
+  ["asset.local-exists", "build", true],
+  ["asset.checksum", "build", true],
+  ["asset.contract", "build", true],
+  ["seo.required-title", "build", true],
+  ["seo.description", "build", true],
+  ["seo.canonical", "build", true],
+  ["seo.robots", "build", true],
+  ["seo.open-graph", "build", true],
+  ["seo.sitemap", "build", true],
+  ["redirect.no-loop", "contract", true],
+  ["redirect.contract", "build", true],
+  ["capability.disposition", "contract", true],
+  ["http.route-status", "served", true],
+  ["http.content-type", "served", true],
+  ["http.not-found", "served", true],
+  ["task.completion-evidence", "contract", true],
+  ["task.exists", "contract", true],
+  ["task.dependencies", "contract", true],
+  ["parity.unique-subject", "contract", true],
+  ["parity.subject", "review", false],
+  ["browser.console", "browser", true],
+  ["a11y.landmarks", "browser", true],
+  ["a11y.accessible-name", "browser", true],
+  ["visual.parity-review", "review", false],
+  ["verification.preview", "served", true],
+  ["browser.lifecycle", "browser", true],
+  ["verification.harness", "contract", true],
+].map(([id, phase, deterministic]) => [id, { id, version: "1.0", phase, deterministic, retry_policy: "never" }]));
+
+export const validateRegisteredChecks = (checks) => {
+  const unknown = [...new Set(checks.map((item) => item.check_id).filter((id) => !CHECK_REGISTRY[id]))];
+  if (unknown.length) throw new Error(`Unregistered verifier checks: ${unknown.join(", ")}`);
+};

@@ -38,6 +38,7 @@ include = [
     "src/moltex_harness/**/*.py",
     "src/moltex_harness/intake/schemas/**/*.json",
     "src/moltex_harness/scaffold/templates/*",
+    "src/moltex_harness/scaffold/templates/**/*",
     "src/moltex_harness/scaffold/templates/.node-version",
     "src/moltex_harness/scaffold/templates/.npmrc",
 ]

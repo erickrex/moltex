@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import subprocess
+from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
@@ -199,6 +201,29 @@ def test_real_task_evidence_is_scope_and_command_checked(
     assert "- [x] `T001`" in (workspace / "EXECPLAN.md").read_text(
         encoding="utf-8"
     )
+    node = next(
+        candidate
+        for candidate in (
+            shutil.which("node"),
+            str(
+                Path.home()
+                / ".cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe"
+            ),
+        )
+        if candidate and Path(candidate).is_file()
+    )
+    verifier = subprocess.run(
+        [node, "scripts/verify-task.mjs", "T001"],
+        cwd=workspace,
+        text=True,
+        capture_output=True,
+    )
+    assert verifier.returncode == 0, verifier.stdout + verifier.stderr
+    task_report = json.loads(
+        (workspace / ".moltex/reports/tasks/T001.json").read_text(encoding="utf-8")
+    )
+    assert task_report["status"] == "pass"
+    assert all(item["status"] == "pass" for item in task_report["checks"])
 
 
 def _load_graph(workspace) -> TaskGraph:

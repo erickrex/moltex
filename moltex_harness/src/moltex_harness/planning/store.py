@@ -211,16 +211,25 @@ structural, capability, and production work. Confirmed omitted routes must stay 
     def _readme(graph: TaskGraph, contracts: ContractSet) -> str:
         return f"""# {html.escape(contracts.site_spec.site_name)} Astro Migration
 
-This Git-managed Astro repository was compiled by Moltex through H4. It contains a
-buildable H3 baseline and a deterministic graph of `{len(graph.tasks)}` bounded Codex tasks.
+This Git-managed Astro repository was compiled by Moltex through H5. It contains a
+buildable H3 baseline, a deterministic H4 graph of `{len(graph.tasks)}` bounded Codex
+tasks, and a self-contained verifier.
 
 ## Start
 
 ```bash
 npm ci
 npm run build
-npm run verify
+npm run verify -- --level baseline
+npm run verify -- --level migration
+npm run verify -- --level parity
+npm run verify:task -- T003
 ```
+
+The baseline and migration levels are deterministic gates. Parity may return `review`
+while named visual or operator approval remains outstanding; `review` never overrides a
+failed deterministic check. Reports and browser evidence are written below
+`.moltex/reports/`.
 
 Open `EXECPLAN.md`, then execute the first ready task from `.moltex/tasks/`. Follow
 `AGENTS.md` and do not edit protected contracts, evidence, verifier scripts, or expected
@@ -240,13 +249,15 @@ recording independent build and verification evidence for every completion.
     def _qa_plan(graph: TaskGraph) -> str:
         return f"""# QA plan
 
-1. Before task work, run `npm run build` and `npm run verify`.
+1. Before task work, run `npm run build` and
+   `npm run verify -- --level migration`.
 2. For each of the `{len(graph.tasks)}` tasks, run all commands in its JSON contract and
    retain the declared diff, verification report, summary, and screenshot when required.
 3. Never refresh contracts, source visuals, expectations, or verifier code during an
    ordinary migration task.
-4. After `{graph.final_task_id}`, run the locked install, production build, and verifier in
-   a clean environment and reconcile every row in `.moltex/parity-matrix.json`.
+4. After `{graph.final_task_id}`, run the locked install, production build,
+   `npm run verify -- --level parity`, and reconcile every row in
+   `.moltex/parity-matrix.json`.
 5. Treat visual comparison as review evidence; it cannot override a failed deterministic
    contract check.
 """

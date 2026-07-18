@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/verifier/suite-report-v1.json",
+  "title": "Moltex VerificationSuiteReport v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "suite", "level", "bundle_id", "status", "started_at", "duration_ms", "counts", "checks", "findings", "processes", "artifacts"],
+  "properties": {
+    "schema_version": {"const": 1}, "suite": {"type": "string"}, "level": {"enum": ["baseline", "migration", "parity", "task"]},
+    "bundle_id": {"type": ["string", "null"]}, "status": {"enum": ["pass", "fail", "review", "blocked", "needs_decision", "error"]},
+    "started_at": {"type": "string", "format": "date-time"}, "duration_ms": {"type": "integer", "minimum": 0}, "counts": {"type": "object"},
+    "checks": {"type": "array", "items": {"$ref": "check-result.schema.json"}},
+    "findings": {"type": "array", "items": {"$ref": "finding.schema.json"}},
+    "processes": {"type": "array", "items": {"$ref": "process-result.schema.json"}},
+    "artifacts": {"type": "array", "items": {"$ref": "artifact.schema.json"}}
+  }
+}
