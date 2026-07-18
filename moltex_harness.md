@@ -1576,6 +1576,9 @@ Build:
   `AssetContract`, `SeoContract`, `CapabilityDisposition`, and `VisualCapturePlan`.
 - Normalize source IDs, URLs, slugs, dates, authors, taxonomies, relationships, menus,
   media, SEO precedence, redirects, and capability observations.
+- Treat WordPress control-plane links such as `/wp-admin/`, `/wp-login.php`, and
+  `/wp-register.php` as source-administration references rather than missing public routes;
+  they must not create route contracts, unresolved-link findings, or migration decisions.
 - Build immutable URL and media maps.
 - Compile every observed media source URL to a collision-safe `public/media/` path and `/media/`
   URL. Preserve exporter-declared deferred public sources as automatic H3 acquisition work while
@@ -1586,6 +1589,9 @@ Build:
 - Select a bounded visual target set containing the homepage, one representative route per
   public route family, and routes needed to observe business-critical or unresolved
   capabilities. Emit desktop 1440×1200 and mobile 500×844 targets with stable evidence IDs.
+- Keep the complete H2 public route inventory and visual plan immutable. Source availability
+  is observed in the automated H2-to-H3 transition and must never rewrite or silently remove
+  an H2 contract.
 - Add Pydantic round-trip, property, idempotency, collision, contradiction, and missing
   reference tests.
 
@@ -1616,6 +1622,8 @@ Exit gate:
 - Every media-map entry has a unique local target and a `local-only` runtime policy; no target URL
   hotlinks WordPress or an external CDN.
 - Every canonical field used for migration has resolvable evidence lineage.
+- WordPress control-plane references are excluded from public-route reconciliation without
+  suppressing genuine unresolved links to public content.
 - Every visual target resolves to one public route contract, target selection is bounded,
   and repeated compilation emits a byte-equivalent `visual-capture-plan.json`.
 - The same fixture compiles byte-equivalent normalized contracts after volatile metadata
@@ -1645,11 +1653,16 @@ The capture runner:
   blockers rather than silently dropping routes;
 - uses the exact declared desktop and mobile viewports and a bounded timeout;
 - writes PNGs under `source-visuals/` and never changes the accepted exporter ZIP;
-- emits `source-visuals/manifest.json` and `capture-receipt.json` containing the bundle ID,
+- uses deterministic cross-platform-safe artifact names and removes partial output when a
+  capture run fails;
+- emits `source-visuals/manifest.json` and schema-v2 `capture-receipt.json` containing the bundle ID,
   plan hash, complete route-availability evidence, browser/version, final URL, viewport,
   byte size, and SHA-256 for every captured image;
 - requires images for available planned routes, skips planned targets whose route has a
   confirmed omission, and rejects missing, duplicate, blank, or failed required captures; and
+- validates that every public route appears exactly once with the expected route ID and
+  source URL, that every disposition is consistent with its status/final URL, and that the
+  visual evidence set is exactly the planned targets remaining after omissions; and
 - produces no interactive prompt or fallback asking the operator for screenshots.
 
 A valid capture receipt with exact availability coverage is required to enter H3 for a
@@ -1674,10 +1687,16 @@ Build:
   frontmatter normalizer, URL/media rewriting, large-content fallback, and failure
   classification behind Moltex-owned Python interfaces.
 - Scaffold Astro 5, strict TypeScript, static output, pinned Node 24.14.0 and npm 10.9.2,
-  `package.json`, and committed `package-lock.json`.
+  `package.json`, and committed `package-lock.json`. Generate `.node-version`, strict npm
+  engine configuration, exact `engines` and `packageManager` declarations, and reject a
+  build or verification run under any other Node/npm versions.
 - Materialize editable Astro content collections, routes, listings, navigation, media,
   metadata, sitemap inputs, redirects, and 404 behavior from contracts after applying the
   immutable route-availability receipt. Do not materialize confirmed omitted source routes.
+- Propagate confirmed omissions consistently: remove the omitted content record from generated
+  collections and listing data, remove its navigation/SEO/redirect/sitemap expectations, and
+  avoid materializing assets referenced exclusively by omitted content. Preserve shared assets
+  required by any available route.
 - Copy bundled media and acquire deferred public source binaries into their H2-declared local
   paths before rewriting content. Record final byte size, checksum, source URL, and acquisition
   method in conversion receipts; a later media-only exporter may fulfill the same contract without
@@ -1686,6 +1705,13 @@ Build:
   implemented.
 - Copy the immutable source visual manifest and images into protected workspace evidence
   so later planning and verification can pair them by evidence ID.
+- Generate baseline expectations containing the exact available route inventory, omitted-route
+  evidence, complete route-availability evidence, content records, acquired assets, visual
+  evidence, and required Node/npm versions.
+- Ship a dependency-minimal Node verifier inside the generated repository. It must validate
+  route/content/asset/visual inventories, exact availability binding, omission absence,
+  source-visual checksums, production media locality, and executable source-payload removal
+  without importing or invoking the Python harness.
 - Write conversion receipts and findings for every fallback or unsupported construct.
 - Add conversion unit/property tests, upstream-inspired regression fixtures, workspace
   snapshots, and clean build integration tests.
@@ -1698,6 +1724,7 @@ uv run --project moltex_harness moltex compile samples/golden-export.zip \
   --output output/golden-site --through baseline
 npm --prefix output/golden-site ci
 npm --prefix output/golden-site run build
+npm --prefix output/golden-site run verify
 ```
 
 Required artifacts:
@@ -1705,6 +1732,8 @@ Required artifacts:
 - complete generated Astro repository
 - protected source visual evidence and capture receipt
 - content conversion receipts
+- bundle-bound baseline expectations including route availability and omissions
+- generated `.node-version`, `.npmrc`, locked npm metadata, and toolchain report
 - baseline build log
 - built-route and asset inventory
 - baseline verification report
@@ -1712,13 +1741,20 @@ Required artifacts:
 Exit gate:
 
 - A clean locked install and production build pass.
+- The build and verifier run only under Node 24.14.0 and npm 10.9.2 and record the observed
+  versions in `.moltex/reports/toolchain.json`.
 - Every available expected content item, route, and required local asset is materialized;
   every confirmed omitted route remains absent and traceable to availability evidence.
+- Route availability has exact one-to-one coverage of the H2 public route inventory, and
+  the generated verifier fails if an available route is missing, an omitted route is emitted,
+  or the receipt and baseline expectations disagree.
 - Production content contains no runtime media dependency on WordPress or an external CDN.
 - Sanitized content preserves required markers and contains no known executable source
   payload.
 - Every required source visual for an available planned route resolves by evidence ID and
   its recorded checksum verifies; planned targets on confirmed omitted routes have no image.
+- `npm run verify` passes independently inside the generated repository without the Python
+  package or access to WordPress.
 - WordPress is not required to build or edit the generated site.
 - No Codex task generation or mutation harness is required to prove H3.
 
