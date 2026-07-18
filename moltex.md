@@ -24,13 +24,16 @@ authoritative; the harness implementation must be updated to consume that bounda
 ## Status and Naming
 
 - Product name: **Moltex**
-- Existing internal project: `moltex_exporter`
-- New internal project: `moltex_harness`
+- Exporter project: `moltex_exporter`
+- Harness project: `moltex_harness`
+- Current exporter release: **1.2.9**
+- Current export contract: **`moltex-export/1`**
 - Target output: Git-managed Astro 5 static site
 - Primary implementation surface: Codex Desktop working on a generated repository
 - Hackathon track: Developer Tools
 - Submission deadline in the current plan: July 21, 2026 at 5:00 PM PT
-- Product stage: focused vertical slice for content-led WordPress sites
+- Product stage: implemented exporter and active harness vertical slice for content-led
+  WordPress sites
 
 Naming is strict:
 
@@ -189,92 +192,115 @@ This boundary prevents two common forms of overlap:
 2. The harness does not rescan WordPress. If a fact is absent, it reports missing evidence
    or requests a new export instead of reaching back into the source site.
 
-## Existing `moltex_exporter` Audit
+## Current `moltex_exporter` State
 
-This audit is based on the repository state inspected on July 14, 2026. It is a static
-code and documentation audit: PHP, Composer, and PHPUnit are not installed in the current
-workspace, so the existing test claims have not yet been independently executed here.
-Establishing a runnable baseline is the first implementation gate.
+This section is the retroactive implementation record for the exporter at release 1.2.9,
+inspected and reverified on July 18, 2026. The original July 14 audit and the E1-E3 receipts
+remain available in [`docs/exporter-audit.md`](./docs/exporter-audit.md) and
+[`docs/verification/`](./docs/verification/).
 
-### What already exists
+Exporter phases E1, E2, and E3 are complete. The plugin is no longer an unverified legacy
+exporter awaiting a contract: it emits `moltex-export/1` by default, validates the finished
+archive before download, and has an installable release artifact.
 
-The exporter is substantial and should be improved rather than rewritten:
+### Implemented behavior
 
-- 33 scanners are registered through a declarative priority registry.
-- Core orchestration supports progress, scanner isolation, error logging, and a batching
-  protocol.
-- The content scanner supports `complete` and `discovery` modes.
-- Complete mode emits per-item files under `content/<post-type>/<slug>.json` and an
-  `export_completeness.json` report.
-- Private content is excluded by default and can be included only explicitly.
-- `migration_readiness.json` detects several unsupported plugin families, multisite, and
-  incomplete content exports.
-- Dedicated scanners cover site data, theme evidence, plugins, content, taxonomies,
-  media, menus, ACF, shortcodes, forms, redirects, SEO, integrations, page composition,
-  relationships, field usage, and other source signals.
-- Security filters enumerate sensitive options, metadata, credentials, and PII-like
-  values.
-- The packager separates temporary export directories from stored ZIP files, creates
-  signed download links, supports a legacy token fallback, streams large downloads, and
-  cleans old artifacts.
-- The repository contains PHPUnit-style tests and standalone regression scripts for
-  content export, sampled scope, export-directory isolation, and signed downloads.
+- The declarative scanner registry still contains 33 scanners. The reviewed classification
+  is 14 required, 14 optional-evidence, three diagnostic, and two excluded from the target
+  profile; the detailed producer/consumer inventory lives in `docs/exporter-audit.md`.
+- Core orchestration provides ordered scanner execution, progress reporting, scanner-local
+  error isolation, persisted diagnostics, and AJAX-safe execution.
+- Complete mode exports every eligible public item up to the configured per-post-type safety
+  ceiling. Discovery mode emits representative evidence and is explicitly ineligible for a
+  complete migration.
+- Content records use stable source IDs and collision-safe filenames under
+  `content/<post-type>/`. Export completeness reconciles discovered, exported, excluded,
+  and failed counts by post type.
+- Private content is excluded by default. Option, post-meta, and term-meta filtering is
+  centralized in `Moltex_Exporter_Security_Filters` and covers nested sensitive and
+  PII-like keys.
+- `migration_readiness.json` applies the static-Astro qualification profile and reports
+  multisite, incomplete exports, and known transactional plugin families as structured
+  findings rather than silently treating them as supported.
+- Required JSON artifacts are declared in one artifact registry, written through the
+  validated writer, and checked against the schemas shipped inside the bundle. Optional
+  binary, CSV, HTML, theme, plugin, asset, and media evidence is bounded and inventoried.
+- `bundle.json` records the normalized bundle identity, exporter and contract versions,
+  privacy state, completeness, counts, artifact registry, byte sizes, and SHA-256 hashes.
+  Packaging refuses an invalid contract archive; valid discovery archives remain
+  downloadable but are marked ineligible for complete migration.
+- The standalone PHP validator checks ZIP structure, normalized paths, duplicates, declared
+  sizes, checksums, schemas, inventory, and complete/discovery eligibility without importing
+  `moltex_harness` or extracting untrusted entries.
+- The packager uses isolated temporary and stored-archive directories, signed downloads,
+  streaming that clears output buffers and compression, retention cleanup, and release-time
+  validation.
+- Release builds are byte-reproducible for a clean Git tree, use an explicit runtime
+  allowlist, reject development-only files, and pin all four exporter version declarations.
+- The admin surface includes export preflight, complete/discovery controls, the per-type
+  ceiling, and bounded/off/all rendered-HTML modes. Bounded mode captures at most 12
+  representative routes by default.
+- Frontend script/style collection is limited to public enqueued assets and dependency
+  closure. Raw plugin readmes and PHP templates are not packaged; structured plugin and
+  capability evidence owns those decisions.
+- Byte-identical media is stored once while every source URL remains in
+  `media/media_map.json`. Each media record now declares bundled, deferred, or unavailable
+  acquisition and a `local-only` runtime policy.
+- GeoDirectory evidence includes privacy-filtered listing fields, locations, gallery
+  descriptors, approved reviews, public field definitions, and search/sort/tab behavior.
+  The primary bundle includes featured gallery binaries and marks remaining public gallery
+  sources for deferred acquisition.
+- WordPress-side screenshot capture was removed in 1.2.2. The exporter records bounded HTML
+  and route evidence; `moltex_harness` owns automated desktop/mobile capture after canonical
+  routes are selected. The immutable 1.2.0 Golden Export still contains two optional reviewed
+  screenshots, which remain valid contract artifacts but are not current plugin behavior.
+- The obsolete `djamingo-exporter` menu is suppressed when legacy site-local code registers
+  it, leaving the Moltex export screen as the supported bundle producer.
 
-These are valuable pre-existing assets. Phase 1 must preserve working behavior while
-making the contract smaller and more reliable.
+### Current verification evidence
 
-### Gaps and risks found in the current implementation
+| Evidence | Current result |
+|---|---|
+| Local PHPUnit suite | PASS on July 18, 2026: 123 tests, 1,730 assertions |
+| Standalone exporter regressions | PASS: content, scope, directory isolation, download, scanner inventory, callback paths, identity, and Golden privacy |
+| Synthetic `moltex-export/1` fixture | PASS: 24 artifacts, no validator errors or warnings, complete-migration eligible |
+| Immutable Golden Export | PASS: 401 artifacts, no validator errors or warnings, complete-migration eligible |
+| Golden identity | `sha256:1700381e5023e1ee456439f62ba00e17bd5af18917169c76679fd17fe5aba03f` |
+| Current release ZIP | `dist/moltex-exporter-1.2.9.zip`, 187,369 bytes, 69 files |
+| Current release SHA-256 | `9ceaac338007a94ba7f47ac7e42fffeb8021050e87cb77a5bd4b7d58867ca864` |
+| Recorded compatibility smoke | PASS for WordPress 5.9.10/PHP 7.4 and WordPress 7.0.1/PHP 8.2 at the E3 release gate |
 
-| Finding | Why it matters | Planned treatment |
-|---|---|---|
-| Plugin header still describes Strapi on DigitalOcean | Product metadata contradicts Moltex | Correct during Phase E1 |
-| Documentation still refers to a deleted local migration component | Obsolete project names misroute users | Replace with `moltex_harness` |
-| No top-level bundle manifest or checksum inventory was found | The consumer cannot prove completeness or tampering for the ZIP as a whole | Add `bundle.json` in Phase E2 |
-| `schema_version` is broadly injected, but formal validation is mainly limited to the site blueprint | A numeric field alone is not a contract | Publish schemas for required artifacts and compatibility rules |
-| Several scanners write JSON directly with `file_put_contents` | Encoding, validation, error handling, and schema behavior can drift | Route required artifacts through one safe writer; inventory exceptions |
-| The scanner surface is much broader than the hackathon requirement | Broad collection increases privacy, runtime, and maintenance risk | Classify scanners as required, optional evidence, or excluded |
-| The batching protocol exists, but coverage by high-volume scanners is not proven | Large sites may exhaust one request | Measure and test representative volume before claiming support |
-| Readiness output is framed around ChatGPT Sites rather than the static Astro profile | Qualification policy should match the actual target | Rename target and make rules data-driven |
-| Existing test documentation describes scenarios that may not match executable fixtures | Claimed coverage is not proof | Run, repair, and report the real suite before adding features |
-| There is no checked-in Golden Path ZIP accepted by `moltex_harness` | The two projects do not yet have a proven handshake | Produce and pin it in E3; prove intake in H1 |
+The current local checks do not replace a staging-clone pilot. The latest checked-in live
+WordPress receipts prove the E3 and compatibility gates; changes after 1.2.0 are protected by
+the expanded unit/regression suite and versioned release artifacts. A new production pilot
+still requires the staging runbook and manual privacy review.
 
-### Preserve, narrow, replace
+### Current constraints and deliberate cut lines
 
-Preserve:
-
-- Scanner base, registry, progress model, security filters, complete/discovery distinction,
-  per-item content export, packaging, and download protections
-- Existing tests that accurately exercise current behavior
-- Useful source artifacts required by a migration contract
-
-Narrow:
-
-- Default scanner set for complete content-led migrations
-- Plugin and database evidence to fields that inform a capability decision
-- Environment data to non-secret compatibility facts
-- Rendered HTML to representative, bounded evidence; source screenshots are captured
-  automatically downstream after H2 selects canonical routes
-
-Replace or redesign:
-
-- Old product metadata and target naming
-- Implicit artifact conventions with a versioned `bundle.json`
-- Ad hoc required-file writes with one writer and explicit schemas
-- Claims of support that have no executable fixture or real WordPress proof
+| Constraint | Current disposition |
+|---|---|
+| The exporter still executes a broad 33-scanner registry | Keep the audited surface; do not add a scanner without a declared consumer and behavior-focused tests. |
+| Complete exports have a 5,000-item per-post-type default ceiling | Mark the bundle incomplete when exceeded; do not claim unbounded-site support. |
+| The contract has global limits of 5,000 files and 250 MiB uncompressed | Fail safely or require a scoped export instead of weakening archive bounds. |
+| Redirect CSV and database SQL sidecars are optional | Their intentional absence is silent as of 1.2.9; genuine scanner, writer, and package failures remain diagnostics. |
+| Deferred GeoDirectory gallery media is not bundled in the primary blueprint | Preserve every source URL and acquisition state; the harness must acquire or explicitly dispose it before local-only output can pass. |
+| Unknown plugins and custom runtime behavior cannot be proven static automatically | Emit capability/readiness evidence and require an explicit downstream decision. |
+| Screenshots are not captured by WordPress | Capture them automatically in the harness from the canonical route plan. |
+| The frozen Golden Export was produced by 1.2.0 | Keep it immutable as the accepted contract fixture; replace it only through the documented review procedure. |
 
 ## Export Bundle Contract
 
 `moltex_exporter` owns the physical ZIP contract. `moltex_harness` owns the adapter that
 maps it into canonical migration models.
 
-For the hackathon, the exporter should retain useful current filenames instead of
-renaming every artifact. Add a top-level manifest that declares which files are required,
-optional, or diagnostic:
+The implemented contract retains useful legacy filenames and adds an authoritative
+top-level manifest that declares every file as required, optional, or diagnostic:
 
 ```text
 moltex-export.zip
-├── bundle.json                    # new authoritative index and checksums
-├── site_blueprint.json            # current site/theme/plugin/content overview
+├── bundle.json                    # authoritative index, bounds, and checksums
+├── site_blueprint.json            # site/theme/plugin/content overview
+├── site_settings.json
 ├── export_completeness.json       # discovered/exported/excluded counts
 ├── migration_readiness.json       # qualification outcome and blockers
 ├── content/<post-type>/*.json     # one record per exported item
@@ -282,10 +308,13 @@ moltex-export.zip
 ├── seo_full.json
 ├── forms_config.json
 ├── integration_manifest.json
-├── redirects_candidates.csv
+├── geodirectory.json              # optional typed directory evidence
+├── redirects_candidates.csv       # optional
 ├── media/
-├── media-map.json or declared equivalent
-├── theme/
+│   └── media_map.json
+├── schemas/                       # shipped contract schemas
+├── theme/                         # optional bounded evidence
+├── assets/                        # optional public frontend assets
 ├── snapshots/                     # optional bounded rendered evidence
 ├── error_log.json                 # present when findings exist
 └── additional optional evidence declared by bundle.json
@@ -296,37 +325,59 @@ moltex-export.zip
 ```json
 {
   "schema": "moltex-export/1",
+  "manifest_version": 1,
   "bundle_id": "sha256:...",
-  "created_at": "2026-07-14T18:00:00Z",
-  "exporter_version": "1.1.0",
+  "created_at": "2026-07-18T11:00:00Z",
+  "exporter_version": "1.2.9",
   "mode": "complete",
   "site_origin": "https://example.test",
+  "complete": true,
   "privacy": {
     "private_content_included": false,
+    "excluded_statuses": ["private", "draft", "pending", "future", "trash"],
+    "metadata_policy": "Moltex_Exporter_Security_Filters",
     "secret_scan": "pass"
   },
   "artifacts": [
     {
       "path": "site_blueprint.json",
-      "kind": "site_blueprint",
+      "kind": "json",
+      "producer": "exporter",
       "required": true,
-      "schema": "moltex-site-blueprint/1",
+      "schema": "schemas/site-blueprint.schema.json",
       "sha256": "...",
       "bytes": 1234
     }
   ],
   "counts": {
-    "public_items_discovered": 12,
-    "public_items_exported": 12,
-    "media_files": 18
-  }
+    "post": {
+      "discovered": 12,
+      "exported": 12,
+      "excluded": 0,
+      "failed": 0,
+      "complete": true
+    }
+  },
+  "artifact_registry": [
+    {
+      "path": "site_blueprint.json",
+      "kind": "json",
+      "producer": "exporter",
+      "required": true,
+      "schema": "schemas/site-blueprint.schema.json",
+      "privacy": "filtered aggregate",
+      "max_bytes": 10485760,
+      "schema_versioned": true
+    }
+  ]
 }
 ```
 
-`bundle_id` is calculated from a deterministic manifest representation, not from a field
-that includes itself. All paths are relative POSIX-style paths. Duplicate paths, absolute
-paths, traversal segments, checksum mismatches, unsupported schemas, and contradictory
-counts make the bundle invalid.
+`bundle_id` is calculated from the canonical manifest with `bundle_id` and `created_at`
+omitted, so unchanged evidence has an equivalent normalized identity across export times.
+All paths are relative POSIX-style paths. Duplicate normalized paths, absolute paths,
+traversal segments, checksum mismatches, unsupported schemas, exceeded bounds, and
+contradictory counts make the bundle invalid.
 
 ### Required semantic evidence
 
@@ -336,79 +387,76 @@ Regardless of filename, the bundle must provide:
 - Every eligible public content item with stable source ID, type, status, slug, legacy
   URL, title, dates, authorship, taxonomies, original content, and relevant metadata
 - Navigation hierarchy and labels
-- Media source URL, local path, MIME type, alt text, checksum, and referencing content IDs
+- Media source URL, artifact path when bundled, acquisition state, MIME type, alt text,
+  checksum, and referencing content IDs
 - Resolved SEO evidence, including title, description, canonical hints, and indexability
 - Redirect candidates and legacy URLs
 - Forms, search, scripts, integrations, shortcodes, hooks, and custom behaviors needed for
   capability decisions
 - Export completeness, omissions, errors, and migration-readiness findings
-- Representative bounded HTML for the Golden Path homepage and selected page families,
-  plus sufficient public route evidence for downstream automated visual capture
+- Representative bounded HTML and sufficient public route evidence for downstream
+  automated visual capture
 
 ### Compatibility policy
 
-- `moltex_harness` initially supports the audited current export layout through adapter
-  `moltex_export/legacy-1` and the new manifest layout through `moltex-export/1`.
-- New `moltex-export/1` bundles must include `bundle.json`; legacy fixtures are immutable
-  regression inputs, not a reason to keep emitting an undocumented format.
+- `moltex_harness` supports the audited legacy layout through adapter `legacy-1` and the
+  current manifest layout through `moltex-export/1`.
+- `moltex-export/1` bundles include `bundle.json`; legacy fixtures are immutable regression
+  inputs, not a format the exporter continues to emit.
 - Additive optional artifacts are allowed within a major schema version.
 - Removing or changing required fields requires a new major schema and a new adapter.
-- The exporter and harness each keep the same accepted fixture ZIP and expected bundle ID.
+- The exporter and harness each verify the same accepted Golden fixture ZIP and expected
+  bundle ID.
 
 ## Exporter Delivery Plan
 
-The main plan has three phases. Each phase produces a usable artifact and has an
-independent verification gate. Work does not advance merely because code was written.
+The exporter plan had three cumulative phases. All three are accepted; the descriptions
+below are retained as a retroactive delivery record and boundary for future maintenance.
 
-The strict cumulative order is:
+The completed producer sequence and current handoff are:
 
 ```text
-E1 → E2 → E3 → H1 → H2 → H3 → H4 → H5 → H6
+E1 (accepted) → E2 (accepted) → E3 (accepted) → moltex_harness phases
 ```
 
-“Independently verifiable” means a phase can be accepted using its own outputs and all
-previously accepted fixtures. It never requires implementation from a later phase.
+“Independently verifiable” means each exporter phase was accepted using its own outputs and
+previously accepted fixtures, without requiring a later harness implementation.
 
-| Checkpoint | Material output | Acceptance proof | Later work required? |
-|---|---|---|---:|
-| E1 | Stabilized current exporter and `legacy-1` ZIP | PHP/regression suite, WordPress smoke export, privacy audit | No |
-| E2 | `moltex-export/1`, schemas, manifest, and standalone validator | Contract/tamper/schema tests against synthetic fixtures | No |
-| E3 | Real sanitized Golden Path ZIP | Standalone validation and WordPress/bundle count reconciliation | No |
-| H1 | Safe intake plus typed raw evidence for both bundle versions | Intake unit/property tests and `moltex inspect` | No |
-| H2 | Canonical evidence-linked migration contracts and visual capture plan | Model/property tests and contract verifier | No |
-| H3 | Automatically captured source visuals and complete conservative Astro baseline | Capture receipt, conversion tests, clean `npm ci`, and production build | No |
-| H4 | Generated Codex workspace and task DAG | Planning tests, graph validation, build, and one real task | No |
-| H5 | Self-contained workspace verifier | Clean and direct-negative verifier cases | No |
-| H6 | Lifecycle, mutation, reproducibility, and repair eval reports | Published eval suite and metrics | No |
+| Checkpoint | Status | Material output | Acceptance proof |
+|---|---|---|---|
+| E1 | Accepted July 14, 2026 | Stabilized exporter and `legacy-1` ZIP | PHP/regression suite, WordPress smoke export, privacy audit |
+| E2 | Accepted July 14, 2026 | `moltex-export/1`, schemas, manifest, writer, and standalone validator | Contract, tamper, schema, and live two-mode tests |
+| E3 | Accepted July 16, 2026 | Real sanitized Golden Path ZIP | Standalone validation, count reconciliation, capability/privacy review |
 
-For example, after H1 you can run and accept E1, E2, E3, and H1 completely. H2 does not
-need to exist. “Self-contained” does not mean H1 can run without its accepted E1–E3 input
-fixtures; phases are cumulative checkpoints rather than nine unrelated projects.
+Harness phase definitions, status, and acceptance remain exclusively in
+[`moltex_harness.md`](./moltex_harness.md). Exporter maintenance must preserve the accepted
+E1-E3 fixtures and contract unless a change explicitly versions that boundary.
 
-### Phase E1 — Audit and stabilize the existing exporter
+### Phase E1 — Audit and stabilize the existing exporter (accepted)
 
-Objective: establish what the renamed plugin actually does, make its current behavior
-executable, and remove stale product identity before changing the contract.
+Outcome: established what the renamed plugin did, made its behavior executable, removed
+stale product identity, and froze the last pre-contract layout before E2.
 
-Work:
+Delivered:
 
-1. Inventory all 33 registered scanners and classify each as:
+1. Inventoried all 33 registered scanners and classified each as:
    - required for the hackathon complete-migration profile;
    - optional migration evidence;
    - diagnostic only;
    - excluded because of privacy, runtime, or lack of a consumer.
-2. Map every emitted file to its producer, schema/version behavior, privacy classification,
-   size risk, and intended `moltex_harness` consumer.
-3. Install a reproducible PHP/Composer test environment and record the commands.
-4. Run PHP syntax checks, standalone regressions, and the real PHPUnit suite; distinguish
-   executable coverage from claims in README files.
-5. Install the plugin in a disposable WordPress site and perform one complete and one
-   discovery export.
-6. Correct Moltex names, plugin description, admin copy, README instructions, action/filter
-   examples, and test documentation without changing behavior unnecessarily.
-7. Audit sensitive option/meta filters and manually inspect a sample export for secrets,
-   PII, absolute server paths, and private content.
-8. Freeze the resulting current-format ZIP as the `legacy-1` compatibility fixture.
+2. Mapped every emitted file to its producer, schema/version behavior, privacy
+   classification, size risk, and intended `moltex_harness` consumer.
+3. Installed a reproducible PHP/Composer test environment and recorded the commands.
+4. Ran PHP syntax checks, standalone regressions, and the real PHPUnit suite, then repaired
+   stale mocks, fixtures, privacy filtering, callback paths, and media coverage exposed by
+   the first executable run.
+5. Installed the plugin in a disposable WordPress site and performed complete and discovery
+   exports through authenticated AJAX and signed downloads.
+6. Corrected Moltex names, plugin description, admin copy, README instructions,
+   action/filter examples, and test documentation.
+7. Audited sensitive option/meta filters and inspected the frozen export for secrets, PII,
+   absolute server paths, and private content.
+8. Froze `samples/legacy-1-export.zip` as the compatibility fixture.
 
 Verification:
 
@@ -418,10 +466,10 @@ php moltex_exporter/tests/content_export_regression.php
 php moltex_exporter/tests/sample_scope_regression.php
 php moltex_exporter/tests/export_directory_regression.php
 php moltex_exporter/tests/packager_download_regression.php
-moltex_exporter/vendor/bin/phpunit moltex_exporter/tests
+php moltex_exporter/vendor/phpunit/phpunit/phpunit -c moltex_exporter/phpunit.xml.dist
 ```
 
-Required evidence:
+Accepted evidence:
 
 - `docs/exporter-audit.md`
 - artifact/scanner classification table
@@ -430,54 +478,52 @@ Required evidence:
 - complete versus discovery count comparison
 - privacy review record
 
-Exit gate:
+Accepted gate:
 
-- All required tests run in a documented environment.
-- Known failures are fixed or explicitly classified; no claimed test is silently skipped.
-- The plugin installs, exports, packages, and downloads a ZIP on a disposable WordPress
+- All required tests ran in a documented environment.
+- Known failures were fixed or explicitly classified; no claimed test was silently skipped.
+- The plugin installed, exported, packaged, and downloaded a ZIP on a disposable WordPress
   site.
-- Stale product names are absent from user-facing exporter files.
-- The current artifact surface is documented before contract changes begin.
+- Stale product names were removed from user-facing exporter files.
+- The legacy artifact surface was documented before E2 changed the contract.
 
-### Phase E2 — Publish and enforce the Moltex export contract
+### Phase E2 — Publish and enforce the Moltex export contract (accepted)
 
-Objective: turn the current collection of useful files into a versioned, checksummed,
-privacy-reviewed handoff without rewriting all working scanners.
+Outcome: turned the producer-driven collection of files into a versioned, checksummed,
+privacy-reviewed handoff without rewriting the working scanner architecture.
 
-Work:
+Delivered:
 
-1. Define `moltex-export/1` and JSON schemas for required JSON artifacts.
-2. Define one declarative artifact registry containing path, kind, producer, required flag,
-   schema ID, privacy class, and size limits. Use it as the source for writing,
+1. Defined `moltex-export/1` and JSON schemas for required JSON artifacts.
+2. Defined one declarative artifact registry containing path, kind, producer, required flag,
+   schema ID, privacy class, and size limits, and used it as the source for writing,
    `bundle.json`, validation, and tests.
-3. Add reviewed characterization fixtures and tests for current artifact paths and semantic
-   JSON content before changing write behavior; never regenerate those expectations from the
+3. Added reviewed characterization fixtures and tests for artifact paths and semantic JSON
+   content before changing write behavior; tests do not regenerate expectations from the
    implementation under test.
-4. Introduce one validated artifact writer responsible for path containment, deterministic
+4. Introduced one validated artifact writer responsible for path containment, deterministic
    JSON encoding, atomic writes where possible, schema validation, byte size, checksum,
    producer context, and classified errors.
-5. Migrate every required JSON artifact through the validated writer. Enumerate and test
+5. Migrated every required JSON artifact through the validated writer and enumerated and tested
    justified binary, CSV, HTML, copied-tree, and large-file exceptions rather than forcing
    them through JSON handling.
-6. Add deterministic `bundle.json` generation from the artifact registry and successful
+6. Added deterministic `bundle.json` generation from the artifact registry and successful
    writer receipts after all required files are written.
-7. Reconcile discovered, exported, excluded, and failed content counts by post type.
-8. Centralize option, post-meta, and term-meta export policy in
-   `Moltex_Exporter_Security_Filters`; scanners must not maintain divergent sensitive or
-   temporary-key rules.
-9. Convert migration readiness to the documented static Astro qualification profile.
-10. Bound optional evidence by file count and total uncompressed size.
-11. Add ZIP structure, traversal, duplicate-path, checksum, secret-filter, writer-failure,
+7. Reconciled discovered, exported, excluded, and failed content counts by post type.
+8. Centralized option, post-meta, and term-meta export policy in
+   `Moltex_Exporter_Security_Filters`.
+9. Converted migration readiness to the documented static-Astro qualification profile.
+10. Bounded optional evidence by file count and total uncompressed size.
+11. Added ZIP structure, traversal, duplicate-path, checksum, secret-filter, writer-failure,
     and schema tests.
-12. Preserve the old fixture only as an input compatibility case; emit the new contract by
+12. Preserved the old fixture only as an input compatibility case and emitted the new contract by
     default.
-13. Add a standalone exporter-side bundle validator that checks the ZIP without importing
+13. Added a standalone exporter-side bundle validator that checks the ZIP without importing
     `moltex_harness`.
 
-Bounded refactoring rule: E2 may extract the artifact registry, validated writer, and shared
-metadata policy required above. It must not split the plugin or theme scanners, introduce a
-general block-walker abstraction, or remove duplicate legacy artifacts unless an executable
-contract requirement demands it. Record broader cleanup for after the E2 exit gate.
+The bounded-refactoring rule was honored: E2 extracted the registry, writer, validator, and
+shared metadata policy without splitting the plugin/theme scanners or creating a third
+implementation surface.
 
 Verification cases:
 
@@ -494,7 +540,7 @@ Verification cases:
 - Migrating an artifact to the writer preserves its reviewed semantic characterization.
 - An unsupported site class produces a structured readiness blocker, not a crash.
 
-Required evidence:
+Accepted evidence:
 
 - versioned schema files
 - declarative artifact registry and registry-completeness test
@@ -507,44 +553,45 @@ Required evidence:
 - updated exporter README and bundle contract documentation
 - `samples/moltex-export-1.zip` plus expected bundle ID
 
-Exit gate:
+Accepted gate:
 
-- Two identical exports of unchanged fixture data produce equivalent normalized manifests.
+- Two exports of unchanged fixture data produced equivalent normalized manifests.
 - Every required artifact has a schema or explicit non-JSON contract.
 - Every required JSON artifact is declared once and written through the validated writer.
 - Option, post-meta, and term-meta export use the shared security policy.
 - The ZIP proves its inventory and integrity without relying on undocumented filenames.
 - Complete/discovery and privacy semantics are executable.
 
-### Phase E3 — Produce and freeze the real Golden Path export
+### Phase E3 — Produce and freeze the real Golden Path export (accepted)
 
-Objective: produce one real sanitized WordPress bundle that independently satisfies the
-published exporter contract and becomes the immutable production fixture for H1.
+Outcome: produced one sanitized WordPress bundle that independently satisfies the published
+exporter contract and serves as the immutable production fixture for the harness.
 
-Work:
+Delivered:
 
-1. Select a real content-led Golden Path site with five to ten public routes, navigation,
+1. Built a disposable real WordPress Golden Path site with eight public routes, navigation,
    local images, SEO, one repeatable content family, and at least one capability requiring
    a disposition.
-2. Capture bounded rendered HTML in the export. Do not request, upload, or manage source
-   screenshots in WordPress; H2 selects their routes and Moltex captures them automatically
-   before H3.
-3. Export in complete mode with private content disabled.
-4. Run the standalone E2 bundle validator from outside the WordPress request lifecycle.
-5. Reconcile every content and media count between WordPress, `bundle.json`, and export
+2. Captured bounded rendered HTML. The accepted 1.2.0 fixture also retained two reviewed
+   screenshots; current releases no longer collect screenshots in WordPress.
+3. Exported in complete mode with private content disabled and seeded privacy canaries.
+4. Ran the standalone E2 bundle validator outside the WordPress request lifecycle.
+5. Reconciled every content, media, snapshot, SEO, and capability count between WordPress,
+   `bundle.json`, and export
    reports.
-6. Pin the ZIP, bundle ID, schema versions, and exporter validation report.
-7. Document how to replace the Golden Path without silently regenerating expected results.
+6. Pinned the ZIP, bundle ID, schema versions, reviewed expectations, and exporter validation
+   report.
+7. Documented how to replace the Golden Path without silently regenerating expected results.
 
 Verification:
 
 ```bash
 # Exporter-side contract verification
-moltex_exporter/vendor/bin/phpunit moltex_exporter/tests
+php moltex_exporter/vendor/phpunit/phpunit/phpunit -c moltex_exporter/phpunit.xml.dist
 php moltex_exporter/tools/validate-bundle.php samples/golden-export.zip
 ```
 
-Required evidence:
+Accepted evidence:
 
 - sanitized real `samples/golden-export.zip`
 - expected `bundle_id`
@@ -553,21 +600,22 @@ Required evidence:
 - signed count-reconciliation table
 - documented capability and privacy review
 
-Exit gate:
+Accepted gate:
 
-- A clean complete export passes the standalone schema, checksum, size, and inventory
+- The clean complete export passes the standalone schema, checksum, size, and inventory
   validator without hand editing.
 - WordPress, `bundle.json`, and export reports agree on content and media counts.
 - Every public item and required media file appears in the bundle inventory exactly once.
-- Any unsupported capability is explicit rather than dropped.
+- The YouTube embed capability is explicit rather than dropped.
 - No `moltex_harness` code is required to prove E3.
 
 ## `moltex_harness` Handoff
 
-After Phase E3, implementation continues under the independently gated phases in
+Exporter delivery ends at the accepted E3 bundle. Downstream implementation and current
+status are governed by the independently gated phases in
 [`moltex_harness.md`](./moltex_harness.md):
 
-1. Scaffold the local core and prove the exporter-to-harness handshake by parsing both
+1. Maintain the local core and exporter-to-harness handshake for both
    accepted bundle versions.
 2. Normalize evidence into canonical migration contracts.
 3. Compile the Git-managed Astro baseline.
@@ -730,20 +778,22 @@ two-part value: complete WordPress evidence in, verified Git-managed static site
 
 ## Risks and Cut Lines
 
-### Exporter breadth consumes the schedule
+### Exporter breadth creates privacy or runtime regressions
 
-Mitigation: classify existing scanners and improve the required subset. Do not add a new
-scanner unless a Golden Path contract cannot be satisfied without it.
+Mitigation: preserve the audited scanner classification and bounded artifact registry. Do
+not add a scanner without a declared bundle consumer and behavior-focused tests.
 
-### Bundle contract redesign breaks working exports
+### Contract maintenance breaks accepted bundles
 
-Mitigation: retain one immutable `legacy-1` fixture, add `bundle.json` around useful current
-artifacts, and make the harness adapter explicit. Avoid a cosmetic mass rename.
+Mitigation: keep the immutable `legacy-1`, synthetic `moltex-export/1`, and Golden fixtures;
+run both producer and consumer tests for additive changes; require a new major schema and
+adapter for breaking changes.
 
-### Tests exist but are not executable
+### Release behavior drifts beyond the last live WordPress receipt
 
-Mitigation: Phase E1 cannot pass without a recorded PHP/Composer environment and real test
-results. Reduce claims to what actually runs.
+Mitigation: keep the 1.2.9 unit/regression and reproducible-release gates green, then run the
+install-from-ZIP smoke and staging-clone pilot before making production claims for a newer
+release.
 
 ### Export contains secrets or private material
 
@@ -751,10 +801,11 @@ Mitigation: private content stays off by default, required artifacts use central
 filtering, the manifest records privacy state, and a sanitized real export receives manual
 review before publication.
 
-### Harness work starts before the producer contract stabilizes
+### Exporter and harness schema copies drift
 
-Mitigation: E3 freezes the independently valid canonical fixture. H1 is the mandatory
-cross-project handshake before H2 normalization or broader migration work.
+Mitigation: treat the checked-in Golden bundle and schema-pin tests as the handshake. Update
+both schema copies and adapter coverage in the same contract change without cross-project
+runtime imports.
 
 ### Visual parity consumes remaining time
 
@@ -774,7 +825,7 @@ Moltex is ready for submission only when:
   `moltex_harness` consistently.
 - The deleted predecessor is absent and no production module imports or describes it as a
   current component.
-- The existing exporter has an executable, documented test baseline.
+- The released exporter has an executable, documented test baseline.
 - A real WordPress site emits a complete, sanitized `moltex-export/1` ZIP.
 - The bundle proves required artifacts, schemas, checksums, counts, privacy, and readiness.
 - `moltex_harness` accepts the ZIP without manual editing.
@@ -791,18 +842,23 @@ Moltex is ready for submission only when:
 - Third-party code or fixtures have pinned attribution.
 - Repository, video, sample, test instructions, and Codex session evidence are ready.
 
-## Immediate Next Actions
+## Current Next Actions
 
-1. Complete Phase E1 before adding exporter features.
-2. Create `docs/exporter-audit.md` from the scanner/artifact inventory.
-3. Establish PHP, Composer, PHPUnit, and disposable WordPress test commands.
-4. Fix stale project names and product metadata in exporter-facing files.
-5. Freeze one current-format sanitized ZIP as `legacy-1`.
-6. Define `moltex-export/1` and add `bundle.json` without renaming every useful artifact.
-7. Produce and independently validate the real Golden Path export in E3.
-8. Scaffold `moltex_harness` H1 against the frozen legacy and Golden Path fixtures and
-   prove the cross-project handshake.
-9. Continue migration/compiler work exclusively under `moltex_harness.md`.
+1. Treat exporter phases E1-E3 as accepted maintenance gates, not open implementation work.
+2. Pilot `dist/moltex-exporter-1.2.9.zip` on a staging clone using the checked-in runbook;
+   validate the downloaded bundle and review privacy/readiness evidence before production.
+3. Keep the PHPUnit suite, standalone regressions, synthetic bundle, legacy fixture, and
+   immutable Golden fixture green for every exporter change.
+4. Exercise current release behavior through the minimum/reference install-from-ZIP smoke
+   whenever packaging, WordPress compatibility, AJAX execution, or download streaming changes.
+5. Preserve the `moltex-export/1` boundary. Coordinate additive schema changes with the
+   matching `moltex_harness` schema pins and adapters; version breaking changes.
+6. Do not restore WordPress screenshot collection. Keep automatic visual capture in the
+   harness-owned H2-to-H3 workflow.
+7. Require explicit acquisition or disposition for deferred GeoDirectory gallery media so
+   generated production sites remain local-only.
+8. Continue migration, Astro generation, planning, verification, and eval work exclusively
+   under `moltex_harness.md`.
 
 ## Final Product Thesis
 
