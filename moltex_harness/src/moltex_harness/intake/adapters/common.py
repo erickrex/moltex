@@ -194,6 +194,11 @@ def _media(
                 bytes=file_item.bytes if file_item else None,
                 sha256=file_item.sha256 if file_item else None,
                 metadata=metadata,
+                acquisition=(
+                    value.get("acquisition")
+                    if isinstance(value.get("acquisition"), dict)
+                    else None
+                ),
                 evidence=evidence_ref(bundle, validation.bundle_id, path, f"/{index}"),
             )
         )

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from moltex_harness.models import CapabilityDispositionKind
+from moltex_harness.models import CapabilityDispositionKind, MediaAcquisition
 from moltex_harness.normalize import ContractCompiler
 
 
@@ -42,6 +42,51 @@ def test_geodirectory_fields_and_gallery_are_compiled(golden_raw_evidence) -> No
         asset.source_url == media.source_url
         and asset.asset_id in record.required_media_ids
         for asset in contracts.assets
+    )
+
+
+def test_deferred_geodirectory_media_gets_a_local_h3_destination(
+    golden_raw_evidence,
+) -> None:
+    source = golden_raw_evidence.content[0]
+    media = golden_raw_evidence.media[0].model_copy(
+        update={
+            "artifact": None,
+            "bytes": None,
+            "sha256": None,
+            "acquisition": MediaAcquisition(
+                status="deferred",
+                method="source-fetch",
+                runtime_policy="local-only",
+            ),
+        }
+    )
+    content = source.model_copy(
+        update={"geodirectory": {"media": [{"url": media.source_url}]}}
+    )
+
+    contracts = ContractCompiler().compile(
+        golden_raw_evidence.model_copy(update={"content": [content], "media": [media]})
+    )
+    asset = next(
+        item for item in contracts.assets if item.source_url == media.source_url
+    )
+    mapped = next(
+        item for item in contracts.media_map if item.source_url == media.source_url
+    )
+
+    assert asset.bundle_path is None
+    assert asset.target_path.startswith("public/media/")
+    assert asset.acquisition_status == "deferred"
+    assert asset.acquisition_method == "source-fetch"
+    assert asset.runtime_policy == "local-only"
+    assert asset.transform == {"operation": "acquire-source", "stage": "h3"}
+    assert not asset.needs_decision
+    assert mapped.target_path == asset.target_path
+    assert mapped.target_url == "/" + asset.target_path.removeprefix("public/")
+    assert mapped.runtime_policy == "local-only"
+    assert not any(
+        decision.subject_id == asset.asset_id for decision in contracts.decisions
     )
 
 

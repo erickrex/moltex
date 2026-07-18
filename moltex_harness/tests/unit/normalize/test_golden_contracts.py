@@ -59,6 +59,12 @@ def test_media_maps_are_immutable_and_references_reconcile(golden_contracts) -> 
         assets
     )
     assert all(asset.bundle_path and asset.target_path for asset in assets.values())
+    assert all(asset.acquisition_status == "bundled" for asset in assets.values())
+    assert all(asset.acquisition_method == "bundle" for asset in assets.values())
+    assert all(asset.runtime_policy == "local-only" for asset in assets.values())
+    assert all(
+        entry.target_url.startswith("/media/") for entry in golden_contracts.media_map
+    )
     assert all(not asset.needs_decision for asset in assets.values())
     assert any(asset.referencing_content_ids for asset in assets.values())
 

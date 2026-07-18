@@ -83,9 +83,28 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 		$this->generate_media_map();
 
 		// Return media data
+		$bundled_files = count(
+			array_filter(
+				$this->media_map,
+				function ( $entry ) {
+					return isset( $entry['acquisition']['status'] ) && 'bundled' === $entry['acquisition']['status'];
+				}
+			)
+		);
+		$deferred_files = count(
+			array_filter(
+				$this->media_map,
+				function ( $entry ) {
+					return isset( $entry['acquisition']['status'] ) && 'deferred' === $entry['acquisition']['status'];
+				}
+			)
+		);
 		return array(
-			'media_map'   => $this->media_map,
-			'total_files' => count( $this->referenced_media ),
+			'media_map'         => $this->media_map,
+			'total_files'       => count( $this->referenced_media ),
+			'bundled_files'     => $bundled_files,
+			'deferred_files'    => $deferred_files,
+			'unavailable_files' => count( $this->media_map ) - $bundled_files - $deferred_files,
 		);
 	}
 
@@ -148,6 +167,10 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 		// GeoDirectory stores gallery relationships outside native attachments.
 		if ( ! empty( $content_item['geodirectory']['media'] ) && is_array( $content_item['geodirectory']['media'] ) ) {
 			foreach ( $content_item['geodirectory']['media'] as $media ) {
+				$featured = ! empty( $media['metadata']['featured'] );
+				$media['acquisition'] = $featured
+					? $this->acquisition( 'bundled', 'bundle' )
+					: $this->acquisition( 'deferred', 'source-fetch' );
 				$this->add_media_reference( $media );
 			}
 		}
@@ -165,8 +188,12 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 
 		// Plugin-owned attachment IDs can collide with WordPress attachment IDs.
 		// The source URL is the stable identity used by the bundle media map.
-		foreach ( $this->referenced_media as $existing ) {
+		foreach ( $this->referenced_media as $index => $existing ) {
 			if ( $existing['url'] === $media_data['url'] ) {
+				if ( ! $this->should_bundle( $existing ) && $this->should_bundle( $media_data ) ) {
+					$existing['acquisition'] = $this->acquisition( 'bundled', 'bundle' );
+					$this->referenced_media[ $index ] = $existing;
+				}
 				return;
 			}
 		}
@@ -389,10 +416,11 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 	private function add_cdn_reference( $url ) {
 		// Add to media map with note that it's a CDN URL
 		$this->media_map[] = array(
-			'wp_src'   => $url,
-			'artifact' => null,
-			'type'     => 'cdn',
-			'note'     => 'External CDN resource - not copied',
+			'wp_src'      => $url,
+			'artifact'    => null,
+			'type'        => 'cdn',
+			'note'        => 'External CDN resource - acquire into the target repository before production',
+			'acquisition' => $this->acquisition( 'deferred', 'source-fetch' ),
 		);
 	}
 
@@ -411,6 +439,9 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 		}
 
 		foreach ( $this->referenced_media as $media ) {
+			if ( ! $this->should_bundle( $media ) ) {
+				continue;
+			}
 			$this->copy_single_media_file( $media, $media_dir );
 		}
 	}
@@ -545,17 +576,24 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 			$url = $media['url'];
 			$relative_path = $this->get_relative_upload_path( $url );
 
-			if ( ! $relative_path ) {
-				continue;
+			$acquisition = isset( $media['acquisition'] ) && is_array( $media['acquisition'] )
+				? $media['acquisition']
+				: $this->acquisition( 'bundled', 'bundle' );
+			$artifact = null;
+			if ( 'bundled' === $acquisition['status'] ) {
+				if ( isset( $this->media_artifacts[ $url ] ) ) {
+					$artifact = $this->media_artifacts[ $url ];
+				} elseif ( empty( $this->export_dir ) && $relative_path ) {
+					$artifact = 'media/' . str_replace( '\\', '/', $relative_path );
+				} else {
+					$acquisition = $this->acquisition( 'unavailable', 'operator-decision' );
+				}
 			}
 
-			$artifact = isset( $this->media_artifacts[ $url ] )
-				? $this->media_artifacts[ $url ]
-				: 'media/' . str_replace( '\\', '/', $relative_path );
-
 			$map_entry = array(
-				'wp_src'   => $url,
-				'artifact' => $artifact,
+				'wp_src'      => $url,
+				'artifact'    => $artifact,
+				'acquisition' => $acquisition,
 			);
 
 			if ( isset( $media['metadata'] ) && is_array( $media['metadata'] ) ) {
@@ -572,6 +610,31 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 
 			$this->media_map[] = $map_entry;
 		}
+	}
+
+	/**
+	 * Build source-acquisition metadata without prescribing a target path.
+	 *
+	 * @param string $status Bundled, deferred, or unavailable.
+	 * @param string $method Bundle, source-fetch, or operator-decision.
+	 * @return array
+	 */
+	private function acquisition( $status, $method ) {
+		return array(
+			'status'         => $status,
+			'method'         => $method,
+			'runtime_policy' => 'local-only',
+		);
+	}
+
+	/**
+	 * Determine whether the source binary belongs in the primary evidence bundle.
+	 *
+	 * @param array $media Media reference.
+	 * @return bool
+	 */
+	private function should_bundle( $media ) {
+		return empty( $media['acquisition']['status'] ) || 'deferred' !== $media['acquisition']['status'];
 	}
 
 	/**

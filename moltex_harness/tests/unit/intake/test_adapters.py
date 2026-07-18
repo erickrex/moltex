@@ -19,6 +19,26 @@ def _canonical_json(value: object) -> bytes:
     ).encode("utf-8")
 
 
+def _write_export(
+    files: dict[str, bytes], manifest: dict[str, object], destination: Path
+) -> Path:
+    identity = dict(manifest)
+    identity.pop("bundle_id", None)
+    identity.pop("created_at", None)
+    manifest["bundle_id"] = (
+        f"sha256:{hashlib.sha256(_canonical_json(identity)).hexdigest()}"
+    )
+    files["bundle.json"] = (
+        json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
+    )
+    with zipfile.ZipFile(
+        destination, "w", compression=zipfile.ZIP_DEFLATED
+    ) as output_zip:
+        for path, data in sorted(files.items()):
+            output_zip.writestr(path, data)
+    return destination
+
+
 def _build_reduced_export(source: Path, destination: Path) -> Path:
     with zipfile.ZipFile(source) as input_zip:
         files = {
@@ -63,27 +83,43 @@ def _build_reduced_export(source: Path, destination: Path) -> Path:
         receipts.append(receipt)
     manifest["artifacts"] = receipts
 
-    identity = dict(manifest)
-    identity.pop("bundle_id", None)
-    identity.pop("created_at", None)
-    manifest["bundle_id"] = (
-        f"sha256:{hashlib.sha256(_canonical_json(identity)).hexdigest()}"
-    )
-    files["bundle.json"] = (
-        json.dumps(
-            manifest,
-            ensure_ascii=False,
-            indent=2,
-        ).encode("utf-8")
-        + b"\n"
+    return _write_export(files, manifest, destination)
+
+
+def _build_deferred_media_export(source: Path, destination: Path) -> Path:
+    with zipfile.ZipFile(source) as input_zip:
+        files = {
+            info.filename: input_zip.read(info.filename)
+            for info in input_zip.infolist()
+            if not info.is_dir() and info.filename != "bundle.json"
+        }
+        manifest = json.loads(input_zip.read("bundle.json"))
+
+    media_map = json.loads(files["media/media_map.json"])
+    deferred_artifact = media_map[1]["artifact"]
+    media_map[1]["artifact"] = None
+    media_map[1]["acquisition"] = {
+        "status": "deferred",
+        "method": "source-fetch",
+        "runtime_policy": "local-only",
+    }
+    files.pop(deferred_artifact)
+    files["media/media_map.json"] = (
+        json.dumps(media_map, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
     )
 
-    with zipfile.ZipFile(
-        destination, "w", compression=zipfile.ZIP_DEFLATED
-    ) as output_zip:
-        for path, data in sorted(files.items()):
-            output_zip.writestr(path, data)
-    return destination
+    receipts = []
+    for receipt in manifest["artifacts"]:
+        path = receipt["path"]
+        if path == deferred_artifact:
+            continue
+        if path == "media/media_map.json":
+            receipt = dict(receipt)
+            receipt["bytes"] = len(files[path])
+            receipt["sha256"] = hashlib.sha256(files[path]).hexdigest()
+        receipts.append(receipt)
+    manifest["artifacts"] = receipts
+    return _write_export(files, manifest, destination)
 
 
 @pytest.mark.parametrize(
@@ -163,6 +199,26 @@ def test_reduced_export_with_shared_media_artifact_is_accepted(
         path.startswith(("plugins/readmes/", "plugins/templates/"))
         for path in inventory
     )
+
+
+def test_deferred_media_inventory_is_preserved_without_a_binary(
+    samples_dir: Path, tmp_path: Path
+) -> None:
+    archive = _build_deferred_media_export(
+        samples_dir / "golden-export.zip", tmp_path / "deferred-export.zip"
+    )
+    outcome = IntakeService().inspect(archive, tmp_path / "report")
+
+    assert outcome.exit_code == 0
+    evidence = outcome.result.evidence
+    assert evidence is not None
+    deferred = next(item for item in evidence.media if item.artifact is None)
+    assert deferred.bytes is None
+    assert deferred.sha256 is None
+    assert deferred.acquisition is not None
+    assert deferred.acquisition.status == "deferred"
+    assert deferred.acquisition.method == "source-fetch"
+    assert deferred.acquisition.runtime_policy == "local-only"
 
 
 def test_geodirectory_evidence_is_preserved_at_intake(

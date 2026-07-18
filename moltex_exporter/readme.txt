@@ -4,7 +4,7 @@ Tags: migration, export, astro, static-site
 Requires at least: 5.9
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.2.7
+Stable tag: 1.2.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -45,6 +45,11 @@ No. Transactional, account-heavy, multisite, and unknown custom behavior can pro
 blockers or manual-review items.
 
 == Changelog ==
+
+= 1.2.8 =
+* Kept complete GeoDirectory gallery descriptors while bundling only featured gallery binaries in the primary blueprint.
+* Added explicit bundled, deferred, and unavailable acquisition metadata with a local-only runtime policy.
+* Added deterministic H1/H2 support for mapping every old media URL to a collision-safe local Astro asset destination.
 
 = 1.2.7 =
 * Added privacy-filtered GeoDirectory listing fields, locations, galleries, approved reviews, and public field definitions.

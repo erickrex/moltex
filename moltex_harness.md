@@ -342,6 +342,8 @@ The first canonical model set is deliberately small:
 - Bundle path and target path
 - Checksum, size, MIME type, and alt text
 - Referencing content IDs
+- Acquisition status and method (`bundle`, deferred public source fetch, or operator decision)
+- A `local-only` production runtime policy
 - Declared transform and provenance, when applicable
 
 ### `SeoContract`
@@ -578,6 +580,8 @@ Rewriting rules:
 - Record unresolved internal URLs as findings with source content ID and location.
 - Make a second application idempotent.
 - Give copied media collision-safe filenames based on stable asset ID, not basename alone.
+- Assign a deterministic local target path to deferred media before acquisition; a source URL is
+  evidence for fetching, never the production runtime URL.
 
 Tests cover encoded paths, uppercase hosts, ports, protocol-relative URLs, query strings,
 fragments, `srcset`, filename collisions, missing media, and repeated rewriting.
@@ -1561,6 +1565,9 @@ Build:
 - Normalize source IDs, URLs, slugs, dates, authors, taxonomies, relationships, menus,
   media, SEO precedence, redirects, and capability observations.
 - Build immutable URL and media maps.
+- Compile every observed media source URL to a collision-safe `public/media/` path and `/media/`
+  URL. Preserve exporter-declared deferred public sources as automatic H3 acquisition work while
+  keeping legacy or unavailable missing binaries in the decision queue.
 - Preserve JSON-pointer/file evidence lineage through every derived value.
 - Classify static eligibility and emit `needs_decision` instead of guessing.
 - Seed one parity row per public content item and discovered capability.
@@ -1594,6 +1601,8 @@ Exit gate:
 - Golden Path source counts reconcile with canonical records.
 - Every public item has one route contract and every required media reference has one
   asset contract.
+- Every media-map entry has a unique local target and a `local-only` runtime policy; no target URL
+  hotlinks WordPress or an external CDN.
 - Every canonical field used for migration has resolvable evidence lineage.
 - Every visual target resolves to one public route contract, target selection is bounded,
   and repeated compilation emits a byte-equivalent `visual-capture-plan.json`.
@@ -1646,6 +1655,10 @@ Build:
   `package.json`, and committed `package-lock.json`.
 - Materialize editable Astro content collections, routes, listings, navigation, media,
   metadata, sitemap inputs, redirects, and 404 behavior from contracts.
+- Copy bundled media and acquire deferred public source binaries into their H2-declared local
+  paths before rewriting content. Record final byte size, checksum, source URL, and acquisition
+  method in conversion receipts; a later media-only exporter may fulfill the same contract without
+  changing content or target paths.
 - Generate a conservative accessible shell before judgment-heavy visual decisions are
   implemented.
 - Copy the immutable source visual manifest and images into protected workspace evidence
@@ -1677,6 +1690,7 @@ Exit gate:
 
 - A clean locked install and production build pass.
 - Every expected content item, route, and required local asset is materialized.
+- Production content contains no runtime media dependency on WordPress or an external CDN.
 - Sanitized content preserves required markers and contains no known executable source
   payload.
 - Every planned source visual resolves by evidence ID and its recorded checksum verifies.

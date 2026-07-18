@@ -76,6 +76,23 @@ def test_verifier_localizes_checksum_mutation(golden_contracts, tmp_path: Path) 
     )
 
 
+def test_verifier_rejects_runtime_media_hotlink(
+    golden_contracts, tmp_path: Path
+) -> None:
+    first = golden_contracts.media_map[0]
+    mutated = first.model_copy(update={"target_url": first.source_url})
+    contracts = golden_contracts.model_copy(
+        update={"media_map": (mutated, *golden_contracts.media_map[1:])}
+    )
+    destination = tmp_path / "contracts"
+    ContractStore().write(destination, contracts)
+
+    report = ContractVerifier().verify(destination)
+
+    assert report.status == "fail"
+    assert f"media_local_target: {first.asset_contract_id}" in report.errors
+
+
 def test_all_accepted_h1_versions_compile_and_verify(
     samples_dir: Path, tmp_path: Path
 ) -> None:

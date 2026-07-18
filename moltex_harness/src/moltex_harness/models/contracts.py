@@ -140,7 +140,7 @@ class AssetContract(LineagedModel):
     asset_id: str
     source_url: str
     bundle_path: str | None
-    target_path: str | None
+    target_path: str
     checksum: str | None
     bytes: int | None
     mime_type: str | None
@@ -148,6 +148,9 @@ class AssetContract(LineagedModel):
     referencing_content_ids: tuple[str, ...]
     transform: dict[str, Any] | None
     provenance: str
+    acquisition_status: Literal["bundled", "deferred", "missing"]
+    acquisition_method: Literal["bundle", "source-fetch", "operator-decision"]
+    runtime_policy: Literal["local-only"]
     needs_decision: bool
 
 
@@ -195,8 +198,11 @@ class UrlMapEntry(LineagedModel):
 
 class MediaMapEntry(LineagedModel):
     source_url: str
-    target_url: str | None
+    target_path: str
+    target_url: str
     asset_contract_id: str
+    acquisition_status: Literal["bundled", "deferred", "missing"]
+    runtime_policy: Literal["local-only"]
 
 
 class ViewportProfile(ContractModel):

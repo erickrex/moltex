@@ -106,8 +106,10 @@ class MediaScannerTest extends TestCase {
 		$this->assertGreaterThan( 0, $result['total_files'] );
 	}
 
-	public function test_geodirectory_gallery_media_is_identified_by_url() {
-		$gallery_url = 'https://example.com/wp-content/uploads/2026/07/geodirectory-gallery.jpg';
+	public function test_geodirectory_gallery_inventory_defers_non_featured_binaries() {
+		$featured_url = 'https://example.com/wp-content/uploads/2026/07/geodirectory-featured.jpg';
+		$gallery_url  = 'https://example.com/wp-content/uploads/2026/07/geodirectory-gallery.jpg';
+		$external_url = 'https://images.example.net/geodirectory-gallery.jpg';
 		$exported_content = array(
 			'custom_post_types' => array(
 				'gd_nightclubs' => array(
@@ -116,9 +118,19 @@ class MediaScannerTest extends TestCase {
 						'geodirectory' => array(
 							'media' => array(
 								array(
+									'url' => $featured_url,
+									'alt' => 'Club exterior',
+									'metadata' => array( 'id' => 'geodirectory:900', 'source' => 'geodirectory', 'featured' => true ),
+								),
+								array(
+									'url' => $external_url,
+									'alt' => 'Rooftop',
+									'metadata' => array( 'id' => 'geodirectory:902', 'source' => 'geodirectory', 'featured' => false ),
+								),
+								array(
 									'url' => $gallery_url,
 									'alt' => 'Dance floor',
-									'metadata' => array( 'id' => 'geodirectory:901', 'source' => 'geodirectory' ),
+									'metadata' => array( 'id' => 'geodirectory:901', 'source' => 'geodirectory', 'featured' => false ),
 								),
 							),
 						),
@@ -129,9 +141,69 @@ class MediaScannerTest extends TestCase {
 
 		$result = $this->create_scanner( $exported_content )->scan();
 
-		$this->assertSame( 1, $result['total_files'] );
-		$this->assertSame( $gallery_url, $result['media_map'][0]['wp_src'] );
-		$this->assertSame( 'geodirectory:901', $result['media_map'][0]['metadata']['id'] );
+		$this->assertSame( 3, $result['total_files'] );
+		$this->assertSame( 1, $result['bundled_files'] );
+		$this->assertSame( 2, $result['deferred_files'] );
+		$this->assertSame( $featured_url, $result['media_map'][0]['wp_src'] );
+		$this->assertIsString( $result['media_map'][0]['artifact'] );
+		$this->assertSame( 'bundled', $result['media_map'][0]['acquisition']['status'] );
+		$this->assertSame( 'bundle', $result['media_map'][0]['acquisition']['method'] );
+		$this->assertSame( $external_url, $result['media_map'][1]['wp_src'] );
+		$this->assertNull( $result['media_map'][1]['artifact'] );
+		$this->assertSame( 'deferred', $result['media_map'][1]['acquisition']['status'] );
+		$this->assertSame( 'source-fetch', $result['media_map'][1]['acquisition']['method'] );
+		$this->assertSame( 'local-only', $result['media_map'][1]['acquisition']['runtime_policy'] );
+		$this->assertSame( $gallery_url, $result['media_map'][2]['wp_src'] );
+		$this->assertNull( $result['media_map'][2]['artifact'] );
+		$this->assertSame( 'geodirectory:901', $result['media_map'][2]['metadata']['id'] );
+		$this->assertSame( 'deferred', $result['media_map'][2]['acquisition']['status'] );
+	}
+
+	public function test_geodirectory_export_copies_only_featured_binary() {
+		global $mock_upload_dir;
+
+		$root       = $this->create_temp_directory( 'moltex-featured-geodirectory-media' );
+		$uploads    = $root . '/uploads';
+		$export_dir = $root . '/export';
+		mkdir( $uploads . '/2026/07', 0755, true );
+		mkdir( $export_dir );
+		file_put_contents( $uploads . '/2026/07/featured.jpg', 'featured-payload' );
+		file_put_contents( $uploads . '/2026/07/gallery.jpg', 'gallery-payload' );
+		$mock_upload_dir = array(
+			'basedir' => $uploads,
+			'baseurl' => 'https://example.com/wp-content/uploads',
+			'error'   => false,
+		);
+		$content = array(
+			'custom_post_types' => array(
+				'gd_nightclubs' => array(
+					array(
+						'geodirectory' => array(
+							'media' => array(
+								array(
+									'url' => 'https://example.com/wp-content/uploads/2026/07/featured.jpg',
+									'metadata' => array( 'featured' => true ),
+								),
+								array(
+									'url' => 'https://example.com/wp-content/uploads/2026/07/gallery.jpg',
+									'metadata' => array( 'featured' => false ),
+								),
+							),
+						),
+					),
+				),
+			),
+		);
+
+		try {
+			$result = $this->create_scanner( $content, $export_dir )->scan();
+			$this->assertFileExists( $export_dir . '/media/2026/07/featured.jpg' );
+			$this->assertFileDoesNotExist( $export_dir . '/media/2026/07/gallery.jpg' );
+			$this->assertNull( $result['media_map'][1]['artifact'] );
+		} finally {
+			$mock_upload_dir = null;
+			$this->remove_temp_directory( $root );
+		}
 	}
 
 	/**

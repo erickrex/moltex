@@ -13,7 +13,7 @@ readiness blocker.
 
 ## Install the release
 
-Build or obtain `moltex-exporter-1.2.7.zip`, then use **Plugins → Add New → Upload Plugin**.
+Build or obtain `moltex-exporter-1.2.8.zip`, then use **Plugins → Add New → Upload Plugin**.
 The release requires WordPress 5.9+, PHP 7.4+, JSON, and `ZipArchive`. After activation,
 open **Moltex Exporter** and resolve every blocking preflight result.
 
@@ -59,7 +59,10 @@ is shared. Forms, shortcodes, hooks, external APIs, authentication, redirects,
 accessibility, SEO, and visual parity can require explicit downstream decisions.
 
 The release captures the exporter-owned evidence needed for supported content-led sites.
-Repeated media bytes are stored once while every source URL remains in the media map. Raw
+Repeated media bytes are stored once while every source URL remains in the media map. For
+GeoDirectory galleries, the primary blueprint bundles featured images and records the remaining
+public gallery images as deferred acquisition sources. The migration harness assigns every source
+URL a stable local target; production output never depends on runtime hotlinks. Raw
 plugin readmes and PHP templates are omitted because structured plugin, capability, and
 theme evidence owns those migration decisions. GeoDirectory sites additionally export
 privacy-filtered public listing fields, locations, gallery media, approved reviews, and

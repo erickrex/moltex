@@ -87,6 +87,14 @@ class RawContentEvidence(StrictModel):
     evidence: EvidenceReference
 
 
+class MediaAcquisition(StrictModel):
+    """Source-side availability without prescribing a target implementation."""
+
+    status: Literal["bundled", "deferred", "unavailable"]
+    method: Literal["bundle", "source-fetch", "operator-decision"]
+    runtime_policy: Literal["local-only"]
+
+
 class RawMediaEvidence(StrictModel):
     source_url: str
     artifact: str | None
@@ -96,6 +104,7 @@ class RawMediaEvidence(StrictModel):
     bytes: int | None = None
     sha256: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+    acquisition: MediaAcquisition | None = None
     evidence: EvidenceReference
 
 

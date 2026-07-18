@@ -181,6 +181,39 @@ class ContractVerifier:
         media_assets = {entry.asset_contract_id for entry in contracts.media_map}
         if media_assets != set(assets):
             errors.append("media_map_coverage: every asset must be represented")
+        media_target_paths: set[str] = set()
+        media_target_urls: set[str] = set()
+        for entry in contracts.media_map:
+            asset = assets.get(entry.asset_contract_id)
+            expected_url = "/" + entry.target_path.removeprefix("public/")
+            if (
+                not entry.target_path.startswith("public/media/")
+                or not entry.target_url.startswith("/media/")
+                or entry.target_url != expected_url
+            ):
+                errors.append(f"media_local_target: {entry.asset_contract_id}")
+            if (
+                entry.target_path in media_target_paths
+                or entry.target_url in media_target_urls
+            ):
+                errors.append(f"media_target_collision: {entry.asset_contract_id}")
+            media_target_paths.add(entry.target_path)
+            media_target_urls.add(entry.target_url)
+            if asset and (
+                asset.target_path != entry.target_path
+                or asset.acquisition_status != entry.acquisition_status
+                or asset.runtime_policy != entry.runtime_policy
+            ):
+                errors.append(f"media_asset_map_mismatch: {entry.asset_contract_id}")
+        for asset in assets.values():
+            if asset.acquisition_status == "bundled" and not asset.bundle_path:
+                errors.append(f"media_bundled_artifact: {asset.asset_id}")
+            if asset.acquisition_status == "deferred" and (
+                asset.bundle_path is not None
+                or asset.acquisition_method != "source-fetch"
+                or asset.needs_decision
+            ):
+                errors.append(f"media_deferred_contract: {asset.asset_id}")
         return errors
 
     def _verify_lineage(self, contracts: ContractSet) -> list[str]:

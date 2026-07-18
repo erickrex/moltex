@@ -11,7 +11,17 @@
       "artifact": {"type": ["string", "null"]},
       "type": {"type": "string"},
       "note": {"type": "string"},
-      "metadata": {"type": "object"}
+      "metadata": {"type": "object"},
+      "acquisition": {
+        "type": "object",
+        "required": ["status", "method", "runtime_policy"],
+        "properties": {
+          "status": {"enum": ["bundled", "deferred", "unavailable"]},
+          "method": {"enum": ["bundle", "source-fetch", "operator-decision"]},
+          "runtime_policy": {"const": "local-only"}
+        },
+        "additionalProperties": false
+      }
     }
   }
 }

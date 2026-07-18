@@ -504,36 +504,37 @@ class ContractCompiler:
 
         assets: list[AssetContract] = []
         media_map: list[MediaMapEntry] = []
-        target_paths: dict[str, tuple[str, str | None]] = {}
+        target_paths: dict[str, str] = {}
         for asset_id, observation in sorted(observations.items()):
             item: RawMediaEvidence | None = observation["raw"]
             source_url = observation["source_url"]
             evidence: EvidenceReference = observation["evidence"]
             bundle_path = item.artifact if item else None
-            target_path = None
-            target_url = None
+            target_path = self._media_target_path(asset_id, source_url, item)
+            target_url = "/" + target_path.removeprefix("public/")
+            existing = target_paths.get(target_path)
+            if existing and existing != asset_id:
+                raise ContractCompilationError(
+                    "asset_collision",
+                    "Different assets normalize to the same target path",
+                )
+            target_paths[target_path] = asset_id
+
+            declared = item.acquisition if item else None
             if bundle_path:
-                parts = PurePosixPath(bundle_path).parts
-                relative = (
-                    PurePosixPath(*parts[1:]).as_posix()
-                    if parts and parts[0] == "media"
-                    else PurePosixPath(*parts).as_posix()
+                acquisition_status: Literal["bundled", "deferred", "missing"] = (
+                    "bundled"
                 )
-                target_path = f"public/media/{relative}"
-                target_url = f"/media/{relative}"
-                existing = target_paths.get(target_path)
-                if existing and existing[0] != asset_id:
-                    existing_checksum = existing[1]
-                    if not item or not item.sha256 or existing_checksum != item.sha256:
-                        raise ContractCompilationError(
-                            "asset_collision",
-                            "Different assets normalize to the same target path",
-                        )
-                target_paths[target_path] = (
-                    asset_id,
-                    item.sha256 if item else None,
-                )
-            needs_decision = item is None or bundle_path is None
+                acquisition_method: Literal[
+                    "bundle", "source-fetch", "operator-decision"
+                ] = "bundle"
+            elif declared and declared.status == "deferred":
+                acquisition_status = "deferred"
+                acquisition_method = "source-fetch"
+            else:
+                acquisition_status = "missing"
+                acquisition_method = "operator-decision"
+            needs_decision = acquisition_status == "missing"
             if needs_decision:
                 decision = self._decision(
                     "missing-media",
@@ -565,8 +566,21 @@ class ContractCompiler:
                     mime_type=item.mime_type if item else None,
                     alt_text=item.alt_text if item else None,
                     referencing_content_ids=tuple(sorted(observation["refs"])),
-                    transform=None,
-                    provenance="source-bundle" if item else "missing-source-reference",
+                    transform=(
+                        {"operation": "acquire-source", "stage": "h3"}
+                        if acquisition_status == "deferred"
+                        else None
+                    ),
+                    provenance=(
+                        "source-bundle"
+                        if acquisition_status == "bundled"
+                        else "deferred-public-source"
+                        if acquisition_status == "deferred"
+                        else "missing-source-reference"
+                    ),
+                    acquisition_status=acquisition_status,
+                    acquisition_method=acquisition_method,
+                    runtime_policy="local-only",
                     needs_decision=needs_decision,
                     lineage=_lineage(AssetContract, evidence, "asset-map/1"),
                 )
@@ -574,8 +588,11 @@ class ContractCompiler:
             media_map.append(
                 MediaMapEntry(
                     source_url=source_url,
+                    target_path=target_path,
                     target_url=target_url,
                     asset_contract_id=asset_id,
+                    acquisition_status=acquisition_status,
+                    runtime_policy="local-only",
                     lineage=_lineage(MediaMapEntry, evidence, "media-url-map/1"),
                 )
             )
@@ -584,6 +601,48 @@ class ContractCompiler:
             media_map,
             {key: tuple(sorted(value)) for key, value in content_assets.items()},
         )
+
+    @staticmethod
+    def _media_target_path(
+        asset_id: str,
+        source_url: str,
+        item: RawMediaEvidence | None,
+    ) -> str:
+        """Assign a stable collision-resistant local destination for every source URL."""
+        source_path = PurePosixPath(urlsplit(source_url).path)
+        suffix = source_path.suffix.lower()
+        if suffix not in {
+            ".avif",
+            ".gif",
+            ".jpeg",
+            ".jpg",
+            ".m4a",
+            ".mp3",
+            ".mp4",
+            ".ogg",
+            ".pdf",
+            ".png",
+            ".svg",
+            ".wav",
+            ".webm",
+            ".webp",
+        }:
+            suffix = ""
+        if not suffix and item and item.mime_type:
+            suffix = {
+                "image/avif": ".avif",
+                "image/gif": ".gif",
+                "image/jpeg": ".jpg",
+                "image/png": ".png",
+                "image/svg+xml": ".svg",
+                "image/webp": ".webp",
+                "video/mp4": ".mp4",
+            }.get(item.mime_type.lower(), "")
+        suffix = suffix or ".bin"
+        stem = stable_token(source_path.stem or "media")[:80]
+        identity = stable_token(asset_id)[:80]
+        filename = f"{identity}-{stem}-{stable_hash(source_url, length=12)}{suffix}"
+        return f"public/media/{filename}"
 
     @staticmethod
     def _add_missing_media(
