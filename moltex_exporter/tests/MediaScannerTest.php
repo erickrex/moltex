@@ -106,6 +106,34 @@ class MediaScannerTest extends TestCase {
 		$this->assertGreaterThan( 0, $result['total_files'] );
 	}
 
+	public function test_geodirectory_gallery_media_is_identified_by_url() {
+		$gallery_url = 'https://example.com/wp-content/uploads/2026/07/geodirectory-gallery.jpg';
+		$exported_content = array(
+			'custom_post_types' => array(
+				'gd_nightclubs' => array(
+					array(
+						'id' => 77,
+						'geodirectory' => array(
+							'media' => array(
+								array(
+									'url' => $gallery_url,
+									'alt' => 'Dance floor',
+									'metadata' => array( 'id' => 'geodirectory:901', 'source' => 'geodirectory' ),
+								),
+							),
+						),
+					),
+				),
+			),
+		);
+
+		$result = $this->create_scanner( $exported_content )->scan();
+
+		$this->assertSame( 1, $result['total_files'] );
+		$this->assertSame( $gallery_url, $result['media_map'][0]['wp_src'] );
+		$this->assertSame( 'geodirectory:901', $result['media_map'][0]['metadata']['id'] );
+	}
+
 	/**
 	 * Test inline image identification from HTML.
 	 */

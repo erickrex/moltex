@@ -31,11 +31,14 @@ def _build_reduced_export(source: Path, destination: Path) -> Path:
     media_map = json.loads(files["media/media_map.json"])
     removed = {media_map[1]["artifact"]}
     media_map[1]["artifact"] = media_map[0]["artifact"]
-    files["media/media_map.json"] = json.dumps(
-        media_map,
-        ensure_ascii=False,
-        indent=2,
-    ).encode("utf-8") + b"\n"
+    files["media/media_map.json"] = (
+        json.dumps(
+            media_map,
+            ensure_ascii=False,
+            indent=2,
+        ).encode("utf-8")
+        + b"\n"
+    )
 
     snapshots = sorted(path for path in files if path.startswith("snapshots/"))
     removed.update(snapshots[2:])
@@ -66,11 +69,14 @@ def _build_reduced_export(source: Path, destination: Path) -> Path:
     manifest["bundle_id"] = (
         f"sha256:{hashlib.sha256(_canonical_json(identity)).hexdigest()}"
     )
-    files["bundle.json"] = json.dumps(
-        manifest,
-        ensure_ascii=False,
-        indent=2,
-    ).encode("utf-8") + b"\n"
+    files["bundle.json"] = (
+        json.dumps(
+            manifest,
+            ensure_ascii=False,
+            indent=2,
+        ).encode("utf-8")
+        + b"\n"
+    )
 
     with zipfile.ZipFile(
         destination, "w", compression=zipfile.ZIP_DEFLATED
@@ -156,6 +162,80 @@ def test_reduced_export_with_shared_media_artifact_is_accepted(
     assert not any(
         path.startswith(("plugins/readmes/", "plugins/templates/"))
         for path in inventory
+    )
+
+
+def test_geodirectory_evidence_is_preserved_at_intake(
+    minimal_legacy_zip, tmp_path: Path
+) -> None:
+    listing = {
+        "schema_version": 1,
+        "id": 77,
+        "type": "gd_nightclubs",
+        "slug": "club-luna",
+        "status": "publish",
+        "title": "Club Luna",
+        "author": {"display_name": "Editor"},
+        "date_gmt": "2026-07-01 20:00:00",
+        "modified_gmt": "2026-07-02 20:00:00",
+        "taxonomies": {},
+        "raw_html": "<p>Open nightly.</p>",
+        "legacy_permalink": "/nightclubs/club-luna/",
+        "postmeta": {},
+        "geodirectory": {
+            "address": {"city": "Madrid"},
+            "geo": {"latitude": 40.42, "longitude": -3.70},
+            "custom_fields": {"price_level": 3},
+            "media": [],
+            "reviews": [],
+        },
+    }
+    config = {
+        "schema_version": 1,
+        "post_types": {"gd_nightclubs": {"fields": []}},
+    }
+    archive = minimal_legacy_zip(
+        overrides={
+            "site_blueprint.json": {
+                "schema_version": 1,
+                "site": {"url": "https://example.test"},
+                "content": {"total_exported": 1},
+                "plugins": [],
+            },
+            "export_completeness.json": {
+                "schema_version": 1,
+                "complete": True,
+                "post_types": {
+                    "gd_nightclubs": {
+                        "discovered": 1,
+                        "exported": 1,
+                        "excluded": 0,
+                        "failed": 0,
+                        "complete": True,
+                    }
+                },
+                "excluded_statuses": ["private", "draft"],
+            },
+        },
+        additions={
+            "content/gd_nightclubs/club-luna.json": json.dumps(listing).encode(),
+            "geodirectory.json": json.dumps(config).encode(),
+        },
+    )
+
+    outcome = IntakeService().inspect(archive, tmp_path / "geodirectory-report")
+
+    assert outcome.exit_code == 0
+    evidence = outcome.result.evidence
+    assert evidence is not None
+    assert evidence.content[0].geodirectory == listing["geodirectory"]
+    assert (
+        next(
+            item
+            for item in evidence.capabilities
+            if item.artifact == "geodirectory.json"
+        ).data
+        == config
     )
 
 

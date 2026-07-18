@@ -37,6 +37,15 @@ class Moltex_Exporter_Content_Scanner extends Moltex_Exporter_Scanner_Base {
 	 */
 	private $settings = array();
 
+	/** Cached GeoDirectory detail-table lookups keyed by post type. */
+	private $geodir_detail_tables = array();
+
+	/** Cached GeoDirectory field definitions keyed by post type. */
+	private $geodir_field_definitions = array();
+
+	/** Cached GeoDirectory table-existence checks. */
+	private $geodir_tables = array();
+
 	/**
 	 * Constructor.
 	 *
@@ -88,6 +97,10 @@ class Moltex_Exporter_Content_Scanner extends Moltex_Exporter_Scanner_Base {
 			'custom_post_types' => $cpts,
 			'block_usage'       => $this->get_block_usage_stats(),
 		);
+		$geodirectory = $this->get_geodirectory_configuration( array_keys( $cpts ) );
+		if ( ! empty( $geodirectory['post_types'] ) ) {
+			$content_data['geodirectory'] = $geodirectory;
+		}
 		$this->generate_selected_html_snapshots( $content_data );
 		$content_data['completeness'] = $this->build_completeness_report( $content_data );
 
@@ -636,14 +649,25 @@ class Moltex_Exporter_Content_Scanner extends Moltex_Exporter_Scanner_Base {
 	 * @return bool True if GeoDirectory CPT.
 	 */
 	private function is_geodirectory_cpt( $post_type ) {
-		// Check if the geodir_cpt taxonomy exists
-		if ( ! taxonomy_exists( 'geodir_cpt' ) ) {
-			return false;
+		if ( function_exists( 'geodir_get_posttypes' ) ) {
+			$post_types = geodir_get_posttypes();
+			if ( is_array( $post_types ) && in_array( $post_type, $post_types, true ) ) {
+				return true;
+			}
 		}
 
-		// Check if this post type is associated with geodir_cpt taxonomy
-		$taxonomies = get_object_taxonomies( $post_type );
-		return in_array( 'geodir_cpt', $taxonomies, true );
+		// GeoDirectory v2 stores listing data in one detail table per CPT. This
+		// remains authoritative when optional taxonomy registration is absent.
+		if ( $this->get_geodir_detail_table( $post_type ) ) {
+			return true;
+		}
+
+		if ( taxonomy_exists( 'geodir_cpt' ) ) {
+			$taxonomies = get_object_taxonomies( $post_type );
+			return in_array( 'geodir_cpt', $taxonomies, true );
+		}
+
+		return false;
 	}
 
 	/**
@@ -671,39 +695,43 @@ class Moltex_Exporter_Content_Scanner extends Moltex_Exporter_Scanner_Base {
 			);
 
 			if ( $detail_data ) {
-				// Extract address information
-				$geodir_data['address'] = array(
-					'street'   => isset( $detail_data['street'] ) ? $detail_data['street'] : '',
-					'street2'  => isset( $detail_data['street2'] ) ? $detail_data['street2'] : '',
-					'city'     => isset( $detail_data['city'] ) ? $detail_data['city'] : '',
-					'region'   => isset( $detail_data['region'] ) ? $detail_data['region'] : '',
-					'country'  => isset( $detail_data['country'] ) ? $detail_data['country'] : '',
-					'zip'      => isset( $detail_data['zip'] ) ? $detail_data['zip'] : '',
-					'postcode' => isset( $detail_data['postcode'] ) ? $detail_data['postcode'] : '',
-				);
-
-				// Extract geo coordinates
-				$geodir_data['geo'] = array(
-					'latitude'  => isset( $detail_data['latitude'] ) ? $detail_data['latitude'] : '',
-					'longitude' => isset( $detail_data['longitude'] ) ? $detail_data['longitude'] : '',
-				);
-
-				// Store all other custom fields from the detail table
-				$geodir_data['custom_fields'] = array();
-				$exclude_fields = array( 'post_id', 'street', 'street2', 'city', 'region', 'country', 'zip', 'postcode', 'latitude', 'longitude' );
-				
-				foreach ( $detail_data as $key => $value ) {
-					if ( ! in_array( $key, $exclude_fields, true ) ) {
-						$geodir_data['custom_fields'][ $key ] = $value;
+				$address = array();
+				foreach ( array( 'street', 'street2', 'city', 'region', 'country', 'zip', 'postcode' ) as $key ) {
+					if ( isset( $detail_data[ $key ] ) && '' !== $detail_data[ $key ] ) {
+						$address[ $key ] = (string) $detail_data[ $key ];
 					}
+				}
+				if ( ! empty( $address ) ) {
+					$geodir_data['address'] = $address;
+				}
+
+				$geo = array();
+				foreach ( array( 'latitude', 'longitude' ) as $key ) {
+					if ( isset( $detail_data[ $key ] ) && is_numeric( $detail_data[ $key ] ) ) {
+						$geo[ $key ] = (float) $detail_data[ $key ];
+					}
+				}
+				if ( ! empty( $geo ) ) {
+					$geodir_data['geo'] = $geo;
+				}
+
+				$custom_fields = array();
+				foreach ( $this->get_geodirectory_field_definitions( $post->post_type ) as $definition ) {
+					$key = $definition['key'];
+					if ( array_key_exists( $key, $detail_data ) ) {
+						$custom_fields[ $key ] = $this->normalize_geodirectory_value( $detail_data[ $key ], $definition );
+					}
+				}
+				if ( ! empty( $custom_fields ) ) {
+					$geodir_data['custom_fields'] = $custom_fields;
 				}
 			}
 		}
 
-		// Get standard postmeta that GeoDirectory might use
+		// Older releases can keep public contact fields in postmeta. Email is
+		// deliberately omitted from this privacy-filtered migration bundle.
 		$geodir_meta_keys = array(
 			'geodir_contact',
-			'geodir_email',
 			'geodir_website',
 			'geodir_phone',
 			'geodir_twitter',
@@ -723,7 +751,22 @@ class Moltex_Exporter_Content_Scanner extends Moltex_Exporter_Scanner_Base {
 		}
 
 		if ( ! empty( $postmeta ) ) {
-			$geodir_data['postmeta'] = $postmeta;
+			$geodir_data['legacy_public_postmeta'] = $postmeta;
+		}
+
+		$media = $this->get_geodirectory_media( $post->ID );
+		if ( ! empty( $media ) ) {
+			$geodir_data['media'] = $media;
+		}
+
+		$reviews = $this->get_geodirectory_reviews( $post->ID );
+		if ( ! empty( $reviews ) ) {
+			$geodir_data['reviews'] = $reviews;
+			$ratings = array_values( array_filter( array_column( $reviews, 'rating' ), 'is_numeric' ) );
+			$geodir_data['review_summary'] = array(
+				'count'          => count( $reviews ),
+				'average_rating' => ! empty( $ratings ) ? array_sum( $ratings ) / count( $ratings ) : null,
+			);
 		}
 
 		// Get categories (from GeoDirectory category taxonomies)
@@ -781,19 +824,282 @@ class Moltex_Exporter_Content_Scanner extends Moltex_Exporter_Scanner_Base {
 	 */
 	private function get_geodir_detail_table( $post_type ) {
 		global $wpdb;
+		if ( array_key_exists( $post_type, $this->geodir_detail_tables ) ) {
+			return $this->geodir_detail_tables[ $post_type ];
+		}
 
-		// GeoDirectory uses tables like geodir_gd_place_detail, geodir_gd_event_detail, etc.
+		if ( ! preg_match( '/^[a-z0-9_]+$/', $post_type ) ) {
+			$this->geodir_detail_tables[ $post_type ] = null;
+			return null;
+		}
+
 		$table_name = $wpdb->prefix . 'geodir_' . $post_type . '_detail';
+		$this->geodir_detail_tables[ $post_type ] = $this->geodirectory_table_exists( $table_name ) ? $table_name : null;
+		return $this->geodir_detail_tables[ $post_type ];
+	}
 
-		// Check if table exists
-		$table_exists = $wpdb->get_var(
-			$wpdb->prepare(
-				'SHOW TABLES LIKE %s',
-				$table_name
-			)
+	/**
+	 * Build the bounded GeoDirectory source contract used downstream.
+	 *
+	 * @param array $candidate_post_types Public CPT names.
+	 * @return array
+	 */
+	private function get_geodirectory_configuration( array $candidate_post_types ) {
+		$config = array(
+			'schema_version' => 1,
+			'post_types'     => array(),
+			'privacy'        => array( 'excluded_field_keys' => array() ),
 		);
 
-		return $table_exists ? $table_name : null;
+		foreach ( array_values( array_unique( $candidate_post_types ) ) as $post_type ) {
+			if ( ! $this->is_geodirectory_cpt( $post_type ) ) {
+				continue;
+			}
+
+			$public_fields = array();
+			foreach ( $this->get_geodirectory_field_definitions( $post_type, true ) as $definition ) {
+				if ( empty( $definition['public'] ) ) {
+					$config['privacy']['excluded_field_keys'][] = $definition['key'];
+					continue;
+				}
+				$field = $definition;
+				unset( $field['public'] );
+				$public_fields[] = $field;
+			}
+
+			$config['post_types'][ $post_type ] = array(
+				'detail_storage'=> 'geodirectory_cpt_detail',
+				'fields'        => $public_fields,
+				'search_fields' => $this->get_geodirectory_behavior_rows( 'custom_advance_search_fields', $post_type ),
+				'sort_fields'   => $this->get_geodirectory_behavior_rows( 'custom_sort_fields', $post_type ),
+				'tabs'          => $this->get_geodirectory_behavior_rows( 'tabs_layout', $post_type ),
+			);
+		}
+
+		$config['privacy']['excluded_field_keys'] = array_values( array_unique( $config['privacy']['excluded_field_keys'] ) );
+		sort( $config['privacy']['excluded_field_keys'], SORT_STRING );
+		ksort( $config['post_types'], SORT_STRING );
+		return $config;
+	}
+
+	/**
+	 * Return field definitions and their public/private disposition.
+	 *
+	 * @param string $post_type GeoDirectory CPT.
+	 * @param bool   $include_private Include definitions excluded from values.
+	 * @return array
+	 */
+	private function get_geodirectory_field_definitions( $post_type, $include_private = false ) {
+		global $wpdb;
+		if ( ! isset( $this->geodir_field_definitions[ $post_type ] ) ) {
+			$table = $wpdb->prefix . 'geodir_custom_fields';
+			$definitions = array();
+			if ( $this->geodirectory_table_exists( $table ) ) {
+				$rows = $wpdb->get_results( "SELECT * FROM {$table}", ARRAY_A );
+				foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+					if ( ! is_array( $row ) || $post_type !== ( isset( $row['post_type'] ) ? $row['post_type'] : '' ) || empty( $row['htmlvar_name'] ) || empty( $row['is_active'] ) ) {
+						continue;
+					}
+					$key = (string) $row['htmlvar_name'];
+					$definitions[] = array(
+						'key'        => $key,
+						'label'      => isset( $row['frontend_title'] ) ? (string) $row['frontend_title'] : $key,
+						'data_type'  => isset( $row['data_type'] ) ? strtolower( (string) $row['data_type'] ) : 'string',
+						'field_type' => isset( $row['field_type'] ) ? (string) $row['field_type'] : 'text',
+						'show_in'    => isset( $row['show_in'] ) ? $this->decode_geodirectory_structure( $row['show_in'] ) : array(),
+						'sort_order' => isset( $row['sort_order'] ) ? (int) $row['sort_order'] : 0,
+						'public'     => empty( $row['for_admin_use'] ) && ! $this->is_sensitive_geodirectory_field( $key, $row ),
+					);
+				}
+			}
+			usort(
+				$definitions,
+				function ( $left, $right ) {
+					return $left['sort_order'] <=> $right['sort_order'];
+				}
+			);
+			$this->geodir_field_definitions[ $post_type ] = $definitions;
+		}
+
+		if ( $include_private ) {
+			return $this->geodir_field_definitions[ $post_type ];
+		}
+		return array_values(
+			array_filter(
+				$this->geodir_field_definitions[ $post_type ],
+				function ( $definition ) {
+					return ! empty( $definition['public'] );
+				}
+			)
+		);
+	}
+
+	/** Determine whether a GeoDirectory column must never enter the bundle. */
+	private function is_sensitive_geodirectory_field( $key, array $definition = array() ) {
+		$value = strtolower( $key . ' ' . ( isset( $definition['field_type'] ) ? $definition['field_type'] : '' ) );
+		foreach ( array( 'email', 'password', 'secret', 'token', 'api_key', 'submit_ip', 'user_id', 'owner_id', 'payment', 'transaction', 'invoice', 'package_id', 'admin_note' ) as $needle ) {
+			if ( false !== strpos( $value, $needle ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/** Normalize a public field without guessing beyond its declared type. */
+	private function normalize_geodirectory_value( $value, array $definition = array() ) {
+		$value = maybe_unserialize( $value );
+		if ( ! is_string( $value ) ) {
+			return $value;
+		}
+		$type = isset( $definition['data_type'] ) ? strtolower( $definition['data_type'] ) : '';
+		$field_type = isset( $definition['field_type'] ) ? strtolower( $definition['field_type'] ) : '';
+		if ( in_array( $field_type, array( 'checkbox', 'toggle' ), true ) ) {
+			return in_array( strtolower( $value ), array( '1', 'true', 'yes', 'on' ), true );
+		}
+		if ( preg_match( '/(^|[^a-z])(tinyint|smallint|mediumint|int|bigint)([^a-z]|$)/', $type ) ) {
+			return (int) $value;
+		}
+		if ( preg_match( '/(float|double|decimal|numeric)/', $type ) ) {
+			return (float) $value;
+		}
+		return $this->decode_geodirectory_structure( $value );
+	}
+
+	/** Decode JSON/serialized structures while preserving plain strings. */
+	private function decode_geodirectory_structure( $value ) {
+		$value = maybe_unserialize( $value );
+		if ( ! is_string( $value ) ) {
+			return $value;
+		}
+		$decoded = json_decode( $value, true );
+		return JSON_ERROR_NONE === json_last_error() ? $decoded : $value;
+	}
+
+	/** Export approved public gallery relationships without uploader identity. */
+	private function get_geodirectory_media( $post_id ) {
+		global $wpdb;
+		$table = $wpdb->prefix . 'geodir_attachments';
+		if ( ! $this->geodirectory_table_exists( $table ) ) {
+			return array();
+		}
+		$rows = $wpdb->get_results(
+			$wpdb->prepare( "SELECT ID, title, caption, file, mime_type, menu_order, featured, metadata FROM {$table} WHERE post_id = %d AND is_approved = 1 ORDER BY menu_order, ID", $post_id ),
+			ARRAY_A
+		);
+		$media = array();
+		foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+			$url = $this->resolve_geodirectory_media_url( isset( $row['file'] ) ? $row['file'] : '' );
+			if ( ! $url ) {
+				continue;
+			}
+			$media[] = array(
+				'url'      => $url,
+				'alt'      => isset( $row['title'] ) ? (string) $row['title'] : '',
+				'metadata' => array(
+					'id'         => 'geodirectory:' . ( isset( $row['ID'] ) ? (int) $row['ID'] : 0 ),
+					'source'     => 'geodirectory',
+					'title'      => isset( $row['title'] ) ? (string) $row['title'] : '',
+					'caption'    => isset( $row['caption'] ) ? (string) $row['caption'] : '',
+					'mime_type'  => isset( $row['mime_type'] ) ? (string) $row['mime_type'] : '',
+					'menu_order' => isset( $row['menu_order'] ) ? (int) $row['menu_order'] : 0,
+					'featured'   => ! empty( $row['featured'] ),
+				),
+			);
+		}
+		return $media;
+	}
+
+	/** Resolve a GeoDirectory attachment path against WordPress uploads. */
+	private function resolve_geodirectory_media_url( $file ) {
+		$file = trim( (string) $file );
+		if ( '' === $file ) {
+			return null;
+		}
+		if ( preg_match( '#^https?://#i', $file ) ) {
+			return $file;
+		}
+		$uploads = wp_upload_dir();
+		if ( empty( $uploads['baseurl'] ) ) {
+			return null;
+		}
+		if ( false !== strpos( $file, '/wp-content/uploads/' ) ) {
+			$file = substr( $file, strpos( $file, '/wp-content/uploads/' ) + strlen( '/wp-content/uploads/' ) );
+		}
+		return trailingslashit( $uploads['baseurl'] ) . ltrim( $file, '/\\' );
+	}
+
+	/** Export approved reviews without email, IP, or WordPress user IDs. */
+	private function get_geodirectory_reviews( $post_id ) {
+		global $wpdb;
+		$table = $wpdb->prefix . 'geodir_post_review';
+		if ( ! $this->geodirectory_table_exists( $table ) ) {
+			return array();
+		}
+		$rows = $wpdb->get_results(
+			$wpdb->prepare( "SELECT c.comment_ID, c.comment_author, c.comment_date_gmt, c.comment_content, r.rating, r.ratings FROM {$wpdb->comments} c INNER JOIN {$table} r ON r.comment_id = c.comment_ID WHERE c.comment_post_ID = %d AND c.comment_approved = '1' ORDER BY c.comment_date_gmt, c.comment_ID", $post_id ),
+			ARRAY_A
+		);
+		$reviews = array();
+		foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+			$reviews[] = array(
+				'source_id' => isset( $row['comment_ID'] ) ? (int) $row['comment_ID'] : 0,
+				'author'    => isset( $row['comment_author'] ) ? (string) $row['comment_author'] : '',
+				'date_gmt'  => isset( $row['comment_date_gmt'] ) ? (string) $row['comment_date_gmt'] : '',
+				'content'   => isset( $row['comment_content'] ) ? (string) $row['comment_content'] : '',
+				'rating'    => isset( $row['rating'] ) && is_numeric( $row['rating'] ) ? (float) $row['rating'] : null,
+				'ratings'   => isset( $row['ratings'] ) ? $this->decode_geodirectory_structure( $row['ratings'] ) : array(),
+			);
+		}
+		return $reviews;
+	}
+
+	/** Export public search, sort, and tab configuration for a CPT. */
+	private function get_geodirectory_behavior_rows( $suffix, $post_type ) {
+		global $wpdb;
+		$table = $wpdb->prefix . 'geodir_' . $suffix;
+		if ( ! $this->geodirectory_table_exists( $table ) ) {
+			return array();
+		}
+		$rows = $wpdb->get_results( "SELECT * FROM {$table}", ARRAY_A );
+		$output = array();
+		foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+			if ( ! is_array( $row ) || $post_type !== ( isset( $row['post_type'] ) ? $row['post_type'] : '' ) || ( isset( $row['is_active'] ) && empty( $row['is_active'] ) ) ) {
+				continue;
+			}
+			$key = isset( $row['htmlvar_name'] ) ? $row['htmlvar_name'] : ( isset( $row['tab_key'] ) ? $row['tab_key'] : '' );
+			if ( $key && $this->is_sensitive_geodirectory_field( $key, $row ) ) {
+				continue;
+			}
+			if ( 'tabs_layout' === $suffix ) {
+				$output[] = array(
+					'key'        => (string) $key,
+					'name'       => isset( $row['tab_name'] ) ? (string) $row['tab_name'] : '',
+					'type'       => isset( $row['tab_type'] ) ? (string) $row['tab_type'] : '',
+					'layout'     => isset( $row['tab_layout'] ) ? (string) $row['tab_layout'] : '',
+					'content'    => isset( $row['tab_content'] ) ? (string) $row['tab_content'] : '',
+					'sort_order' => isset( $row['sort_order'] ) ? (int) $row['sort_order'] : 0,
+				);
+			} else {
+				$output[] = array(
+					'key'        => (string) $key,
+					'label'      => isset( $row['frontend_title'] ) ? (string) $row['frontend_title'] : (string) $key,
+					'data_type'  => isset( $row['data_type'] ) ? strtolower( (string) $row['data_type'] ) : 'string',
+					'field_type' => isset( $row['field_type'] ) ? (string) $row['field_type'] : '',
+					'sort'       => isset( $row['sort'] ) ? (string) $row['sort'] : '',
+					'sort_order' => isset( $row['sort_order'] ) ? (int) $row['sort_order'] : 0,
+				);
+			}
+		}
+		return $output;
+	}
+
+	/** Check an exact plugin-owned table name. */
+	private function geodirectory_table_exists( $table_name ) {
+		global $wpdb;
+		if ( ! array_key_exists( $table_name, $this->geodir_tables ) ) {
+			$this->geodir_tables[ $table_name ] = (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_name ) );
+		}
+		return $this->geodir_tables[ $table_name ];
 	}
 
 	/**

@@ -25,6 +25,14 @@ class ArtifactRegistryTest extends TestCase {
 		$this->assertSame( 'schemas/content-item.schema.json', $definition['schema'] );
 	}
 
+	public function test_geodirectory_configuration_is_bounded_optional_evidence() {
+		$definition = ( new Moltex_Exporter_Artifact_Registry() )->get_definition( 'geodirectory.json' );
+
+		$this->assertFalse( $definition['required'] );
+		$this->assertSame( 'content', $definition['producer'] );
+		$this->assertSame( 'schemas/geodirectory.schema.json', $definition['schema'] );
+	}
+
 	/**
 	 * @dataProvider unsafe_path_provider
 	 */

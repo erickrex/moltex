@@ -83,6 +83,7 @@ class RawContentEvidence(StrictModel):
     internal_links: list[Any] = Field(default_factory=list)
     legacy_permalink: str
     template: str | None = None
+    geodirectory: dict[str, Any] | None = None
     evidence: EvidenceReference
 
 

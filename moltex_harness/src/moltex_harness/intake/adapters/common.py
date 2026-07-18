@@ -32,6 +32,7 @@ CAPABILITY_ARTIFACTS = (
     "elementor_data.json",
     "external_assets.json",
     "forms_config.json",
+    "geodirectory.json",
     "hooks_registry.json",
     "integration_manifest.json",
     "kadence_blocks.json",
@@ -139,6 +140,11 @@ def _content(
                 internal_links=value.get("internal_links", []),
                 legacy_permalink=str(value["legacy_permalink"]),
                 template=value.get("template"),
+                geodirectory=(
+                    value.get("geodirectory")
+                    if isinstance(value.get("geodirectory"), dict)
+                    else None
+                ),
                 evidence=evidence_ref(bundle, validation.bundle_id, path),
             )
         )

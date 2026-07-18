@@ -13,7 +13,7 @@ readiness blocker.
 
 ## Install the release
 
-Build or obtain `moltex-exporter-1.2.6.zip`, then use **Plugins → Add New → Upload Plugin**.
+Build or obtain `moltex-exporter-1.2.7.zip`, then use **Plugins → Add New → Upload Plugin**.
 The release requires WordPress 5.9+, PHP 7.4+, JSON, and `ZipArchive`. After activation,
 open **Moltex Exporter** and resolve every blocking preflight result.
 
@@ -61,7 +61,10 @@ accessibility, SEO, and visual parity can require explicit downstream decisions.
 The release captures the exporter-owned evidence needed for supported content-led sites.
 Repeated media bytes are stored once while every source URL remains in the media map. Raw
 plugin readmes and PHP templates are omitted because structured plugin, capability, and
-theme evidence owns those migration decisions. The harness owns normalization, automated
+theme evidence owns those migration decisions. GeoDirectory sites additionally export
+privacy-filtered public listing fields, locations, gallery media, approved reviews, and
+the public search/sort/tab configuration needed for explicit replacement decisions. The
+harness owns normalization, automated
 source screenshot capture, Astro generation, and verification. The WordPress user is
 never asked to capture or upload screenshots.
 

@@ -581,6 +581,10 @@ class Moltex_Exporter_Exporter {
 			$this->write_json_file( 'export_completeness.json', $this->results['content']['completeness'] );
 		}
 
+		if ( isset( $this->results['content']['geodirectory'] ) ) {
+			$this->write_json_file( 'geodirectory.json', $this->results['content']['geodirectory'] );
+		}
+
 		if ( isset( $this->results['migration_readiness'] ) ) {
 			$this->write_json_file( 'migration_readiness.json', $this->results['migration_readiness'] );
 		}
@@ -771,7 +775,7 @@ class Moltex_Exporter_Exporter {
 
 		return array(
 			'created_at'       => gmdate( 'c' ),
-			'exporter_version' => defined( 'MOLTEX_EXPORTER_VERSION' ) ? MOLTEX_EXPORTER_VERSION : '1.2.6',
+			'exporter_version' => defined( 'MOLTEX_EXPORTER_VERSION' ) ? MOLTEX_EXPORTER_VERSION : '1.2.7',
 			'mode'             => isset( $content['export_mode'] ) && 'discovery' === $content['export_mode'] ? 'discovery' : 'complete',
 			'site_origin'      => isset( $this->results['site']['site']['url'] ) ? $this->results['site']['site']['url'] : '',
 			'complete'     => ! empty( $completeness['complete'] ),

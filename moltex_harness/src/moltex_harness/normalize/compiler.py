@@ -452,6 +452,36 @@ class ContractCompiler:
                     )
                 )
 
+            geodirectory = (
+                content.geodirectory if isinstance(content.geodirectory, dict) else {}
+            )
+            geodirectory_media = geodirectory.get("media", [])
+            if isinstance(geodirectory_media, list):
+                for index, media in enumerate(geodirectory_media):
+                    if not isinstance(media, dict) or not media.get("url"):
+                        continue
+                    source_url = str(media["url"])
+                    absolute = (
+                        absolute_url(origin, source_url)
+                        if source_url.startswith("/")
+                        else source_url
+                    )
+                    if absolute in by_url:
+                        references.add(by_url[absolute])
+                    elif source_url in by_url:
+                        references.add(by_url[source_url])
+                    else:
+                        references.add(
+                            self._add_missing_media(
+                                observations,
+                                absolute,
+                                _field_ref(
+                                    content.evidence,
+                                    f"/geodirectory/media/{index}/url",
+                                ),
+                            )
+                        )
+
             parser = _MediaSourceParser()
             parser.feed(content.original_html)
             for source in sorted(parser.sources):
@@ -494,11 +524,7 @@ class ContractCompiler:
                 existing = target_paths.get(target_path)
                 if existing and existing[0] != asset_id:
                     existing_checksum = existing[1]
-                    if (
-                        not item
-                        or not item.sha256
-                        or existing_checksum != item.sha256
-                    ):
+                    if not item or not item.sha256 or existing_checksum != item.sha256:
                         raise ContractCompilationError(
                             "asset_collision",
                             "Different assets normalize to the same target path",
@@ -766,7 +792,68 @@ class ContractCompiler:
                     ),
                 )
             )
+
+        geodirectory = item.geodirectory if isinstance(item.geodirectory, dict) else {}
+        geodirectory_values: list[tuple[str, Any, str]] = []
+        for section in (
+            "address",
+            "geo",
+            "custom_fields",
+            "legacy_public_postmeta",
+            "review_summary",
+        ):
+            value = geodirectory.get(section)
+            if isinstance(value, dict):
+                geodirectory_values.extend(
+                    self._flatten_geodirectory_values(
+                        value,
+                        f"geodirectory.{section}",
+                        f"/{section}",
+                    )
+                )
+        reviews = geodirectory.get("reviews")
+        if isinstance(reviews, list):
+            geodirectory_values.append(("geodirectory.reviews", reviews, "/reviews"))
+
+        for key, value, pointer in sorted(geodirectory_values):
+            ref = _field_ref(item.evidence, f"/geodirectory{pointer}")
+            output.append(
+                CustomField(
+                    field_id=(
+                        f"field:{stable_token(item.content_type)}:"
+                        f"{stable_token(item.source_id)}:{stable_hash(key, length=12)}"
+                    ),
+                    key=key,
+                    value=value,
+                    source_owner="geodirectory",
+                    disposition="source_metadata",
+                    lineage=_lineage(
+                        CustomField,
+                        ref,
+                        "geodirectory-field-ownership/1",
+                        decision="source_metadata",
+                    ),
+                )
+            )
         return tuple(output)
+
+    @staticmethod
+    def _flatten_geodirectory_values(
+        value: dict[str, Any], prefix: str, pointer: str
+    ) -> list[tuple[str, Any, str]]:
+        output: list[tuple[str, Any, str]] = []
+        for key, field_value in sorted(value.items()):
+            field_key = f"{prefix}.{key}"
+            field_pointer = f"{pointer}/{_json_pointer_token(str(key))}"
+            if isinstance(field_value, dict):
+                output.extend(
+                    ContractCompiler._flatten_geodirectory_values(
+                        field_value, field_key, field_pointer
+                    )
+                )
+            else:
+                output.append((field_key, field_value, field_pointer))
+        return output
 
     def _seo(
         self,
@@ -1239,6 +1326,91 @@ class ContractCompiler:
                     )
                     capabilities.append(capability)
                     self._capability_decision(capability, ref, findings, decisions)
+            elif artifact.artifact == "geodirectory.json":
+                post_types = data.get("post_types", {})
+                if not isinstance(post_types, dict):
+                    continue
+                for post_type, configuration in sorted(post_types.items()):
+                    if not isinstance(configuration, dict):
+                        continue
+                    token = stable_token(post_type)
+                    observed = tuple(
+                        sorted(
+                            route_id
+                            for route_id, content in content_by_route.items()
+                            if content and content.content_type == post_type
+                        )
+                    )
+                    ref = _field_ref(
+                        artifact.evidence,
+                        f"/post_types/{_json_pointer_token(str(post_type))}",
+                    )
+                    capabilities.append(
+                        CapabilityDisposition(
+                            capability_id=f"capability:geodirectory:{token}:listing",
+                            capability_type="directory_listing",
+                            source_construct=str(post_type),
+                            source_plugin="geodirectory",
+                            business_critical=True,
+                            disposition=CapabilityDispositionKind.REPRODUCE,
+                            target_behavior=(
+                                "Reproduce public listing fields, location, gallery, "
+                                "taxonomy, tabs, and approved review display"
+                            ),
+                            verification_method=(
+                                "listing_contract_fields_and_rendered_content_markers"
+                            ),
+                            required_operator_decision=None,
+                            observed_route_ids=observed,
+                            lineage=_lineage(
+                                CapabilityDisposition,
+                                ref,
+                                "geodirectory-listing-disposition/1",
+                                decision="reproduce",
+                            ),
+                        )
+                    )
+                    interactive = {
+                        key: configuration.get(key, [])
+                        for key in ("search_fields", "sort_fields")
+                        if isinstance(configuration.get(key), list)
+                        and configuration.get(key)
+                    }
+                    if interactive:
+                        interactive_ref = _field_ref(
+                            artifact.evidence,
+                            (
+                                f"/post_types/"
+                                f"{_json_pointer_token(str(post_type))}/search_fields"
+                            ),
+                        )
+                        capability = CapabilityDisposition(
+                            capability_id=(
+                                f"capability:geodirectory:{token}:discovery"
+                            ),
+                            capability_type="directory_search_and_sort",
+                            source_construct=", ".join(sorted(interactive)),
+                            source_plugin="geodirectory",
+                            business_critical=False,
+                            disposition=CapabilityDispositionKind.NEEDS_DECISION,
+                            target_behavior=None,
+                            verification_method=None,
+                            required_operator_decision=(
+                                "Choose client-side static discovery, a replacement "
+                                "service, or approved omission"
+                            ),
+                            observed_route_ids=observed,
+                            lineage=_lineage(
+                                CapabilityDisposition,
+                                interactive_ref,
+                                "geodirectory-discovery-disposition/1",
+                                decision="needs_decision",
+                            ),
+                        )
+                        capabilities.append(capability)
+                        self._capability_decision(
+                            capability, interactive_ref, findings, decisions
+                        )
         unique = {item.capability_id: item for item in capabilities}
         if len(unique) != len(capabilities):
             raise ContractCompilationError(
@@ -1618,12 +1790,19 @@ class ContractCompiler:
             observed = capability.observed_route_ids or (
                 (home.contract_id,) if home else ()
             )
-            for route_id in observed:
-                route = route_lookup.get(route_id)
-                if route:
-                    chosen.setdefault(
-                        route_id, (route, f"capability:{capability.capability_id}")
-                    )
+            route = next(
+                (
+                    route_lookup[route_id]
+                    for route_id in observed
+                    if route_id in route_lookup
+                ),
+                None,
+            )
+            if route:
+                chosen.setdefault(
+                    route.contract_id,
+                    (route, f"capability:{capability.capability_id}"),
+                )
         selected = list(chosen.values())
         if len(selected) > self.max_visual_routes:
             raise ContractCompilationError(

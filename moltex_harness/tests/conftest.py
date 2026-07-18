@@ -50,7 +50,11 @@ def rewrite_zip(tmp_path: Path) -> Callable[..., Path]:
 
 @pytest.fixture
 def minimal_legacy_zip(tmp_path: Path) -> Callable[..., Path]:
-    def build(*, additions: dict[str, bytes] | None = None) -> Path:
+    def build(
+        *,
+        additions: dict[str, bytes] | None = None,
+        overrides: dict[str, object] | None = None,
+    ) -> Path:
         archive = tmp_path / "legacy.zip"
         documents = {
             "site_blueprint.json": {
@@ -75,6 +79,7 @@ def minimal_legacy_zip(tmp_path: Path) -> Callable[..., Path]:
             },
             "forms_config.json": {"schema_version": 1, "forms": []},
         }
+        documents.update(overrides or {})
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
             for path, value in documents.items():
                 bundle.writestr(path, json.dumps(value))

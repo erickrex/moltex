@@ -17,6 +17,18 @@
     "taxonomies": {"type": ["object", "array"]},
     "raw_html": {"type": "string"},
     "legacy_permalink": {"type": "string", "minLength": 1},
-    "postmeta": {"type": ["object", "array"]}
+    "postmeta": {"type": ["object", "array"]},
+    "geodirectory": {
+      "type": "object",
+      "properties": {
+        "address": {"type": "object"},
+        "geo": {"type": "object"},
+        "custom_fields": {"type": "object"},
+        "legacy_public_postmeta": {"type": "object"},
+        "media": {"type": "array"},
+        "reviews": {"type": "array"},
+        "review_summary": {"type": "object"}
+      }
+    }
   }
 }

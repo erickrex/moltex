@@ -144,6 +144,13 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 		if ( isset( $content_item['raw_html'] ) && ! empty( $content_item['raw_html'] ) ) {
 			$this->scan_html_for_media( $content_item['raw_html'] );
 		}
+
+		// GeoDirectory stores gallery relationships outside native attachments.
+		if ( ! empty( $content_item['geodirectory']['media'] ) && is_array( $content_item['geodirectory']['media'] ) ) {
+			foreach ( $content_item['geodirectory']['media'] as $media ) {
+				$this->add_media_reference( $media );
+			}
+		}
 	}
 
 	/**
@@ -152,13 +159,14 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 	 * @param array $media_data Media data with id, url, and optional alt.
 	 */
 	private function add_media_reference( $media_data ) {
-		if ( ! isset( $media_data['id'] ) || ! isset( $media_data['url'] ) ) {
+		if ( empty( $media_data['url'] ) ) {
 			return;
 		}
 
-		// Check if already added
+		// Plugin-owned attachment IDs can collide with WordPress attachment IDs.
+		// The source URL is the stable identity used by the bundle media map.
 		foreach ( $this->referenced_media as $existing ) {
-			if ( $existing['id'] === $media_data['id'] ) {
+			if ( $existing['url'] === $media_data['url'] ) {
 				return;
 			}
 		}
@@ -550,8 +558,12 @@ class Moltex_Exporter_Media_Scanner extends Moltex_Exporter_Scanner_Base {
 				'artifact' => $artifact,
 			);
 
-			// Add attachment metadata if available
-			if ( isset( $media['id'] ) && $media['id'] > 0 ) {
+			if ( isset( $media['metadata'] ) && is_array( $media['metadata'] ) ) {
+				$map_entry['metadata'] = $media['metadata'];
+				if ( ! isset( $map_entry['metadata']['alt'] ) && isset( $media['alt'] ) ) {
+					$map_entry['metadata']['alt'] = $media['alt'];
+				}
+			} elseif ( isset( $media['id'] ) && $media['id'] > 0 ) {
 				$metadata = $this->get_attachment_metadata( $media['id'] );
 				if ( ! empty( $metadata ) ) {
 					$map_entry['metadata'] = $metadata;

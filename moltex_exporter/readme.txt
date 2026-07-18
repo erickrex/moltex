@@ -4,7 +4,7 @@ Tags: migration, export, astro, static-site
 Requires at least: 5.9
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.2.6
+Stable tag: 1.2.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -45,6 +45,11 @@ No. Transactional, account-heavy, multisite, and unknown custom behavior can pro
 blockers or manual-review items.
 
 == Changelog ==
+
+= 1.2.7 =
+* Added privacy-filtered GeoDirectory listing fields, locations, galleries, approved reviews, and public field definitions.
+* Added GeoDirectory search, sort, and tab evidence for explicit Astro replacement decisions.
+* Preserved GeoDirectory evidence through the Moltex H1 intake and H2 migration contracts.
 
 = 1.2.6 =
 * Limited rendered HTML evidence to 12 representative routes by default, with explicit off and all-content modes.
