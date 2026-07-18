@@ -171,6 +171,30 @@ def _media(
                 "invalid_media_map", "Media map entry is invalid", artifact=path
             )
         artifact = value.get("artifact")
+        acquisition = value.get("acquisition")
+        if acquisition is not None:
+            expected = {
+                "bundled": ("bundle", True),
+                "deferred": ("source-fetch", False),
+                "unavailable": ("operator-decision", False),
+            }
+            declaration = (
+                expected.get(acquisition.get("status"))
+                if isinstance(acquisition, dict)
+                else None
+            )
+            if (
+                declaration is None
+                or acquisition.get("method") != declaration[0]
+                or acquisition.get("runtime_policy") != "local-only"
+                or (artifact is not None) != declaration[1]
+            ):
+                raise IntakeError(
+                    "invalid_media_acquisition",
+                    "Media acquisition declaration contradicts its artifact state",
+                    artifact=path,
+                    pointer=f"/{index}/acquisition",
+                )
         if artifact is not None and (
             not isinstance(artifact, str) or not bundle.has(artifact)
         ):
@@ -194,11 +218,7 @@ def _media(
                 bytes=file_item.bytes if file_item else None,
                 sha256=file_item.sha256 if file_item else None,
                 metadata=metadata,
-                acquisition=(
-                    value.get("acquisition")
-                    if isinstance(value.get("acquisition"), dict)
-                    else None
-                ),
+                acquisition=acquisition if isinstance(acquisition, dict) else None,
                 evidence=evidence_ref(bundle, validation.bundle_id, path, f"/{index}"),
             )
         )

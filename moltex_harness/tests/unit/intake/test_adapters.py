@@ -86,7 +86,14 @@ def _build_reduced_export(source: Path, destination: Path) -> Path:
     return _write_export(files, manifest, destination)
 
 
-def _build_deferred_media_export(source: Path, destination: Path) -> Path:
+def _build_media_acquisition_export(
+    source: Path,
+    destination: Path,
+    *,
+    status: str,
+    method: str,
+    remove_artifact: bool,
+) -> Path:
     with zipfile.ZipFile(source) as input_zip:
         files = {
             info.filename: input_zip.read(info.filename)
@@ -96,14 +103,16 @@ def _build_deferred_media_export(source: Path, destination: Path) -> Path:
         manifest = json.loads(input_zip.read("bundle.json"))
 
     media_map = json.loads(files["media/media_map.json"])
-    deferred_artifact = media_map[1]["artifact"]
-    media_map[1]["artifact"] = None
+    source_artifact = media_map[1]["artifact"]
+    if remove_artifact:
+        media_map[1]["artifact"] = None
     media_map[1]["acquisition"] = {
-        "status": "deferred",
-        "method": "source-fetch",
+        "status": status,
+        "method": method,
         "runtime_policy": "local-only",
     }
-    files.pop(deferred_artifact)
+    if remove_artifact:
+        files.pop(source_artifact)
     files["media/media_map.json"] = (
         json.dumps(media_map, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
     )
@@ -111,7 +120,7 @@ def _build_deferred_media_export(source: Path, destination: Path) -> Path:
     receipts = []
     for receipt in manifest["artifacts"]:
         path = receipt["path"]
-        if path == deferred_artifact:
+        if remove_artifact and path == source_artifact:
             continue
         if path == "media/media_map.json":
             receipt = dict(receipt)
@@ -120,6 +129,16 @@ def _build_deferred_media_export(source: Path, destination: Path) -> Path:
         receipts.append(receipt)
     manifest["artifacts"] = receipts
     return _write_export(files, manifest, destination)
+
+
+def _build_deferred_media_export(source: Path, destination: Path) -> Path:
+    return _build_media_acquisition_export(
+        source,
+        destination,
+        status="deferred",
+        method="source-fetch",
+        remove_artifact=True,
+    )
 
 
 @pytest.mark.parametrize(
@@ -219,6 +238,73 @@ def test_deferred_media_inventory_is_preserved_without_a_binary(
     assert deferred.acquisition.status == "deferred"
     assert deferred.acquisition.method == "source-fetch"
     assert deferred.acquisition.runtime_policy == "local-only"
+
+
+@pytest.mark.parametrize(
+    ("status", "method", "remove_artifact"),
+    [
+        ("bundled", "bundle", False),
+        ("unavailable", "operator-decision", True),
+    ],
+)
+def test_other_consistent_media_acquisition_states_are_accepted(
+    samples_dir: Path,
+    tmp_path: Path,
+    status: str,
+    method: str,
+    remove_artifact: bool,
+) -> None:
+    archive = _build_media_acquisition_export(
+        samples_dir / "golden-export.zip",
+        tmp_path / f"valid-{status}.zip",
+        status=status,
+        method=method,
+        remove_artifact=remove_artifact,
+    )
+    outcome = IntakeService().inspect(archive, tmp_path / f"valid-{status}-report")
+
+    assert outcome.exit_code == 0
+    evidence = outcome.result.evidence
+    assert evidence is not None
+    declared = next(item for item in evidence.media if item.acquisition is not None)
+    assert declared.acquisition.status == status
+    assert declared.acquisition.method == method
+    assert (declared.artifact is None) == remove_artifact
+
+
+@pytest.mark.parametrize(
+    ("status", "method", "remove_artifact"),
+    [
+        ("bundled", "bundle", True),
+        ("deferred", "source-fetch", False),
+        ("unavailable", "operator-decision", False),
+        ("bundled", "source-fetch", False),
+        ("deferred", "operator-decision", True),
+        ("unavailable", "source-fetch", True),
+    ],
+)
+def test_contradictory_media_acquisition_is_rejected(
+    samples_dir: Path,
+    tmp_path: Path,
+    status: str,
+    method: str,
+    remove_artifact: bool,
+) -> None:
+    archive = _build_media_acquisition_export(
+        samples_dir / "golden-export.zip",
+        tmp_path / f"invalid-{status}-{method}-{remove_artifact}.zip",
+        status=status,
+        method=method,
+        remove_artifact=remove_artifact,
+    )
+    outcome = IntakeService().inspect(archive, tmp_path / "invalid-report")
+
+    assert outcome.exit_code == 3
+    assert outcome.result.report.status == "rejected"
+    finding = outcome.result.report.findings[0]
+    assert finding.code == "invalid_media_acquisition"
+    assert finding.artifact == "media/media_map.json"
+    assert finding.pointer == "/1/acquisition"
 
 
 def test_geodirectory_evidence_is_preserved_at_intake(

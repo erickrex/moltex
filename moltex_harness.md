@@ -1517,6 +1517,12 @@ Build:
 - Implement the `ExportAdapter` protocol plus `legacy-1` and `moltex-export/1` adapters.
 - Validate the manifest, schemas, checksums, sizes, counts, privacy state, and readiness
   result available in each accepted version.
+- Validate declared media acquisition semantics before producing raw evidence: `bundled` plus
+  `bundle` requires an existing artifact, while `deferred` plus `source-fetch` and `unavailable`
+  plus `operator-decision` require `artifact: null`. Reject every contradictory status, method,
+  and artifact combination as `invalid_media_acquisition` instead of allowing H2 to reinterpret it.
+- Preserve compatibility for accepted legacy media entries that have no acquisition declaration;
+  apply the acquisition invariants only when the source bundle declares that contract.
 - Parse content, menus, media, SEO, redirects, capabilities, HTML, and screenshot references
   into `RawSourceEvidence` without assigning target behavior.
 - Emit a deterministic inventory and contextual findings.
@@ -1544,6 +1550,8 @@ Exit gate:
 - Both accepted fixture versions parse from clean temporary directories.
 - Invalid archives fail before untrusted content is consumed.
 - Every declared required artifact and source reference resolves exactly once.
+- Every declared media acquisition is internally consistent and every bundled media artifact
+  resolves exactly once; invalid combinations fail with a media-map JSON pointer.
 - Harness intake and the E3 exporter validation report agree on schema versions, counts,
   checksums, and path semantics.
 - Repeating intake produces equivalent normalized JSON after declared volatile fields are
