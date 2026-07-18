@@ -9,6 +9,9 @@
 if ( ! defined( 'WPINC' ) ) {
 	define( 'WPINC', 'wp-includes' );
 }
+if ( ! defined( 'ABSPATH' ) ) {
+	define( 'ABSPATH', dirname( __DIR__ ) . '/' );
+}
 
 require_once dirname( __DIR__ ) . '/includes/trait-error-logger.php';
 
@@ -177,12 +180,22 @@ $results = array(
 		'schema_version' => '1.0.0',
 		'integrations'   => array(),
 	),
+	// These scanners emit structured observations only. Their legacy CSV/SQL
+	// sidecars are optional and intentionally absent.
+	'redirects' => array(
+		'redirect_candidates' => array(),
+	),
+	'database' => array(
+		'custom_tables' => array(),
+	),
 );
 
 $exporter = new Moltex_Exporter_Exporter( $export_dir, $results );
 $result   = $exporter->export_all();
 
 assert_true( ! empty( $result['success'] ), 'Exporter should complete successfully.' );
+assert_true( empty( $result['warnings'] ), 'Intentionally absent optional sidecars must not create warnings.' );
+assert_true( ! file_exists( $export_dir . '/error_log.json' ), 'An otherwise clean export must not create error_log.json for optional omissions.' );
 assert_true( file_exists( $export_dir . '/content/post/sample-post.json' ), 'Post JSON should be written under content/post/.' );
 assert_true( file_exists( $export_dir . '/content/post/sample-post-102.json' ), 'Duplicate slugs should use a stable source-ID suffix.' );
 assert_true( file_exists( $export_dir . '/content/page/about-us.json' ), 'Page JSON should be written under content/page/.' );

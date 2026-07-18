@@ -520,19 +520,10 @@ class Moltex_Exporter_Exporter {
 			$this->write_json_file( 'rest_api_endpoints.json', $this->results['rest_api'] );
 		}
 
-		// Export redirects (CSV file is created by RedirectsScanner)
-		// Just validate it exists
-		$redirects_file = $this->export_dir . 'redirects_candidates.csv';
-		if ( ! file_exists( $redirects_file ) && isset( $this->results['redirects'] ) ) {
-			$this->log_error( 'redirects', 'Redirects CSV file not found', 'warning' );
-		}
-
-		// Export database schema (SQL file is created by DatabaseScanner)
-		// Just validate it exists
-		$schema_file = $this->export_dir . 'schema_mysql.sql';
-		if ( ! file_exists( $schema_file ) && isset( $this->results['database'] ) ) {
-			$this->log_error( 'database', 'Database schema SQL file not found', 'warning' );
-		}
+		// Redirect and database scanners emit structured observations. Their
+		// legacy CSV/SQL sidecars are optional registry entries, so absence is
+		// not an export warning. Scanner and writer failures remain logged at
+		// their actual failure sites.
 
 		// Export translations
 		if ( isset( $this->results['translations'] ) ) {
@@ -775,7 +766,7 @@ class Moltex_Exporter_Exporter {
 
 		return array(
 			'created_at'       => gmdate( 'c' ),
-			'exporter_version' => defined( 'MOLTEX_EXPORTER_VERSION' ) ? MOLTEX_EXPORTER_VERSION : '1.2.8',
+			'exporter_version' => defined( 'MOLTEX_EXPORTER_VERSION' ) ? MOLTEX_EXPORTER_VERSION : '1.2.9',
 			'mode'             => isset( $content['export_mode'] ) && 'discovery' === $content['export_mode'] ? 'discovery' : 'complete',
 			'site_origin'      => isset( $this->results['site']['site']['url'] ) ? $this->results['site']['site']['url'] : '',
 			'complete'     => ! empty( $completeness['complete'] ),
