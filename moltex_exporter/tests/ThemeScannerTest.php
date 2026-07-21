@@ -93,8 +93,14 @@ class ThemeScannerTest extends TestCase {
 		
 		$this->assertArrayHasKey( 'style.css', $exported_files );
 		$this->assertArrayHasKey( 'theme.json', $exported_files );
-		$this->assertArrayHasKey( 'functions.php', $exported_files );
+		$this->assertArrayNotHasKey( 'functions.php', $exported_files );
 		$this->assertArrayHasKey( 'templates', $exported_files );
+		$iterator = new RecursiveIteratorIterator(
+			new RecursiveDirectoryIterator( $this->export_dir, FilesystemIterator::SKIP_DOTS )
+		);
+		foreach ( $iterator as $file ) {
+			$this->assertNotSame( 'php', strtolower( $file->getExtension() ) );
+		}
 	}
 
 	/**

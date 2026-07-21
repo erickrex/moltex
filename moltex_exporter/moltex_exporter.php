@@ -42,6 +42,7 @@ function activate_moltex_exporter() {
 	require_once MOLTEX_EXPORTER_PATH . 'includes/class-packager.php';
 	require_once MOLTEX_EXPORTER_PATH . 'includes/class-artifact-registry.php';
 	require_once MOLTEX_EXPORTER_PATH . 'includes/class-schema-validator.php';
+	require_once MOLTEX_EXPORTER_PATH . 'includes/class-privacy-scanner.php';
 	require_once MOLTEX_EXPORTER_PATH . 'includes/class-artifact-writer.php';
 	require_once MOLTEX_EXPORTER_PATH . 'includes/class-bundle-validator.php';
 	$packager = new Moltex_Exporter_Packager();

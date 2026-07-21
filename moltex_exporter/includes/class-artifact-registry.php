@@ -36,6 +36,7 @@ class Moltex_Exporter_Artifact_Registry {
 			'media-map.schema.json',
 			'menus.schema.json',
 			'migration-readiness.schema.json',
+			'privacy-scan.schema.json',
 			'schema-validation-report.schema.json',
 			'seo-full.schema.json',
 			'site-blueprint.schema.json',
@@ -61,6 +62,7 @@ class Moltex_Exporter_Artifact_Registry {
 			$this->definition( 'forms_config.json', 'json', 'forms', true, 'schemas/forms-config.schema.json', 'sensitive-filtered capability evidence' ),
 			$this->definition( 'geodirectory.json', 'json', 'content', false, 'schemas/geodirectory.schema.json', 'public typed directory configuration' ),
 			$this->definition( 'integration_manifest.json', 'json', 'integration_manifest', true, 'schemas/integration-manifest.schema.json', 'sensitive-filtered capability evidence' ),
+			$this->definition( 'privacy-scan.json', 'json', 'privacy', false, 'schemas/privacy-scan.schema.json', 'checksums and scan status only', 5242880, false ),
 			$this->pattern_definition( 'content/*/*.json', 'json', 'content', true, 'schemas/content-item.schema.json', 'public content with filtered metadata', self::DEFAULT_MAX_BYTES ),
 			$this->pattern_definition( 'snapshots/*.html', 'html', 'content', false, null, 'sanitized public HTML', 5242880, false ),
 			$this->definition( 'screenshots/manifest.json', 'json', 'media', false, 'schemas/generic-object.schema.json', 'reviewed public visual evidence' ),
@@ -100,7 +102,7 @@ class Moltex_Exporter_Artifact_Registry {
 				'schemas/' . $schema_filename,
 				'schema',
 				'contract',
-				'geodirectory.schema.json' !== $schema_filename,
+				! in_array( $schema_filename, array( 'geodirectory.schema.json', 'privacy-scan.schema.json' ), true ),
 				null,
 				'public contract',
 				1048576,
@@ -108,8 +110,11 @@ class Moltex_Exporter_Artifact_Registry {
 			);
 		}
 
-		// Extension hooks may add bounded optional evidence. Required paths never use this.
-		$definitions[] = $this->pattern_definition( '*', 'evidence', 'extension', false, null, 'review required', self::DEFAULT_MAX_BYTES, false );
+		// Extensions may add bounded, review-required text evidence only inside
+		// their declared namespace. There is intentionally no global wildcard.
+		$definitions[] = $this->pattern_definition( 'extensions/*/*.json', 'json', 'extension', false, null, 'review required', self::DEFAULT_MAX_BYTES, false );
+		$definitions[] = $this->pattern_definition( 'extensions/*/*.csv', 'csv', 'extension', false, null, 'review required', self::DEFAULT_MAX_BYTES, false );
+		$definitions[] = $this->pattern_definition( 'extensions/*/*.txt', 'text', 'extension', false, null, 'review required', self::DEFAULT_MAX_BYTES, false );
 
 		return $definitions;
 	}

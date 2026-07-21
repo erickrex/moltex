@@ -1,4 +1,4 @@
-# Moltex Extra Fixes Delivery Plan
+# Moltex Improvements Delivery Plan
 
 ## Document Contract
 
@@ -13,7 +13,7 @@ Authority remains divided as follows:
 |---|---|
 | Product scope, supported site profile, exporter behavior, bundle contract, and end-to-end acceptance | [`moltex.md`](./moltex.md) |
 | Intake, canonical models, conversion, Astro generation, planning, verification, lifecycle, and eval implementation | [`moltex_harness.md`](./moltex_harness.md) |
-| Remediation order, cross-project checkpoints, and closure evidence for the audit findings | `moltex_extra_fixes.md` |
+| Remediation order, cross-project checkpoints, and closure evidence for the audit findings | `moltex_improvements.md` |
 
 When a phase changes product scope or an owning component contract, the implementation
 must update the authoritative document in the same change. This plan should cross-link to
@@ -21,7 +21,7 @@ those changes instead of becoming a second detailed specification.
 
 ## Status and Intent
 
-- Plan status: **proposed**
+- Plan status: **active**
 - Audit baseline: commit **`b629fd1`**
 - Export contract: **`moltex-export/1`**
 - Projects in scope: **`moltex_exporter`** and **`moltex_harness`** only
@@ -107,7 +107,7 @@ splitting large classes. File-size-only refactors are not acceptance criteria.
 
 | Phase | Outcome | Primary project | Depends on |
 |---|---|---|---|
-| X1 | Export privacy declarations are earned and raw-source exposure is bounded | `moltex_exporter` | Audit baseline |
+| X1 | Implemented: export privacy declarations are earned and raw-source exposure is bounded | `moltex_exporter` | Audit baseline |
 | X2 | Every automatic HTTP/browser request obeys a public-network and TLS policy | Both | X1 |
 | X3 | Eligibility and failure semantics are truthful and durable | `moltex_harness` | X2 |
 | X4 | The producer-to-consumer artifact handshake is closed and executable | Both | X3 |

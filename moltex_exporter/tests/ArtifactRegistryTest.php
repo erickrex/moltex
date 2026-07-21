@@ -33,6 +33,17 @@ class ArtifactRegistryTest extends TestCase {
 		$this->assertSame( 'schemas/geodirectory.schema.json', $definition['schema'] );
 	}
 
+	public function test_undeclared_paths_are_not_accepted_by_a_global_wildcard() {
+		$registry = new Moltex_Exporter_Artifact_Registry();
+
+		$this->assertNull( $registry->get_definition( 'unexpected/private.php' ) );
+		$this->assertNull( $registry->get_definition( 'extensions/vendor/payload.php' ) );
+		$this->assertSame(
+			'extension',
+			$registry->get_definition( 'extensions/vendor/evidence.json' )['producer']
+		);
+	}
+
 	/**
 	 * @dataProvider unsafe_path_provider
 	 */

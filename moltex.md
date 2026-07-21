@@ -129,7 +129,9 @@ decision; it may not silently disappear.
 
 Export and migration run locally. Moltex requires no hosted database, vector store, or
 runtime OpenAI API key. Exported artifacts are treated as untrusted data and are scrubbed
-before they enter generated instructions.
+before they enter generated instructions. Current exports omit executable theme/plugin
+source and earn their `secret_scan` result from a checksum-bound scan of the final
+producer-created artifact set; the result is never assigned as an unverified constant.
 
 ### Qualify instead of overpromising
 
@@ -805,8 +807,9 @@ release.
 ### Export contains secrets or private material
 
 Mitigation: private content stays off by default, required artifacts use centralized
-filtering, the manifest records privacy state, and a sanitized real export receives manual
-review before publication.
+filtering, executable source is excluded, the final producer-created artifact set receives
+an archive-wide credential/canary scan, the manifest binds the scan receipt, and a sanitized
+real export receives manual review before publication.
 
 ### Exporter and harness schema copies drift
 

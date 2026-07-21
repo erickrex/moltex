@@ -780,7 +780,7 @@ class Moltex_Exporter_Exporter {
 				'private_content_included' => ! in_array( 'private', $excluded_statuses, true ),
 				'excluded_statuses'        => $excluded_statuses,
 				'metadata_policy'          => 'Moltex_Exporter_Security_Filters',
-				'secret_scan'              => 'pass',
+				'secret_scan'              => 'unknown',
 			),
 		);
 	}

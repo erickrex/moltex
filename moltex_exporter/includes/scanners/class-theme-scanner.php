@@ -3,8 +3,8 @@
  * Theme Scanner Class
  *
  * Collects theme information including active theme details, parent theme,
- * block theme detection, and exports theme files (style.css, theme.json,
- * templates, functions.php).
+ * block theme detection, public presentation files, and structured template
+ * inventories. Executable theme source is never copied into an export.
  *
  * @package Moltex_Exporter
  */
@@ -100,11 +100,6 @@ class Moltex_Exporter_Theme_Scanner extends Moltex_Exporter_Scanner_Base {
 			wp_mkdir_p( $this->theme_export_dir );
 		}
 
-		// Create templates subdirectory
-		$templates_dir = $this->theme_export_dir . 'templates/';
-		if ( ! file_exists( $templates_dir ) ) {
-			wp_mkdir_p( $templates_dir );
-		}
 	}
 
 	/**
@@ -191,10 +186,7 @@ class Moltex_Exporter_Theme_Scanner extends Moltex_Exporter_Scanner_Base {
 		// Export theme.json if it exists
 		$exported['theme.json'] = $this->export_theme_json();
 
-		// Export functions.php
-		$exported['functions.php'] = $this->export_functions_php();
-
-		// Export template files
+		// Inventory templates without copying executable source.
 		$exported['templates'] = $this->export_template_files();
 
 		// Export template parts if they exist
@@ -257,37 +249,12 @@ class Moltex_Exporter_Theme_Scanner extends Moltex_Exporter_Scanner_Base {
 	}
 
 	/**
-	 * Export functions.php file.
-	 *
-	 * @return array Export status.
-	 */
-	private function export_functions_php() {
-		$source = $this->theme->get_stylesheet_directory() . '/functions.php';
-		$destination = $this->theme_export_dir . 'functions.php';
-
-		if ( file_exists( $source ) ) {
-			$copied = copy( $source, $destination );
-			return array(
-				'success' => $copied,
-				'path'    => $copied ? 'theme/functions.php' : null,
-				'size'    => $copied ? filesize( $destination ) : 0,
-			);
-		}
-
-		return array(
-			'success' => false,
-			'message' => 'functions.php not found',
-		);
-	}
-
-	/**
-	 * Export template files (PHP and HTML).
+	 * Inventory template files (PHP and HTML) without copying source.
 	 *
 	 * @return array Export status with list of exported templates.
 	 */
 	private function export_template_files() {
 		$theme_dir = $this->theme->get_stylesheet_directory();
-		$templates_export_dir = $this->theme_export_dir . 'templates/';
 		$exported_templates = array();
 
 		// Common PHP template files
@@ -310,18 +277,14 @@ class Moltex_Exporter_Theme_Scanner extends Moltex_Exporter_Scanner_Base {
 			'comments.php',
 		);
 
-		// Export PHP templates from theme root
+		// Record PHP templates from the theme root without exporting their bytes.
 		foreach ( $php_templates as $template ) {
 			$source = $theme_dir . '/' . $template;
 			if ( file_exists( $source ) ) {
-				$destination = $templates_export_dir . $template;
-				if ( copy( $source, $destination ) ) {
-					$exported_templates[] = array(
-						'file' => $template,
-						'type' => 'php',
-						'path' => 'theme/templates/' . $template,
-					);
-				}
+				$exported_templates[] = array(
+					'file' => $template,
+					'type' => 'php',
+				);
 			}
 		}
 
@@ -330,15 +293,11 @@ class Moltex_Exporter_Theme_Scanner extends Moltex_Exporter_Scanner_Base {
 		foreach ( $page_templates as $template_file => $template_name ) {
 			$source = $theme_dir . '/' . $template_file;
 			if ( file_exists( $source ) && ! in_array( $template_file, $php_templates, true ) ) {
-				$destination = $templates_export_dir . basename( $template_file );
-				if ( copy( $source, $destination ) ) {
-					$exported_templates[] = array(
-						'file'         => $template_file,
-						'name'         => $template_name,
-						'type'         => 'page_template',
-						'path'         => 'theme/templates/' . basename( $template_file ),
-					);
-				}
+				$exported_templates[] = array(
+					'file' => $template_file,
+					'name' => $template_name,
+					'type' => 'page_template',
+				);
 			}
 		}
 
@@ -348,21 +307,10 @@ class Moltex_Exporter_Theme_Scanner extends Moltex_Exporter_Scanner_Base {
 			$html_templates = $this->scan_directory_for_files( $html_templates_dir, 'html' );
 			foreach ( $html_templates as $template_file ) {
 				$relative_path = str_replace( $html_templates_dir . '/', '', $template_file );
-				$destination = $templates_export_dir . $relative_path;
-				
-				// Create subdirectories if needed
-				$destination_dir = dirname( $destination );
-				if ( ! file_exists( $destination_dir ) ) {
-					wp_mkdir_p( $destination_dir );
-				}
-
-				if ( copy( $template_file, $destination ) ) {
-					$exported_templates[] = array(
-						'file' => $relative_path,
-						'type' => 'html',
-						'path' => 'theme/templates/' . $relative_path,
-					);
-				}
+				$exported_templates[] = array(
+					'file' => $relative_path,
+					'type' => 'html',
+				);
 			}
 		}
 
@@ -374,7 +322,7 @@ class Moltex_Exporter_Theme_Scanner extends Moltex_Exporter_Scanner_Base {
 	}
 
 	/**
-	 * Export template parts.
+	 * Inventory template parts without copying source.
 	 *
 	 * @return array Export status with list of exported template parts.
 	 */
@@ -390,32 +338,15 @@ class Moltex_Exporter_Theme_Scanner extends Moltex_Exporter_Scanner_Base {
 			);
 		}
 
-		// Create template-parts export directory
-		$parts_export_dir = $this->theme_export_dir . 'template-parts/';
-		if ( ! file_exists( $parts_export_dir ) ) {
-			wp_mkdir_p( $parts_export_dir );
-		}
-
 		// Scan for PHP and HTML template parts
 		$template_part_files = $this->scan_directory_recursive( $template_parts_dir, array( 'php', 'html' ) );
 
 		foreach ( $template_part_files as $part_file ) {
 			$relative_path = str_replace( $template_parts_dir . '/', '', $part_file );
-			$destination = $parts_export_dir . $relative_path;
-
-			// Create subdirectories if needed
-			$destination_dir = dirname( $destination );
-			if ( ! file_exists( $destination_dir ) ) {
-				wp_mkdir_p( $destination_dir );
-			}
-
-			if ( copy( $part_file, $destination ) ) {
-				$exported_parts[] = array(
-					'file' => $relative_path,
-					'type' => pathinfo( $part_file, PATHINFO_EXTENSION ),
-					'path' => 'theme/template-parts/' . $relative_path,
-				);
-			}
+			$exported_parts[] = array(
+				'file' => $relative_path,
+				'type' => pathinfo( $part_file, PATHINFO_EXTENSION ),
+			);
 		}
 
 		return array(
@@ -460,14 +391,6 @@ class Moltex_Exporter_Theme_Scanner extends Moltex_Exporter_Scanner_Base {
 		if ( file_exists( $parent_theme_json ) ) {
 			if ( copy( $parent_theme_json, $parent_export_dir . 'theme.json' ) ) {
 				$exported_files[] = 'theme.json';
-			}
-		}
-
-		// Export parent functions.php
-		$parent_functions = $parent_dir . '/functions.php';
-		if ( file_exists( $parent_functions ) ) {
-			if ( copy( $parent_functions, $parent_export_dir . 'functions.php' ) ) {
-				$exported_files[] = 'functions.php';
 			}
 		}
 

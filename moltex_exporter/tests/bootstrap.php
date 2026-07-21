@@ -26,6 +26,7 @@ require_once MOLTEX_PLUGIN_DIR . '/includes/class-preflight.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-admin-page.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-artifact-registry.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-schema-validator.php';
+require_once MOLTEX_PLUGIN_DIR . '/includes/class-privacy-scanner.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-artifact-writer.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-bundle-validator.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-packager.php';

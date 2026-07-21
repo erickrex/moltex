@@ -9,6 +9,8 @@ if ( ! defined( 'WPINC' ) ) {
 	die;
 }
 
+require_once __DIR__ . '/class-privacy-scanner.php';
+
 /**
  * Contract write failure with producer and path context.
  */
@@ -108,6 +110,15 @@ class Moltex_Exporter_Artifact_Writer {
 	 * @return array Bundle manifest.
 	 */
 	public function finalize_bundle( array $metadata ) {
+		$privacy_receipt = ( new Moltex_Exporter_Privacy_Scanner( $this->export_dir ) )->scan();
+		$privacy_artifact = $this->write_json( 'privacy-scan.json', $privacy_receipt, 'privacy' );
+		$privacy = isset( $metadata['privacy'] ) && is_array( $metadata['privacy'] ) ? $metadata['privacy'] : array();
+		$privacy['secret_scan'] = 'pass';
+		$privacy['secret_scan_receipt'] = array(
+			'path'   => $privacy_artifact['path'],
+			'sha256' => $privacy_artifact['sha256'],
+		);
+		$metadata['privacy'] = $privacy;
 		$this->write_schema_artifacts();
 		$artifacts = $this->inventory_artifacts();
 		$paths = array_column( $artifacts, 'path' );

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/moltex-export-1/privacy-scan.schema.json",
+  "title": "Moltex privacy scan receipt",
+  "type": "object",
+  "required": ["schema_version", "status", "scanner_version", "scanned_files", "scanned_bytes", "artifacts"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "status": {"type": "string", "const": "pass"},
+    "scanner_version": {"type": "integer", "minimum": 1},
+    "scanned_files": {"type": "integer", "minimum": 0},
+    "scanned_bytes": {"type": "integer", "minimum": 0},
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "bytes", "sha256"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "bytes": {"type": "integer", "minimum": 0},
+          "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

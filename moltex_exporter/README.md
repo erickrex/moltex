@@ -71,6 +71,11 @@ harness owns normalization, automated
 source screenshot capture, Astro generation, and verification. The WordPress user is
 never asked to capture or upload screenshots.
 
+Before `bundle.json` is finalized, Moltex scans every producer-created artifact for
+credential signatures, privacy canaries, server paths, unsafe links, and executable PHP.
+The checksum-bound `privacy-scan.json` receipt is the only source of a passing
+`privacy.secret_scan` declaration.
+
 ## Development
 
 The repository contains PHPUnit and standalone regressions, a synthetic contract fixture,
