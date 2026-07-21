@@ -195,13 +195,15 @@ def create_site_command(
     if as_json:
         typer.echo(deterministic_json(outcome.report), nl=False)
     elif outcome.exit_code == 0:
-        typer.echo(f"Created complete site workspace at {outcome.destination}")
+        typer.echo(f"Created migration-ready workspace at {outcome.destination}")
     else:
         typer.echo(
             f"Site pipeline failed during {outcome.report.phase}: "
             f"{outcome.report.message}",
             err=True,
         )
+        if outcome.report.diagnostics:
+            typer.echo(f"Diagnostics: {output_root / outcome.report.diagnostics}", err=True)
     if outcome.exit_code:
         raise typer.Exit(outcome.exit_code)
 

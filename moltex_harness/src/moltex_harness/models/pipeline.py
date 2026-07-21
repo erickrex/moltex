@@ -10,7 +10,13 @@ from .intake import SiteIdentity
 
 
 PipelinePhase = Literal[
-    "preflight", "baseline", "build", "planning", "publish", "complete"
+    "preflight",
+    "eligibility",
+    "baseline",
+    "build",
+    "planning",
+    "publish",
+    "workspace_ready",
 ]
 
 
@@ -20,10 +26,11 @@ class SitePipelineReport(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     schema_version: Literal[1] = 1
-    status: Literal["completed", "failed"]
+    status: Literal["workspace_ready", "blocked", "failed"]
     phase: PipelinePhase
     code: str
     message: str
     output: str | None = None
+    diagnostics: str | None = None
     site_identity: SiteIdentity | None = None
     counts: dict[str, int] = Field(default_factory=dict)

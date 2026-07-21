@@ -1340,8 +1340,21 @@ only after baseline compilation, the locked production build, baseline verificat
 workspace planning, and task-graph verification pass. Contracts, visual evidence, receipts,
 reports, source, dependencies, and built output remain beneath that site root. Failed runs
 must not leave a destination directory, and an existing destination is never merged into or
-overwritten. Phase-specific commands may still materialize explicit diagnostic fixtures for
+overwritten. Ineligible H2 contracts stop before source capture or generation. A failed run
+retains only redacted, bounded diagnostics beneath
+`output/.moltex-failures/<site>/<run-id>/`; a successful `create-site` result is
+`workspace_ready_for_migration`, not a claim that Codex migration and final verification are
+complete. Phase-specific commands may still materialize explicit diagnostic fixtures for
 development and acceptance tests, but they are not the production multi-site workflow.
+
+Pipeline state and exit semantics:
+
+| State/code | Meaning | Exit |
+|---|---|---:|
+| `workspace_ready_for_migration` | Baseline generated, Node build/baseline verifier passed, and task graph planned | 0 |
+| `static_ineligible` | Verified contracts block complete static migration | 6 |
+| baseline/build/planning failure | Product or infrastructure work failed with durable diagnostics | phase-specific nonzero |
+| preflight/publish failure | Input identity or atomic publication failed | nonzero |
 
 Common flags:
 

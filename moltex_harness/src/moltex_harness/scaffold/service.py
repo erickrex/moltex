@@ -67,6 +67,14 @@ class BaselineService:
             if verification.status != "pass":
                 return self._failure(output, verification.bundle_id, "h2_verification_failed", verification.errors[0])
             contracts, _ = ContractStore().load(contracts_dir)
+            if contracts.site_spec.static_eligibility == "ineligible":
+                return self._failure(
+                    output,
+                    contracts.source_manifest.bundle_id,
+                    "static_ineligible",
+                    "Source readiness marks this site ineligible for complete static migration",
+                    "blocked",
+                )
             workspace = root / "workspace"
             try:
                 workspace.mkdir(parents=True)

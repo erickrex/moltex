@@ -109,7 +109,7 @@ splitting large classes. File-size-only refactors are not acceptance criteria.
 |---|---|---|---|
 | X1 | Implemented: export privacy declarations are earned and raw-source exposure is bounded | `moltex_exporter` | Audit baseline |
 | X2 | Implemented: every automatic HTTP/browser request obeys a public-network and TLS policy | Both | X1 |
-| X3 | Eligibility and failure semantics are truthful and durable | `moltex_harness` | X2 |
+| X3 | Implemented: eligibility and failure semantics are truthful and durable | `moltex_harness` | X2 |
 | X4 | The producer-to-consumer artifact handshake is closed and executable | Both | X3 |
 | X5 | Generated Astro repositories are injection-safe, payload-safe, and scalable | `moltex_harness` | X4 |
 | X6 | The pipeline performs each expensive stage once and uses bounded resources | `moltex_harness` | X5 |

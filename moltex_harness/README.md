@@ -28,7 +28,11 @@ only after baseline compilation,
 the locked Node build, baseline verification, H4 planning, and task-graph
 verification pass. Contracts, source visuals, receipts, reports, source, and built
 output all live inside that one site folder. A failed run leaves no partial site
-folder, and the command never merges into an existing destination.
+folder, and the command never merges into an existing destination. Ineligible
+contracts stop before source capture or generation. Failures retain a redacted,
+bounded report under `output/.moltex-failures/<site>/<run-id>/`; success means the
+workspace is built, baseline-verified, and planned, not that Codex migration work is
+already complete.
 
 Use `--output-root <directory>` only to place the artifact-named site beneath a
 different parent directory. The CLI never accepts an operator-provided site name.
