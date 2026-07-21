@@ -133,6 +133,11 @@ before they enter generated instructions. Current exports omit executable theme/
 source and earn their `secret_scan` result from a checksum-bound scan of the final
 producer-created artifact set; the result is never assigned as an unverified constant.
 
+Automatic HTTP access follows a public-network-only policy in both runtimes. Source URLs,
+DNS results, redirects, media, CSS references, browser navigations, and subrequests are
+validated before access; private/reserved addresses and credentialed URLs are rejected,
+and production TLS verification is never disabled.
+
 ### Qualify instead of overpromising
 
 The hackathon profile targets content-led sites that fit practical static generation.

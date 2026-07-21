@@ -895,6 +895,10 @@ function wp_remote_get( $url, $args = array() ) {
 	return new WP_Error( 'network_disabled', 'Network disabled in unit tests' );
 }
 
+function wp_safe_remote_get( $url, $args = array() ) {
+	return wp_remote_get( $url, $args );
+}
+
 /**
  * Mock response body accessor.
  */

@@ -1037,11 +1037,17 @@ class Moltex_Exporter_Theme_Scanner extends Moltex_Exporter_Scanner_Base {
 	 */
 	private function export_rendered_css() {
 		$site_url = home_url( '/' );
-		$response = wp_remote_get( $site_url, array(
-			'timeout'    => 30,
-			'user-agent' => 'Moltex-Exporter/1.0',
-			'sslverify'  => false,
-		) );
+		try {
+			$response = Moltex_Exporter_Public_Http_Policy::get( $site_url, array(
+				'timeout'    => 30,
+				'user-agent' => 'Moltex-Exporter/1.0',
+			) );
+		} catch ( InvalidArgumentException $error ) {
+			return array(
+				'success' => false,
+				'error'   => 'Unsafe homepage URL: ' . $error->getMessage(),
+			);
+		}
 
 		if ( is_wp_error( $response ) ) {
 			return array(
@@ -1077,10 +1083,13 @@ class Moltex_Exporter_Theme_Scanner extends Moltex_Exporter_Scanner_Base {
 						$css_id = sanitize_file_name( str_replace( '-css', '', $id_match[1] ) );
 					}
 
-					$css_response = wp_remote_get( $css_url, array(
-						'timeout'    => 15,
-						'sslverify'  => false,
-					) );
+					try {
+						$css_response = Moltex_Exporter_Public_Http_Policy::get( $css_url, array(
+							'timeout' => 15,
+						) );
+					} catch ( InvalidArgumentException $error ) {
+						continue;
+					}
 
 					if ( ! is_wp_error( $css_response ) ) {
 						$css_content = wp_remote_retrieve_body( $css_response );

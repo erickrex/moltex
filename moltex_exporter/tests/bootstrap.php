@@ -22,6 +22,7 @@ require_once MOLTEX_PLUGIN_DIR . '/includes/class-callback-resolver.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-source-identifier.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-site-identity.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-security-filters.php';
+require_once MOLTEX_PLUGIN_DIR . '/includes/class-public-http-policy.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-preflight.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-admin-page.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-artifact-registry.php';

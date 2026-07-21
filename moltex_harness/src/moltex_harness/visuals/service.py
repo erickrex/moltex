@@ -22,6 +22,7 @@ from moltex_harness.models import (
     SourceVisualReceipt,
     VisualCaptureTarget,
 )
+from moltex_harness.network import PublicNetworkPolicy, PublicRedirectHandler
 
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
@@ -51,31 +52,77 @@ class RouteProbe(Protocol):
 
 
 class PublicRouteProbe:
+    def __init__(self, policy: PublicNetworkPolicy | None = None) -> None:
+        self.policy = policy or PublicNetworkPolicy()
+
     def probe(self, url: str) -> RouteProbeResult:
+        self.policy.require_public(url)
         request = urllib.request.Request(
             url,
             headers={"User-Agent": "Moltex-Harness/0.1"},
         )
+        opener = urllib.request.build_opener(PublicRedirectHandler(self.policy))
         try:
-            with urllib.request.urlopen(request, timeout=20) as response:
+            with opener.open(request, timeout=20) as response:
+                self.policy.require_public(response.geturl())
                 return RouteProbeResult(response.status, response.geturl())
         except urllib.error.HTTPError as error:
+            self.policy.require_public(error.geturl())
             return RouteProbeResult(error.code, error.geturl())
         except (urllib.error.URLError, TimeoutError) as error:
             raise ConnectionError(f"Route availability probe failed for {url}") from error
 
 
 class PlaywrightCaptureBackend:
+    def __init__(self, policy: PublicNetworkPolicy | None = None) -> None:
+        self.policy = policy or PublicNetworkPolicy()
+
     def capture(self, target: VisualCaptureTarget) -> CaptureResult:
         from playwright.sync_api import sync_playwright
 
+        self.policy.require_public(target.source_url)
+        source_origin = self.policy.origin(target.source_url)
+        blocked: list[str] = []
         with sync_playwright() as runtime:
             browser = runtime.chromium.launch(headless=True)
-            page = browser.new_page(
+            context = browser.new_context(
                 viewport={"width": target.viewport.width, "height": target.viewport.height},
                 device_scale_factor=1,
             )
-            response = page.goto(target.source_url, wait_until="networkidle", timeout=30_000)
+
+            def enforce(route) -> None:
+                request = route.request
+                try:
+                    self.policy.require_public(request.url)
+                    if request.is_navigation_request() and self.policy.origin(
+                        request.url
+                    ) != source_origin:
+                        raise ValueError("Off-origin navigation")
+                except ValueError:
+                    blocked.append(request.url)
+                    route.abort("blockedbyclient")
+                    return
+                route.continue_()
+
+            context.route("**/*", enforce)
+            page = context.new_page()
+            try:
+                response = page.goto(
+                    target.source_url, wait_until="networkidle", timeout=30_000
+                )
+            except Exception as error:
+                if blocked:
+                    browser.close()
+                    raise ValueError(
+                        "Source capture blocked a non-public or off-origin request"
+                    ) from error
+                browser.close()
+                raise
+            if blocked:
+                browser.close()
+                raise ValueError(
+                    "Source capture blocked a non-public or off-origin request"
+                )
             if response is None or not response.ok:
                 browser.close()
                 status = response.status if response is not None else "no response"
@@ -90,6 +137,9 @@ class PlaywrightCaptureBackend:
 
 
 class SourceVisualService:
+    def __init__(self, policy: PublicNetworkPolicy | None = None) -> None:
+        self.policy = policy or PublicNetworkPolicy()
+
     def capture(
         self,
         contract_dir: Path,
@@ -108,11 +158,12 @@ class SourceVisualService:
         evidence_dir = output / "images"
         evidence_dir.mkdir(exist_ok=True)
         default_backend = backend is None
-        backend = backend or PlaywrightCaptureBackend()
+        backend = backend or PlaywrightCaptureBackend(self.policy)
         try:
             availability = self._route_availability(
                 contracts,
-                route_probe or (PublicRouteProbe() if default_backend else None),
+                route_probe or (PublicRouteProbe(self.policy) if default_backend else None),
+                validate_network=default_backend,
             )
         except Exception:
             shutil.rmtree(output)
@@ -134,7 +185,8 @@ class SourceVisualService:
                         f"Duplicate visual evidence id: {target.evidence_id}"
                     )
                 seen.add(target.evidence_id)
-                self._require_public_http(target.source_url)
+                if default_backend:
+                    self.policy.require_public(target.source_url)
                 result = backend.capture(target)
                 if self._origin(result.final_url) != self._origin(target.source_url):
                     raise ValueError(
@@ -262,6 +314,8 @@ class SourceVisualService:
         self,
         contracts,
         probe: RouteProbe | None,
+        *,
+        validate_network: bool,
     ) -> tuple[RouteAvailabilityEvidence, ...]:
         values: list[RouteAvailabilityEvidence] = []
         origin = contracts.site_spec.source_origin.rstrip("/") + "/"
@@ -269,7 +323,8 @@ class SourceVisualService:
             if not route.public:
                 continue
             source_url = urljoin(origin, route.legacy_url)
-            self._require_public_http(source_url)
+            if validate_network:
+                self.policy.require_public(source_url)
             result = probe.probe(source_url) if probe else RouteProbeResult(200, source_url)
             disposition, reason = self._availability_disposition(result, source_url)
             item = RouteAvailabilityEvidence(
@@ -331,12 +386,5 @@ class SourceVisualService:
             raise ValueError("Source capture is not a decodable PNG") from error
 
     @staticmethod
-    def _origin(url: str) -> tuple[str, str, int | None]:
-        parsed = urlsplit(url)
-        return parsed.scheme.lower(), (parsed.hostname or "").lower(), parsed.port
-
-    @classmethod
-    def _require_public_http(cls, url: str) -> None:
-        parsed = urlsplit(url)
-        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username:
-            raise ValueError(f"Visual capture requires a public HTTP URL: {url}")
+    def _origin(url: str) -> tuple[str, str, int]:
+        return PublicNetworkPolicy.origin(url)

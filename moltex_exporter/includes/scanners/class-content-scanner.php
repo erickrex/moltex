@@ -1327,12 +1327,8 @@ class Moltex_Exporter_Content_Scanner extends Moltex_Exporter_Scanner_Base {
 		// Try to fetch rendered HTML via wp_remote_get
 		$html = $this->fetch_rendered_html( $post );
 
-		// If remote fetch failed, try server-side template capture
-		if ( false === $html ) {
-			$html = $this->capture_template_output( $post );
-		}
-
-		// If we still don't have HTML, log error and return
+		// A failed public request is structured as unavailable evidence. The
+		// exporter never re-executes a theme template to manufacture a snapshot.
 		if ( false === $html ) {
 			error_log( sprintf(
 				'Moltex Exporter: Failed to generate HTML snapshot for post %d (%s)',
@@ -1377,14 +1373,22 @@ class Moltex_Exporter_Content_Scanner extends Moltex_Exporter_Scanner_Base {
 		}
 
 		// Make remote request
-		$response = wp_remote_get( $permalink, array(
+		try {
+			$response = Moltex_Exporter_Public_Http_Policy::get( $permalink, array(
 			'timeout'     => 30,
 			'redirection' => 5,
-			'sslverify'   => false, // Allow self-signed certificates in dev environments
 			'headers'     => array(
 				'User-Agent' => 'Moltex-Exporter/1.0',
 			),
-		) );
+			) );
+		} catch ( InvalidArgumentException $error ) {
+			error_log( sprintf(
+				'Moltex Exporter: unsafe snapshot URL for post %d: %s',
+				$post->ID,
+				$error->getMessage()
+			) );
+			return false;
+		}
 
 		// Check for errors
 		if ( is_wp_error( $response ) ) {
@@ -1418,84 +1422,4 @@ class Moltex_Exporter_Content_Scanner extends Moltex_Exporter_Scanner_Base {
 		return $html;
 	}
 
-	/**
-	 * Capture template output server-side as fallback.
-	 *
-	 * @param WP_Post $post Post object.
-	 * @return string|false HTML content or false on failure.
-	 */
-	private function capture_template_output( $post ) {
-		// This is a fallback method that captures the template output
-		// by simulating the WordPress template hierarchy
-
-		global $wp_query;
-
-		// Save current query
-		$original_query = $wp_query;
-
-		// Create a new query for this specific post
-		$wp_query = new WP_Query( array(
-			'p'         => $post->ID,
-			'post_type' => $post->post_type,
-		) );
-
-		// Set up post data
-		if ( $wp_query->have_posts() ) {
-			$wp_query->the_post();
-
-			// Start output buffering
-			ob_start();
-
-			try {
-				// Try to load the template
-				// This will use the theme's template hierarchy
-				if ( 'page' === $post->post_type ) {
-					$template = get_page_template();
-				} else {
-					$template = get_single_template();
-				}
-
-				// If we found a template, include it
-				if ( $template && file_exists( $template ) ) {
-					include $template;
-				} else {
-					// No template found, return false
-					ob_end_clean();
-					wp_reset_postdata();
-					$wp_query = $original_query;
-					return false;
-				}
-
-				// Get the buffered content
-				$html = ob_get_clean();
-
-				// Reset post data
-				wp_reset_postdata();
-
-				// Restore original query
-				$wp_query = $original_query;
-
-				return $html;
-
-			} catch ( Exception $e ) {
-				// Clean buffer and restore state on error
-				ob_end_clean();
-				wp_reset_postdata();
-				$wp_query = $original_query;
-
-				error_log( sprintf(
-					'Moltex Exporter: Template capture exception for post %d: %s',
-					$post->ID,
-					$e->getMessage()
-				) );
-
-				return false;
-			}
-		}
-
-		// Restore original query
-		$wp_query = $original_query;
-
-		return false;
-	}
 }

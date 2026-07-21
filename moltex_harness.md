@@ -1375,6 +1375,13 @@ manager version. A final release run includes at least one cold, cache-independe
 
 ## Security Boundaries
 
+All source-site network access uses the shared harness public-network policy. It validates
+absolute HTTP(S) syntax, URL credentials, DNS results, IPv4/IPv6 address classes, and every
+redirect before access. Playwright applies the same policy to navigation and subresource
+requests and rejects off-origin navigations. Redirect and request validation is repeated at
+request time to reduce DNS-rebinding exposure; private, reserved, loopback, link-local, and
+mapped-private destinations fail closed.
+
 Fixtures and generated content remain untrusted input during verification.
 
 - Bind preview servers to loopback only.

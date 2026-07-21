@@ -3,16 +3,14 @@
 from __future__ import annotations
 
 import hashlib
-import ipaddress
-import socket
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Literal, Protocol
-from urllib.parse import urlsplit
 
 from moltex_harness.models import AssetAcquisitionReceipt, AssetContract
+from moltex_harness.network import PublicNetworkPolicy, PublicRedirectHandler
 
 
 MAX_FETCH_BYTES = 50 * 1024 * 1024
@@ -30,15 +28,18 @@ class MediaFetcher(Protocol):
 
 
 class PublicHttpFetcher:
+    def __init__(self, policy: PublicNetworkPolicy | None = None) -> None:
+        self.policy = policy or PublicNetworkPolicy()
+
     def fetch(self, url: str) -> FetchResult:
-        self._require_public(url)
+        self.policy.require_public(url)
         request = urllib.request.Request(url, headers={"User-Agent": "Moltex-Harness/0.1"})
-        opener = urllib.request.build_opener(_PublicRedirect(self._require_public))
+        opener = urllib.request.build_opener(PublicRedirectHandler(self.policy))
         for attempt in range(2):
             try:
                 with opener.open(request, timeout=20) as response:
                     final_url = response.geturl()
-                    self._require_public(final_url)
+                    self.policy.require_public(final_url)
                     data = response.read(MAX_FETCH_BYTES + 1)
                 break
             except (urllib.error.URLError, TimeoutError) as error:
@@ -49,26 +50,6 @@ class PublicHttpFetcher:
         if len(data) > MAX_FETCH_BYTES:
             raise ValueError(f"Media response exceeds {MAX_FETCH_BYTES} bytes: {url}")
         return FetchResult(data, final_url, attempt + 1)
-
-    @staticmethod
-    def _require_public(url: str) -> None:
-        parsed = urlsplit(url)
-        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username:
-            raise ValueError(f"Media source must be a public HTTP URL: {url}")
-        for result in socket.getaddrinfo(parsed.hostname, parsed.port or 443, type=socket.SOCK_STREAM):
-            address = ipaddress.ip_address(result[4][0])
-            if not address.is_global:
-                raise ValueError(f"Media source resolves to a non-public address: {url}")
-
-
-class _PublicRedirect(urllib.request.HTTPRedirectHandler):
-    def __init__(self, validator) -> None:
-        super().__init__()
-        self.validator = validator
-
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        self.validator(newurl)
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
 class AssetMaterializer:
