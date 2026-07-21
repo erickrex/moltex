@@ -22,6 +22,7 @@ def test_pipeline_context_runs_intake_and_compilation_once(
     assert context.extracted_bundle.is_dir()
     assert context.contracts_dir.is_dir()
     assert context.identity.workspace_slug
+    assert context.export_timestamp is not None
     assert [metric.stage for metric in context.metrics] == ["intake", "contracts"]
     assert all(metric.artifacts > 0 for metric in context.metrics)
 

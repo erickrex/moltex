@@ -8,6 +8,8 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable
 
+import nh3
+
 
 BLOCK_COMMENT = re.compile(
     r"<!--\s*(/)?wp:([a-z0-9_-]+(?:/[a-z0-9_-]+)?)"
@@ -182,6 +184,7 @@ class GutenbergRenderer:
             if name == "atomic-wind/icon" and self_closing and not closing:
                 icon = str(attributes.get("icon") or "check")
                 glyph = "✓" if icon in {"check", "check-circle"} else "•"
+                glyph = self._icon_glyph(icon)
                 return f'<span class="moltex-icon" aria-hidden="true">{glyph}</span>'
             # Atomic Wind serializes its semantic HTML between the comments. Its
             # paired comments can be discarded without losing the rendered tree.
@@ -279,6 +282,7 @@ class GutenbergRenderer:
         if slug in {"icon", "list-child-icon"}:
             icon = str(attributes.get("icon") or "check")
             glyph = "✓" if icon in {"check", "check-circle"} else "•"
+            glyph = self._icon_glyph(icon)
             return f'<span class="moltex-block moltex-icon" aria-hidden="true"{self._style(attributes)}>{glyph}</span>'
         tag = {
             "container": "div",
@@ -289,6 +293,21 @@ class GutenbergRenderer:
         }.get(slug, "div")
         root = " moltex-block-root" if attributes.get("isBlockRootParent") else ""
         return f'<{tag} class="moltex-block moltex-{slug}{root}"{self._style(attributes)}>'
+
+    @staticmethod
+    def _icon_glyph(icon: str) -> str:
+        normalized = icon.casefold()
+        if normalized in {"check", "check-circle"}:
+            return "✓"
+        if normalized in {"circle-arrow-down", "arrow-down"}:
+            return "↓"
+        if normalized in {"circle-arrow-right", "arrow-right"}:
+            return "→"
+        if normalized in {"plus", "plus-circle"}:
+            return "+"
+        if normalized in {"star", "star-half"}:
+            return "★"
+        return "•"
 
     @staticmethod
     def _container_defaults(attributes: dict[str, Any]) -> dict[str, Any]:
@@ -335,8 +354,6 @@ class GutenbergRenderer:
             "span": "1rem",
         }
         typography.setdefault("fontSize", default_sizes.get(tag, "1rem"))
-        if tag in {"h1", "h2", "h3", "h4", "h5", "h6"}:
-            typography.setdefault("fontWeight", "700")
         style["typography"] = typography
         result["style"] = style
         return result
@@ -345,7 +362,12 @@ class GutenbergRenderer:
     def _safe_text(value: Any) -> str:
         decoded = html.unescape(str(value))
         cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", decoded)
-        return html.escape(cleaned)
+        return nh3.clean(
+            cleaned,
+            tags={"b", "br", "em", "i", "span", "strong", "u"},
+            attributes={},
+            strip_comments=True,
+        )
 
     @staticmethod
     def _safe_tag(value: Any, fallback: str) -> str:
@@ -417,12 +439,21 @@ class GutenbergRenderer:
         if str(weight) in {"100", "200", "300", "400", "500", "600", "700", "800", "900", "normal", "bold"}:
             self._put(output, "font-weight", suffix, str(weight))
         self._put(output, "line-height", suffix, self._length(typography.get("lineHeight")))
+        text_align = typography.get("textAlign") or style.get("textAlign") or attributes.get("textAlign")
+        if text_align in {"left", "center", "right", "justify", "start", "end"}:
+            self._put(output, "text-align", suffix, str(text_align))
         font = typography.get("fontFamily") or attributes.get("fontFamily")
         if font and str(font) != "Default" and _CSS_FONT.fullmatch(str(font)):
             self._put(output, "font-family", suffix, str(font))
 
         self._put(output, "color", suffix, self._color(attributes.get("textColor") or attributes.get("color")))
-        self._put(output, "background-color", suffix, self._color(attributes.get("backgroundColor")))
+        background_color = self._color(attributes.get("backgroundColor"))
+        self._put(output, "background-color", suffix, background_color)
+        self._background_styles(attributes.get("background"), suffix, output)
+        if background_color and background_color.casefold().replace(" ", "").startswith(
+            "rgba(0,0,0,"
+        ):
+            self._put(output, "background-blend-mode", suffix, "multiply")
         border = style.get("border")
         if isinstance(border, dict):
             self._put(output, "border-width", suffix, self._length(border.get("width")))
@@ -446,6 +477,35 @@ class GutenbergRenderer:
             y = self._length(attributes.get("overlayPositionY"))
             if x and y:
                 self._put(output, "background-position", suffix, f"{x} {y}")
+
+    def _background_styles(
+        self, value: Any, suffix: str, output: dict[str, str]
+    ) -> None:
+        if not isinstance(value, dict):
+            return
+        media = value.get("media")
+        media = media if isinstance(media, dict) else {}
+        url = media.get("url")
+        if isinstance(url, str):
+            rewritten, changed = self.rewrite_url(url)
+            self.rewritten_urls += int(changed)
+            if rewritten.startswith("/"):
+                self._put(output, "background-image", suffix, f'url("{rewritten}")')
+        size = value.get("backgroundSize")
+        if size in {"cover", "contain", "auto"}:
+            self._put(output, "background-size", suffix, str(size))
+        position = value.get("backgroundPosition")
+        if isinstance(position, dict):
+            x = self._position(position.get("x"))
+            y = self._position(position.get("y"))
+            if x and y:
+                self._put(output, "background-position", suffix, f"{x} {y}")
+
+    @staticmethod
+    def _position(value: Any) -> str | None:
+        if isinstance(value, (int, float)) and 0 <= value <= 1:
+            return f"{value * 100:g}%"
+        return GutenbergRenderer._length(value)
 
     @staticmethod
     def _put(output: dict[str, str], name: str, suffix: str, value: str | None) -> None:

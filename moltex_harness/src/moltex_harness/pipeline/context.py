@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from time import perf_counter_ns
 
@@ -25,6 +27,7 @@ class PipelineContext:
     contracts: ContractSet
     identity: SiteIdentity
     metrics: tuple[PipelineStageReport, ...]
+    export_timestamp: str | None = None
 
 
 class PipelinePreparationError(ValueError):
@@ -101,7 +104,30 @@ class PipelinePreparationService:
             contracts=contracts,
             identity=identity,
             metrics=(intake_metric, compilation_metric),
+            export_timestamp=self._export_timestamp(extraction),
         )
+
+    @staticmethod
+    def _export_timestamp(extraction: Path) -> str | None:
+        """Return the validated bundle creation time as a filesystem-safe suffix."""
+
+        manifest = extraction / "bundle.json"
+        if not manifest.is_file():
+            return None
+        value = json.loads(manifest.read_text(encoding="utf-8")).get("created_at")
+        if not isinstance(value, str):
+            return None
+        try:
+            created = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as error:
+            raise PipelinePreparationError(
+                "invalid_export_timestamp",
+                "Bundle created_at is not a valid ISO-8601 timestamp",
+                3,
+            ) from error
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=UTC)
+        return created.astimezone(UTC).strftime("%Y-%m-%d_%H-%M-%S")
 
     @staticmethod
     def _elapsed_ms(started: int) -> int:

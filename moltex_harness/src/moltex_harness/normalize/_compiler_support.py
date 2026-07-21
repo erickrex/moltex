@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import re
 from collections import defaultdict
 from html.parser import HTMLParser
 from typing import Any, Iterable, Literal, TypeVar
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel
 
@@ -43,6 +46,7 @@ class _MediaSourceParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.sources: set[str] = set()
+        self.source_tags: dict[str, str] = {}
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag.lower() not in {"img", "source", "video", "audio"}:
@@ -50,6 +54,44 @@ class _MediaSourceParser(HTMLParser):
         for name, value in attrs:
             if name.lower() == "src" and value:
                 self.sources.add(value)
+                self.source_tags.setdefault(value, tag.lower())
+
+    def handle_comment(self, data: str) -> None:
+        match = re.match(
+            r"^\s*wp:[a-z0-9_-]+(?:/[a-z0-9_-]+)?\s+(\{.*\})\s*/?\s*$",
+            data,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if not match:
+            return
+        try:
+            attributes = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            return
+        self._collect_block_media(attributes)
+
+    def _collect_block_media(self, value: Any) -> None:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if key in {"src", "url"} and isinstance(item, str):
+                    path = urlsplit(item).path.casefold()
+                    if "/wp-content/uploads/" in path or path.endswith(
+                        (
+                            ".avif",
+                            ".gif",
+                            ".jpeg",
+                            ".jpg",
+                            ".png",
+                            ".svg",
+                            ".webp",
+                        )
+                    ):
+                        self.sources.add(item)
+                        self.source_tags.setdefault(item, "background")
+                self._collect_block_media(item)
+        elif isinstance(value, list):
+            for item in value:
+                self._collect_block_media(item)
 
 
 TLineaged = TypeVar("TLineaged", bound=LineagedModel)
@@ -173,6 +215,7 @@ class _CompilerSupport:
                 raw.seo,
                 raw.redirects,
                 raw.capabilities,
+                raw.html_references,
             )
             for item in collection
         }

@@ -56,7 +56,7 @@ SAFE_INLINE_VALUE = re.compile(
     r"^(?:"
     r"-?(?:\d+(?:\.\d+)?|\.\d+)(?:px|rem|em|%|vh|vw|ch)?|"
     r"#[0-9a-f]{3,8}|(?:rgb|rgba|hsl|hsla)\([0-9.%\s,/-]+\)|"
-    r"(?:block|grid|flex|none|auto|cover|contain|fill|solid|dashed|dotted|double|nowrap|wrap|row|column|center|stretch|flex-start|flex-end|space-between|space-around|normal|bold|transparent|currentColor)|"
+    r"(?:block|grid|flex|none|auto|cover|contain|fill|solid|dashed|dotted|double|nowrap|wrap|row|column|center|stretch|flex-start|flex-end|space-between|space-around|normal|bold|multiply|transparent|currentColor)|"
     r"repeat\([1-9][0-9]?,minmax\(0,1fr\)\)|"
     r"var\(--moltex-color-[0-8]\)|"
     r"-?(?:\d+(?:\.\d+)?|\.\d+)(?:px|rem|em|%|vh|vw|ch)?\s+-?(?:\d+(?:\.\d+)?|\.\d+)(?:px|rem|em|%|vh|vw|ch)?|"

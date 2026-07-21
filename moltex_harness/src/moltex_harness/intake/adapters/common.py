@@ -24,6 +24,7 @@ from moltex_harness.models import (
 from ..archive import SafeArchive
 from ..artifacts import CAPABILITY_ARTIFACTS
 from ..errors import IntakeError
+from ..snapshot_shell import parse_snapshot_shell
 from .base import AdapterValidation
 
 
@@ -584,7 +585,11 @@ def compile_raw_evidence(
     html = [
         RawArtifactEvidence(
             artifact=path,
-            data={"bytes": bundle.item(path).bytes, "sha256": bundle.item(path).sha256},
+            data={
+                "bytes": bundle.item(path).bytes,
+                "sha256": bundle.item(path).sha256,
+                **parse_snapshot_shell(bundle.read_text(path)),
+            },
             evidence=evidence_ref(bundle, validation.bundle_id, path),
         )
         for path in bundle.paths()
