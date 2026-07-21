@@ -326,13 +326,9 @@ class BaselineService:
                     if record.record_id in omitted_content
                 }
                 omitted_content_keys = omitted_content | omitted_source_ids
-                materialized_assets = tuple(
-                    asset
-                    for asset in contracts.assets
-                    if not asset.referencing_content_ids
-                    or not set(asset.referencing_content_ids).issubset(
-                        omitted_content_keys
-                    )
+                materialized_assets = self._materializable_assets(
+                    contracts.assets,
+                    omitted_content_keys,
                 )
                 receipts = AssetMaterializer(self.media_fetcher).materialize(
                     materialized_assets, extraction, workspace
@@ -388,6 +384,24 @@ class BaselineService:
             output / ".moltex" / "reports" / "baseline-compilation-report.json", report
         )
         return BaselineOutcome(report, 0)
+
+    @staticmethod
+    def _materializable_assets(
+        assets: Any,
+        omitted_content_keys: set[str],
+    ) -> tuple[Any, ...]:
+        """Keep unresolved assets contractual without treating them as downloadable."""
+        return tuple(
+            asset
+            for asset in assets
+            if not asset.needs_decision
+            and (
+                not asset.referencing_content_ids
+                or not set(asset.referencing_content_ids).issubset(
+                    omitted_content_keys
+                )
+            )
+        )
 
     def _generate(
         self,

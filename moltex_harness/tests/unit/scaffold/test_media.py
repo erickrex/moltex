@@ -6,7 +6,12 @@ import urllib.error
 import pytest
 
 from moltex_harness.network import PublicNetworkPolicy
-from moltex_harness.scaffold import AssetMaterializer, FetchResult, PublicHttpFetcher
+from moltex_harness.scaffold import (
+    AssetMaterializer,
+    BaselineService,
+    FetchResult,
+    PublicHttpFetcher,
+)
 
 
 PNG = b"\x89PNG\r\n\x1a\nvalid-test-payload"
@@ -59,6 +64,27 @@ def test_referenced_missing_media_blocks_baseline(golden_contracts, tmp_path) ->
 
     with pytest.raises(ValueError, match="Required asset"):
         AssetMaterializer().materialize((asset,), tmp_path / "bundle", tmp_path / "site")
+
+
+def test_baseline_does_not_download_assets_awaiting_a_decision(
+    golden_contracts,
+) -> None:
+    available = golden_contracts.assets[0].model_copy(
+        update={"needs_decision": False, "referencing_content_ids": ("10",)}
+    )
+    unresolved = golden_contracts.assets[0].model_copy(
+        update={
+            "asset_id": "asset:missing",
+            "needs_decision": True,
+            "referencing_content_ids": ("10",),
+        }
+    )
+
+    selected = BaselineService._materializable_assets(
+        (available, unresolved), set()
+    )
+
+    assert selected == (available,)
 
 
 def test_media_checksum_mismatch_is_rejected(golden_contracts, tmp_path) -> None:

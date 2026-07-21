@@ -8,8 +8,10 @@ import pytest
 from PIL import Image
 
 from moltex_harness.contracts import ContractStore
+from moltex_harness.network import PublicNetworkPolicy
 from moltex_harness.visuals.service import (
     CaptureResult,
+    PlaywrightCaptureBackend,
     RouteProbeResult,
     SourceVisualService,
 )
@@ -118,6 +120,7 @@ def test_visual_capture_batches_all_targets_in_one_browser_session(
     assert backend.capture_calls == 0
     assert receipt.resources == {
         "browser_launches": 1,
+        "blocked_subresources": 0,
         "max_concurrent_pages": 1,
         "probe_workers": min(8, len(golden_contracts.routes)),
         "capture_targets": len(golden_contracts.visual_capture_plan.targets),
@@ -125,6 +128,41 @@ def test_visual_capture_batches_all_targets_in_one_browser_session(
     assert [item.evidence_id for item in receipt.evidence] == [
         target.evidence_id for target in golden_contracts.visual_capture_plan.targets
     ]
+
+
+def test_browser_blocks_private_subresources_without_failing_public_navigation() -> None:
+    public = "93.184.216.34"
+    policy = PublicNetworkPolicy(
+        lambda host, _port: ("127.0.0.1",) if host == "private.example" else (public,)
+    )
+    backend = PlaywrightCaptureBackend(policy)
+    source_origin = policy.origin("https://source.example/")
+
+    assert backend.request_disposition(
+        "http://private.example/asset.png",
+        is_navigation=False,
+        source_origin=source_origin,
+    ) == "abort"
+    assert backend.request_disposition(
+        "http://private.example/",
+        is_navigation=True,
+        source_origin=source_origin,
+    ) == "fail"
+    assert backend.request_disposition(
+        "https://cdn.example/asset.png",
+        is_navigation=False,
+        source_origin=source_origin,
+    ) == "continue"
+    assert backend.request_disposition(
+        "https://different.example/",
+        is_navigation=True,
+        source_origin=source_origin,
+    ) == "fail"
+    assert backend.request_disposition(
+        "https://source.example/article/",
+        is_navigation=True,
+        source_origin=source_origin,
+    ) == "continue"
 
 
 def test_route_probes_obey_one_global_deadline(

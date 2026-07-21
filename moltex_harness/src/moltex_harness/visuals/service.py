@@ -81,6 +81,23 @@ class PlaywrightCaptureBackend:
         self.policy = policy or PublicNetworkPolicy()
         self.browser_launches = 0
         self.max_concurrent_pages = 1
+        self.blocked_subresources = 0
+
+    def request_disposition(
+        self,
+        url: str,
+        *,
+        is_navigation: bool,
+        source_origin: tuple[str, str, int],
+    ) -> Literal["continue", "abort", "fail"]:
+        """Classify a browser request without ever allowing a private destination."""
+        try:
+            self.policy.require_public(url)
+        except ValueError:
+            return "fail" if is_navigation else "abort"
+        if is_navigation and self.policy.origin(url) != source_origin:
+            return "fail"
+        return "continue"
 
     def capture(self, target: VisualCaptureTarget) -> CaptureResult:
         return self.capture_all((target,))[0]
@@ -99,7 +116,7 @@ class PlaywrightCaptureBackend:
             try:
                 for target in targets:
                     source_origin = self.policy.origin(target.source_url)
-                    blocked: list[str] = []
+                    blocked_navigations: list[str] = []
                     context = browser.new_context(
                         viewport={
                             "width": target.viewport.width,
@@ -110,15 +127,21 @@ class PlaywrightCaptureBackend:
 
                     def enforce(route) -> None:
                         request = route.request
-                        try:
-                            self.policy.require_public(request.url)
-                            if (
-                                request.is_navigation_request()
-                                and self.policy.origin(request.url) != source_origin
-                            ):
-                                raise ValueError("Off-origin navigation")
-                        except ValueError:
-                            blocked.append(request.url)
+                        is_main_frame_navigation = (
+                            request.is_navigation_request()
+                            and request.frame.parent_frame is None
+                        )
+                        disposition = self.request_disposition(
+                            request.url,
+                            is_navigation=is_main_frame_navigation,
+                            source_origin=source_origin,
+                        )
+                        if disposition == "fail":
+                            blocked_navigations.append(request.url)
+                            route.abort("blockedbyclient")
+                            return
+                        if disposition == "abort":
+                            self.blocked_subresources += 1
                             route.abort("blockedbyclient")
                             return
                         route.continue_()
@@ -131,7 +154,7 @@ class PlaywrightCaptureBackend:
                             wait_until="networkidle",
                             timeout=30_000,
                         )
-                        if blocked:
+                        if blocked_navigations:
                             raise ValueError(
                                 "Source capture blocked a non-public or off-origin request"
                             )
@@ -153,7 +176,7 @@ class PlaywrightCaptureBackend:
                             )
                         )
                     except Exception as error:
-                        if blocked:
+                        if blocked_navigations:
                             raise ValueError(
                                 "Source capture blocked a non-public or off-origin request"
                             ) from error
@@ -288,6 +311,9 @@ class SourceVisualService:
             evidence=tuple(evidence),
             resources={
                 "browser_launches": int(getattr(backend, "browser_launches", 0)),
+                "blocked_subresources": int(
+                    getattr(backend, "blocked_subresources", 0)
+                ),
                 "max_concurrent_pages": int(
                     getattr(backend, "max_concurrent_pages", 1 if targets else 0)
                 ),
