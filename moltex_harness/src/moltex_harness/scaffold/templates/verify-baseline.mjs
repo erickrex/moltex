@@ -13,9 +13,19 @@ const decodeEntities = (value) => value.replace(
     return { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " }[named.toLowerCase()];
   },
 );
-const visibleText = (value) => decodeEntities(value.replace(/<[^>]+>/g, " "))
-  .replace(/\s+/g, " ")
-  .trim();
+const visibleText = (value) => {
+  let decoded = value;
+  for (let depth = 0; depth < 3; depth += 1) {
+    const next = decodeEntities(decoded);
+    if (next === decoded) break;
+    decoded = next;
+  }
+  return decoded
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([.,;:!?])/g, "$1")
+    .trim();
+};
 const walk = (root) => {
   if (!fs.existsSync(root)) return [];
   return fs.readdirSync(root, { withFileTypes: true }).flatMap((entry) => {

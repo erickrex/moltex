@@ -73,12 +73,17 @@ class FakeBlockedBaseline:
 
 
 class FakePreparer:
-    def __init__(self, workspace_slug: str = "example-com") -> None:
+    def __init__(
+        self,
+        workspace_slug: str = "example-com",
+        export_timestamp: str | None = "2026-07-21_17-51-13",
+    ) -> None:
         self.identity = SiteIdentity(
             site_name="Example Site",
             domain="example.com",
             workspace_slug=workspace_slug,
         )
+        self.export_timestamp = export_timestamp
         self.calls = 0
 
     def prepare(self, archive: Path, root: Path) -> PipelineContext:
@@ -96,6 +101,7 @@ class FakePreparer:
             contracts=cast(ContractSet, object()),
             identity=self.identity,
             metrics=(),
+            export_timestamp=self.export_timestamp,
         )
 
 
@@ -138,7 +144,7 @@ class FakePlanner:
 
 def test_pipeline_publishes_one_migration_ready_workspace(tmp_path: Path) -> None:
     output_root = tmp_path / "output"
-    destination = output_root / "example-com"
+    destination = output_root / "example-com-2026-07-21_17-51-13"
     preparer = FakePreparer()
     service = SitePipelineService(
         baseline=FakeBaseline(),
@@ -152,7 +158,9 @@ def test_pipeline_publishes_one_migration_ready_workspace(tmp_path: Path) -> Non
     assert outcome.exit_code == 0
     assert outcome.destination == destination.resolve()
     assert preparer.calls == 1
-    assert [item.name for item in output_root.iterdir()] == ["example-com"]
+    assert [item.name for item in output_root.iterdir()] == [
+        "example-com-2026-07-21_17-51-13"
+    ]
     assert (destination / "src" / "site.txt").is_file()
     assert (destination / "dist" / "index.html").is_file()
     assert (destination / ".moltex" / "contracts").is_dir()
@@ -182,7 +190,7 @@ def test_pipeline_publishes_one_migration_ready_workspace(tmp_path: Path) -> Non
 
 def test_pipeline_does_not_publish_partial_site_after_failure(tmp_path: Path) -> None:
     output_root = tmp_path / "output"
-    destination = output_root / "example-com"
+    destination = output_root / "example-com-2026-07-21_17-51-13"
     service = SitePipelineService(
         baseline=FakeBaseline(),
         builder=FakeBuilder(False),
@@ -212,7 +220,7 @@ def test_pipeline_does_not_publish_partial_site_after_failure(tmp_path: Path) ->
 
 def test_pipeline_blocks_ineligible_contracts_before_build(tmp_path: Path) -> None:
     output_root = tmp_path / "output"
-    destination = output_root / "example-com"
+    destination = output_root / "example-com-2026-07-21_17-51-13"
     service = SitePipelineService(
         baseline=FakeBlockedBaseline(),
         builder=FakeBuilder(),
@@ -235,7 +243,7 @@ def test_pipeline_blocks_ineligible_contracts_before_build(tmp_path: Path) -> No
 
 def test_pipeline_never_merges_into_an_existing_directory(tmp_path: Path) -> None:
     output_root = tmp_path / "output"
-    destination = output_root / "existing"
+    destination = output_root / "existing-2026-07-21_17-51-13"
     destination.mkdir(parents=True)
     marker = destination / "owned.txt"
     marker.write_text("keep", encoding="utf-8")

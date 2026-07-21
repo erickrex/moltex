@@ -12,6 +12,7 @@ from moltex_harness.scaffold import (
     FetchResult,
     PublicHttpFetcher,
 )
+from moltex_harness.scaffold.media import PermanentMediaFetchError
 
 
 PNG = b"\x89PNG\r\n\x1a\nvalid-test-payload"
@@ -24,6 +25,13 @@ class FakeFetcher:
 
     def fetch(self, url: str) -> FetchResult:
         return FetchResult(self.data, url + "?resolved=1", 2, self.content_type)
+
+
+class MissingFetcher:
+    def fetch(self, url: str) -> FetchResult:
+        raise PermanentMediaFetchError(
+            f"Permanent media HTTP failure 404 for {url}"
+        )
 
 
 def test_deferred_media_is_written_to_contract_path(golden_contracts, tmp_path) -> None:
@@ -64,6 +72,33 @@ def test_referenced_missing_media_blocks_baseline(golden_contracts, tmp_path) ->
 
     with pytest.raises(ValueError, match="Required asset"):
         AssetMaterializer().materialize((asset,), tmp_path / "bundle", tmp_path / "site")
+
+
+def test_dead_deferred_jpeg_is_localized_as_a_recorded_placeholder(
+    golden_contracts, tmp_path
+) -> None:
+    source = golden_contracts.assets[0]
+    asset = source.model_copy(
+        update={
+            "source_url": "https://images.example.test/dead-photo",
+            "target_path": "public/media/dead-photo.jpg",
+            "bundle_path": None,
+            "checksum": None,
+            "bytes": None,
+            "mime_type": None,
+            "acquisition_status": "deferred",
+            "acquisition_method": "source-fetch",
+        }
+    )
+
+    receipt = AssetMaterializer(MissingFetcher()).materialize(
+        (asset,), tmp_path / "bundle", tmp_path / "site"
+    )[0]
+
+    payload = (tmp_path / "site" / asset.target_path).read_bytes()
+    assert payload.startswith(b"\xff\xd8\xff")
+    assert receipt.outcome == "placeholder"
+    assert receipt.failure and "HTTP failure 404" in receipt.failure
 
 
 def test_baseline_does_not_download_assets_awaiting_a_decision(

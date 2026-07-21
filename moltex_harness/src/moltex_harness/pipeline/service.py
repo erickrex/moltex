@@ -177,7 +177,8 @@ class SitePipelineService:
                     3,
                 )
             identity = context.identity
-            destination = (root / identity.workspace_slug).resolve()
+            workspace_name = self._workspace_name(context, run_id)
+            destination = (root / workspace_name).resolve()
             if destination.parent != root:
                 return self._failure(
                     root,
@@ -197,7 +198,7 @@ class SitePipelineService:
                     run_id,
                     "preflight",
                     "output_exists",
-                    f"Site output already exists: {identity.workspace_slug}",
+                    f"Site output already exists: {workspace_name}",
                     2,
                 )
 
@@ -332,6 +333,13 @@ class SitePipelineService:
                     5,
                 )
         return SitePipelineOutcome(report, 0, destination)
+
+    @staticmethod
+    def _workspace_name(context: PipelineContext, run_id: str) -> str:
+        suffix = context.export_timestamp or run_id
+        if not re.fullmatch(r"[0-9A-Za-z_-]+", suffix):
+            raise ValueError("Export timestamp cannot produce a safe workspace name")
+        return f"{context.identity.workspace_slug}-{suffix}"
 
     @staticmethod
     def _task_state_counts(workspace: Path) -> dict[str, int]:

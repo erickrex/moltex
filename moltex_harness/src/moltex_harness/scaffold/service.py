@@ -21,6 +21,7 @@ from moltex_harness.conversion import (
 )
 from moltex_harness.intake.archive import ArchiveLimits, SafeArchive
 from moltex_harness.intake.serialization import deterministic_json, write_json
+from moltex_harness.intake.snapshot_shell import parse_snapshot_shell
 from moltex_harness.models import BaselineCompilationReport
 from moltex_harness.visuals import CaptureBackend, SourceVisualService
 
@@ -34,7 +35,7 @@ if TYPE_CHECKING:
 TEMPLATES = Path(__file__).parent / "templates"
 FailureClassification = Literal["permanent", "blocked", "transient", "harness"]
 
-BASELINE_STYLES = """
+BASELINE_STYLES = r"""
 :root {
   --moltex-color-0: #0f57fb;
   --moltex-color-1: #21252f;
@@ -54,7 +55,7 @@ BASELINE_STYLES = """
   --nv-c-1: #d9b995;
   --nv-c-2: #57606d;
   color: var(--moltex-color-3);
-  font-family: "Work Sans", Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: Roboto, Arial, ui-sans-serif, system-ui, sans-serif;
   font-size: 17px;
   line-height: 1.6;
 }
@@ -64,16 +65,24 @@ body { margin: 0; min-width: 320px; background: var(--moltex-color-4); color: va
 a { color: inherit; }
 img { display: block; max-width: 100%; height: auto; }
 figure { margin: 0; }
-h1, h2, h3, h4, h5, h6 { color: var(--moltex-color-1); font-family: Poppins, "Trebuchet MS", ui-sans-serif, sans-serif; line-height: 1.2; }
+h1, h2, h3, h4, h5, h6 { color: var(--moltex-color-1); font-family: Roboto, Arial, ui-sans-serif, sans-serif; font-weight: 300; line-height: 1.2; }
 .skip { position: fixed; left: -10000px; top: 1rem; z-index: 100; }
 .skip:focus { left: 1rem; background: white; padding: .75rem 1rem; color: #111; }
 .visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; white-space: nowrap !important; }
 .site-header { position: absolute; inset: 0 0 auto; z-index: 20; color: white; }
 .site-header__inner { width: min(1200px, calc(100% - 3rem)); min-height: 88px; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 2rem; }
 .site-brand { color: inherit; font-family: Poppins, "Trebuchet MS", sans-serif; font-size: 1.25rem; font-weight: 700; text-decoration: none; }
+.site-brand__logo { width: auto; max-width: 160px; max-height: 62px; }
+.site-header__cta { flex: 0 0 auto; border-radius: 999px; padding: .9rem 2rem; background: #ff006e; color: white; font-weight: 600; text-decoration: none; }
+.site-menu__state, .site-menu__toggle { display: none; }
+.site-menu__toggle { width: 54px; height: 54px; border: 0; border-radius: 3px; background: white; color: var(--moltex-color-0); cursor: pointer; align-items: center; justify-content: center; flex-direction: column; gap: 5px; }
+.site-menu__toggle span { display: block; width: 24px; height: 3px; border-radius: 2px; background: currentColor; transition: transform .2s ease, opacity .2s ease; }
+.site-menu__state:checked + .site-menu__toggle span:nth-child(1) { transform: translateY(8px) rotate(45deg); }
+.site-menu__state:checked + .site-menu__toggle span:nth-child(2) { opacity: 0; }
+.site-menu__state:checked + .site-menu__toggle span:nth-child(3) { transform: translateY(-8px) rotate(-45deg); }
 .site-header nav > ul { display: flex; align-items: center; gap: 1.75rem; margin: 0; padding: 0; list-style: none; }
 .site-header nav ul ul { position: absolute; margin: 0; padding: .75rem; list-style: none; background: var(--moltex-color-5); color: var(--moltex-color-1); box-shadow: 0 12px 30px rgb(33 37 47 / 18%); }
-.site-header nav a { color: inherit; font-weight: 600; text-decoration: none; }
+.site-header nav a { color: inherit; font-size: .94rem; font-weight: 400; text-decoration: none; }
 .site-header nav a:hover, .site-header nav a:focus-visible { text-decoration: underline; text-underline-offset: .35em; }
 main { width: 100%; min-height: 70vh; }
 .route-content { width: 100%; margin: 0; }
@@ -105,6 +114,7 @@ main { width: 100%; min-height: 70vh; }
   --moltex-background-image: none; --moltex-lg-background-image: var(--moltex-background-image); --moltex-md-background-image: var(--moltex-lg-background-image); --moltex-sm-background-image: var(--moltex-md-background-image);
   --moltex-background-position: center; --moltex-lg-background-position: var(--moltex-background-position); --moltex-md-background-position: var(--moltex-lg-background-position); --moltex-sm-background-position: var(--moltex-md-background-position);
   --moltex-background-size: cover; --moltex-lg-background-size: var(--moltex-background-size); --moltex-md-background-size: var(--moltex-lg-background-size); --moltex-sm-background-size: var(--moltex-md-background-size);
+  --moltex-background-blend-mode: normal;
   --moltex-border-width: 0; --moltex-lg-border-width: var(--moltex-border-width); --moltex-md-border-width: var(--moltex-lg-border-width); --moltex-sm-border-width: var(--moltex-md-border-width);
   --moltex-border-style: solid; --moltex-lg-border-style: var(--moltex-border-style); --moltex-md-border-style: var(--moltex-lg-border-style); --moltex-sm-border-style: var(--moltex-md-border-style);
   --moltex-border-color: transparent; --moltex-lg-border-color: var(--moltex-border-color); --moltex-md-border-color: var(--moltex-lg-border-color); --moltex-sm-border-color: var(--moltex-md-border-color);
@@ -114,6 +124,7 @@ main { width: 100%; min-height: 70vh; }
   --moltex-font-family: inherit; --moltex-lg-font-family: var(--moltex-font-family); --moltex-md-font-family: var(--moltex-lg-font-family); --moltex-sm-font-family: var(--moltex-md-font-family);
   --moltex-font-weight: inherit; --moltex-lg-font-weight: var(--moltex-font-weight); --moltex-md-font-weight: var(--moltex-lg-font-weight); --moltex-sm-font-weight: var(--moltex-md-font-weight);
   --moltex-line-height: inherit; --moltex-lg-line-height: var(--moltex-line-height); --moltex-md-line-height: var(--moltex-lg-line-height); --moltex-sm-line-height: var(--moltex-md-line-height);
+  --moltex-text-align: inherit; --moltex-lg-text-align: var(--moltex-text-align); --moltex-md-text-align: var(--moltex-lg-text-align); --moltex-sm-text-align: var(--moltex-md-text-align);
   box-sizing: border-box;
   display: var(--moltex-lg-display, var(--moltex-display, block));
   grid-template-columns: var(--moltex-lg-grid-columns, var(--moltex-grid-columns, none));
@@ -142,13 +153,16 @@ main { width: 100%; min-height: 70vh; }
   background-image: var(--moltex-lg-background-image, var(--moltex-background-image, none));
   background-position: var(--moltex-lg-background-position, var(--moltex-background-position, center));
   background-size: var(--moltex-lg-background-size, var(--moltex-background-size, cover));
+  background-blend-mode: var(--moltex-background-blend-mode, normal);
   background-repeat: no-repeat;
   color: var(--moltex-lg-color, var(--moltex-color, inherit));
   font-family: var(--moltex-lg-font-family, var(--moltex-font-family, inherit));
   font-size: var(--moltex-lg-font-size, var(--moltex-font-size, inherit));
   font-weight: var(--moltex-lg-font-weight, var(--moltex-font-weight, inherit));
   line-height: var(--moltex-lg-line-height, var(--moltex-line-height, inherit));
+  text-align: var(--moltex-lg-text-align, var(--moltex-text-align, inherit));
 }
+h1.moltex-content { max-width: min(1200px, calc(100% - 2rem)); }
 .moltex-buttons { align-items: center; }
 .moltex-button { display: inline-flex; align-items: center; justify-content: center; width: auto; min-height: 48px; padding: .75em 2em; border-radius: 3px; background: var(--moltex-lg-background-color, var(--moltex-background-color, var(--moltex-color-0))); color: var(--moltex-lg-color, var(--moltex-color, white)); font-weight: 600; text-decoration: none; transition: transform .2s ease, opacity .2s ease; }
 .moltex-button:hover, .moltex-button:focus-visible { opacity: .9; transform: translateY(-1px); }
@@ -163,16 +177,27 @@ main { width: 100%; min-height: 70vh; }
 /* Safe utility treatment for paired Gutenberg blocks that ship rendered HTML. */
 .relative { position: relative; } .absolute { position: absolute; } .inset-0 { inset: 0; }
 .flex { display: flex; } .grid { display: grid; } .flex-col { flex-direction: column; } .flex-row { flex-direction: row; } .flex-wrap { flex-wrap: wrap; }
+.grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); } .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .items-center { align-items: center; } .items-start { align-items: flex-start; } .items-stretch { align-items: stretch; }
-.justify-center { justify-content: center; } .justify-between { justify-content: space-between; }
-.w-full { width: 100%; } .h-full { height: 100%; } .object-cover { object-fit: cover; }
+.justify-center { justify-content: center; } .justify-between { justify-content: space-between; } .justify-end { justify-content: flex-end; }
+.w-full { width: 100%; } .w-12 { width: 3rem; } .h-full { height: 100%; } .h-12 { height: 3rem; } .h-64 { height: 16rem; } .h-80 { height: 20rem; } .h-96 { height: 24rem; } .object-cover { object-fit: cover; }
+.aspect-video { aspect-ratio: 16 / 9; } [class~="aspect-[16/10]"] { aspect-ratio: 16 / 10; } [class~="aspect-[4/3]"] { aspect-ratio: 4 / 3; }
 .mx-auto { margin-inline: auto; } .text-center { text-align: center; } .uppercase { text-transform: uppercase; }
-.font-semibold { font-weight: 600; } .font-bold { font-weight: 700; } .opacity-30 { opacity: .3; } .opacity-80 { opacity: .8; } .opacity-90 { opacity: .9; }
-.max-w-2xl { max-width: 42rem; } .max-w-3xl { max-width: 48rem; } .max-w-5xl { max-width: 64rem; } .max-w-6xl { max-width: 72rem; }
-.gap-2 { gap: .5rem; } .gap-3 { gap: .75rem; } .gap-4 { gap: 1rem; } .gap-5 { gap: 1.25rem; } .gap-6 { gap: 1.5rem; } .gap-10 { gap: 2.5rem; } .gap-12 { gap: 3rem; } .gap-16 { gap: 4rem; }
-.p-8 { padding: 2rem; } .px-6 { padding-inline: 1.5rem; } .px-8 { padding-inline: 2rem; } .py-4 { padding-block: 1rem; } .py-12 { padding-block: 3rem; } .py-20 { padding-block: 5rem; } .py-24 { padding-block: 6rem; } .py-32 { padding-block: 8rem; } .py-40 { padding-block: 10rem; }
-.mb-12 { margin-bottom: 3rem; } .mt-1 { margin-top: .25rem; } .mt-2 { margin-top: .5rem; } .mt-4 { margin-top: 1rem; }
-.text-xs { font-size: .75rem; } .text-sm { font-size: .875rem; } .text-lg { font-size: 1.125rem; } .text-xl { font-size: 1.25rem; } .text-5xl { font-size: 3rem; }
+.font-sans { font-family: "Work Sans", Inter, ui-sans-serif, system-ui, sans-serif; } .font-serif { font-family: Georgia, "Times New Roman", serif; } .font-semibold { font-weight: 600; } .font-bold { font-weight: 700; } .italic { font-style: italic; }
+.leading-relaxed { line-height: 1.625; } .tracking-wide { letter-spacing: .025em; } .tracking-wider { letter-spacing: .05em; } [class~="tracking-[.25em]"] { letter-spacing: .25em; }
+.opacity-30 { opacity: .3; } .opacity-70 { opacity: .7; } .opacity-80 { opacity: .8; } .opacity-90 { opacity: .9; }
+.max-w-xl { max-width: 36rem; } .max-w-2xl { max-width: 42rem; } .max-w-3xl { max-width: 48rem; } .max-w-4xl { max-width: 56rem; } .max-w-5xl { max-width: 64rem; } .max-w-6xl { max-width: 72rem; }
+.gap-0 { gap: 0; } .gap-1 { gap: .25rem; } .gap-2 { gap: .5rem; } .gap-3 { gap: .75rem; } .gap-4 { gap: 1rem; } .gap-5 { gap: 1.25rem; } .gap-6 { gap: 1.5rem; } .gap-8 { gap: 2rem; } .gap-10 { gap: 2.5rem; } .gap-12 { gap: 3rem; } .gap-16 { gap: 4rem; }
+.p-6 { padding: 1.5rem; } .p-8 { padding: 2rem; } .pb-6 { padding-bottom: 1.5rem; } .px-3 { padding-inline: .75rem; } .px-6 { padding-inline: 1.5rem; } .px-8 { padding-inline: 2rem; } .py-1 { padding-block: .25rem; } .py-3 { padding-block: .75rem; } .py-4 { padding-block: 1rem; } .py-8 { padding-block: 2rem; } .py-12 { padding-block: 3rem; } .py-20 { padding-block: 5rem; } .py-24 { padding-block: 6rem; } .py-32 { padding-block: 8rem; } .py-40 { padding-block: 10rem; }
+.mb-2 { margin-bottom: .5rem; } .mb-12 { margin-bottom: 3rem; } .mt-1 { margin-top: .25rem; } .mt-2 { margin-top: .5rem; } .mt-4 { margin-top: 1rem; } .mt-6 { margin-top: 1.5rem; } .mt-10 { margin-top: 2.5rem; }
+.text-xs { font-size: .75rem; } .text-sm { font-size: .875rem; } .text-base { font-size: 1rem; } .text-lg { font-size: 1.125rem; } .text-xl { font-size: 1.25rem; } .text-2xl { font-size: 1.5rem; } .text-3xl { font-size: 1.875rem; } .text-4xl { font-size: 2.25rem; } .text-5xl { font-size: 3rem; }
+.text-white { color: #fff; } [class~="text-white/70"] { color: rgb(255 255 255 / .7); } .text-gray-600 { color: #4b5563; }
+.bg-white { background-color: #fff; } .bg-primary { background-color: var(--nv-primary-accent); } [class~="bg-[var(--nv-c-1)]"] { background-color: var(--nv-c-1); }
+.overflow-hidden { overflow: hidden; } .rounded-sm { border-radius: .125rem; } .rounded-lg { border-radius: .5rem; } .rounded-full { border-radius: 9999px; } .shadow-sm { box-shadow: 0 1px 3px rgb(0 0 0 / .12); }
+.border { border-width: 1px; border-style: solid; } .border-2 { border-width: 2px; border-style: solid; } .border-b { border-bottom-width: 1px; border-bottom-style: solid; } .border-t-0 { border-top-width: 0; } .border-gray-200 { border-color: #e5e7eb; } .border-primary { border-color: var(--nv-primary-accent); } [class~="border-white/40"] { border-color: rgb(255 255 255 / .4); } [class~="border-[var(--nv-c-2)]"] { border-color: var(--nv-c-2); } [class~="border-[var(--nv-c-2)]/10"] { border-color: rgb(87 96 109 / .1); } [class~="border-[var(--nv-c-2)]/20"] { border-color: rgb(87 96 109 / .2); }
+.flex-grow { flex-grow: 1; } .flex-shrink-0, .shrink-0 { flex-shrink: 0; } .inline-block { display: inline-block; } .line-clamp-3 { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.bg-gradient-to-t { background-image: linear-gradient(to top, var(--tw-gradient-from, transparent), var(--tw-gradient-to, transparent)); } [class~="from-black/70"] { --tw-gradient-from: rgb(0 0 0 / .7); --tw-gradient-to: transparent; }
+.transition-colors { transition: color .2s ease, background-color .2s ease, border-color .2s ease; } .transition-transform { transition: transform .3s ease; } .group:hover .group-hover\:scale-105 { transform: scale(1.05); }
 [class*="bg-[var(--nv-dark-bg)]"] { background: var(--nv-dark-bg); }
 [class*="bg-[var(--nv-site-bg)]"] { background: var(--nv-site-bg); }
 [class*="text-[var(--nv-text-dark-bg)]"] { color: var(--nv-text-dark-bg); }
@@ -198,12 +223,26 @@ main { width: 100%; min-height: 70vh; }
     padding: var(--moltex-md-padding-top, var(--moltex-lg-padding-top, var(--moltex-padding-top, 0))) var(--moltex-md-padding-right, var(--moltex-lg-padding-right, var(--moltex-padding-right, 0))) var(--moltex-md-padding-bottom, var(--moltex-lg-padding-bottom, var(--moltex-padding-bottom, 0))) var(--moltex-md-padding-left, var(--moltex-lg-padding-left, var(--moltex-padding-left, 0)));
     margin: var(--moltex-md-margin-top, var(--moltex-lg-margin-top, var(--moltex-margin-top, 0))) var(--moltex-md-margin-right, var(--moltex-lg-margin-right, var(--moltex-margin-right, 0))) var(--moltex-md-margin-bottom, var(--moltex-lg-margin-bottom, var(--moltex-margin-bottom, 0))) var(--moltex-md-margin-left, var(--moltex-lg-margin-left, var(--moltex-margin-left, 0)));
     font-size: var(--moltex-md-font-size, var(--moltex-lg-font-size, var(--moltex-font-size, inherit)));
+    text-align: var(--moltex-md-text-align, var(--moltex-lg-text-align, var(--moltex-text-align, inherit)));
   }
-  .md\\:flex-row { flex-direction: row; } .md\\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 768px) {
+  .md\:flex-row { flex-direction: row; } .md\:flex-row-reverse { flex-direction: row-reverse; } .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .md\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .md\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } .md\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .md\:gap-16 { gap: 4rem; } .md\:p-10 { padding: 2.5rem; } .md\:py-32 { padding-block: 8rem; } .md\:py-40 { padding-block: 10rem; } .md\:text-xl { font-size: 1.25rem; } .md\:text-2xl { font-size: 1.5rem; } .md\:text-3xl { font-size: 1.875rem; }
+  .md\:w-1\/2 { width: 50%; } .md\:w-5\/12 { width: 41.666667%; } .md\:w-7\/12 { width: 58.333333%; }
+}
+@media (min-width: 1024px) {
+  .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .lg\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media (max-width: 767px) {
-  .site-header__inner { width: calc(100% - 2rem); align-items: flex-start; flex-direction: column; justify-content: center; gap: .35rem; }
-  .site-header nav > ul { flex-wrap: wrap; gap: .35rem 1rem; font-size: .85rem; }
+  .site-header__inner { width: calc(100% - 2rem); min-height: 96px; align-items: center; flex-direction: row; justify-content: space-between; gap: 1rem; }
+  .site-menu__state { position: absolute; display: block; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
+  .site-menu__toggle { display: inline-flex; }
+  .site-header__cta { display: none; }
+  .site-header nav { display: none; position: absolute; top: calc(100% - .5rem); right: 1rem; left: 1rem; padding: 1rem 1.25rem; border-radius: 3px; background: white; color: var(--moltex-color-1); box-shadow: 0 14px 36px rgb(0 0 0 / .22); }
+  .site-menu__state:checked ~ nav { display: block; }
+  .site-header nav > ul { align-items: stretch; flex-direction: column; flex-wrap: nowrap; gap: .4rem; font-size: 1rem; }
+  .site-header nav a { display: block; padding: .45rem 0; }
   .moltex-block {
     display: var(--moltex-sm-display, var(--moltex-md-display, var(--moltex-display, block)));
     grid-template-columns: var(--moltex-sm-grid-columns, var(--moltex-md-grid-columns, var(--moltex-grid-columns, none)));
@@ -217,6 +256,7 @@ main { width: 100%; min-height: 70vh; }
     padding: var(--moltex-sm-padding-top, var(--moltex-md-padding-top, var(--moltex-padding-top, 0))) var(--moltex-sm-padding-right, var(--moltex-md-padding-right, var(--moltex-padding-right, 0))) var(--moltex-sm-padding-bottom, var(--moltex-md-padding-bottom, var(--moltex-padding-bottom, 0))) var(--moltex-sm-padding-left, var(--moltex-md-padding-left, var(--moltex-padding-left, 0)));
     margin: var(--moltex-sm-margin-top, var(--moltex-md-margin-top, var(--moltex-margin-top, 0))) var(--moltex-sm-margin-right, var(--moltex-md-margin-right, var(--moltex-margin-right, 0))) var(--moltex-sm-margin-bottom, var(--moltex-md-margin-bottom, var(--moltex-margin-bottom, 0))) var(--moltex-sm-margin-left, var(--moltex-md-margin-left, var(--moltex-margin-left, 0)));
     font-size: var(--moltex-sm-font-size, var(--moltex-md-font-size, var(--moltex-font-size, inherit)));
+    text-align: var(--moltex-sm-text-align, var(--moltex-md-text-align, var(--moltex-text-align, inherit)));
   }
   .wp-block-columns, .wp-block-media-text { grid-template-columns: 1fr; flex-direction: column; }
 }
@@ -335,7 +375,7 @@ class BaselineService:
                 )
                 write_json(workspace / ".moltex" / "receipts" / "assets.json", receipts)
                 conversion_receipts = self._generate(
-                    workspace, contracts, omitted_route_ids
+                    workspace, contracts, omitted_route_ids, extraction
                 )
                 self._write_expectations(
                     workspace,
@@ -408,6 +448,7 @@ class BaselineService:
         workspace: Path,
         contracts: Any,
         omitted_route_ids: set[str],
+        extraction: Path,
     ) -> tuple[Any, ...]:
         workspace.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(TEMPLATES / "package.json", workspace / "package.json")
@@ -440,10 +481,16 @@ class BaselineService:
         }
         seo_by_route = {item.route_contract_id: item for item in contracts.seo}
         url_map = {entry.source_url: entry.target_url for entry in contracts.url_map}
-        media_map = {
-            entry.source_url: entry.target_url for entry in contracts.media_map
-        }
         assets_by_id = {asset.asset_id: asset for asset in contracts.assets}
+        media_map = {
+            entry.source_url: entry.target_url
+            for entry in contracts.media_map
+            if (
+                (asset := assets_by_id.get(entry.asset_contract_id)) is not None
+                and not asset.needs_decision
+                and asset.acquisition_status != "missing"
+            )
+        }
         legacy_bindings: dict[str, dict[str, str | None]] = {}
         for item in contracts.legacy_evidence:
             if item.disposition not in {"decide", "acquire"}:
@@ -506,7 +553,11 @@ class BaselineService:
             safe_name = record.record_id.replace(":", "-") + ".json"
             write_json(workspace / "src" / "content" / "records" / safe_name, document)
         write_json(workspace / ".moltex" / "receipts" / "conversion.json", receipts)
-        self._write_shell(workspace, contracts.site_spec.site_name)
+        self._write_shell(
+            workspace,
+            contracts.site_spec.site_name,
+            self._snapshot_shell_context(extraction, contracts),
+        )
         self._write_navigation(workspace, contracts, routes_by_id, omitted_route_ids)
         posts = [
             item["recordId"]
@@ -584,8 +635,20 @@ class BaselineService:
         return tuple(receipts)
 
     @staticmethod
-    def _write_shell(workspace: Path, site_name: str) -> None:
-        write_json(workspace / "src" / "data" / "site.json", {"siteName": site_name})
+    def _write_shell(
+        workspace: Path,
+        site_name: str,
+        shell_context: dict[str, Any] | None = None,
+    ) -> None:
+        shell_context = shell_context or {}
+        write_json(
+            workspace / "src" / "data" / "site.json",
+            {
+                "siteName": site_name,
+                "siteLogo": shell_context.get("siteLogo"),
+                "headerCta": shell_context.get("headerCta"),
+            },
+        )
         styles = workspace / "src" / "styles" / "moltex.css"
         styles.parent.mkdir(parents=True, exist_ok=True)
         styles.write_text(BASELINE_STYLES, encoding="utf-8")
@@ -608,10 +671,47 @@ class BaselineService:
             '<meta name="description" content={description}><meta name="robots" content={robots}><link rel="canonical" href={canonical}>'
             "{ogEntries.map(([property, content]) => <meta property={String(property).startsWith('og:') ? String(property) : `og:${property}`} content={String(content)} />)}"
             '{structuredDataHints.map((hint) => <meta name="moltex:structured-data-hint" content={hint} />)}<title>{title}</title></head>'
-            '<body><a class="skip" href="#content">Skip to content</a><header class="site-header"><div class="site-header__inner"><a class="site-brand" href="/">{site.siteName}</a><nav aria-label="Primary"><NavigationList items={nav} /></nav></div></header>'
+            '<body><a class="skip" href="#content">Skip to content</a><header class="site-header"><div class="site-header__inner"><a class="site-brand" href="/">{site.siteLogo ? <img class="site-brand__logo" src={site.siteLogo.src} alt={site.siteLogo.alt} /> : site.siteName}</a><input class="site-menu__state" id="primary-navigation-toggle" type="checkbox" aria-label="Main menu toggle"><label class="site-menu__toggle" for="primary-navigation-toggle" role="button"><span></span><span></span><span></span></label><nav id="primary-navigation" aria-label="Primary"><NavigationList items={nav} /></nav>{site.headerCta ? <a class="site-header__cta" href={site.headerCta.href}>{site.headerCta.label}</a> : null}</div></header>'
             '<main id="content"><slot /></main><footer class="site-footer">{site.siteName}</footer></body></html>\n',
             encoding="utf-8",
         )
+
+    @staticmethod
+    def _snapshot_shell_context(extraction: Path, contracts: Any) -> dict[str, Any]:
+        front_route = next(
+            (route for route in contracts.routes if route.target_url == "/"), None
+        )
+        front_record = next(
+            (
+                record
+                for record in contracts.content_records
+                if front_route and record.record_id == front_route.content_record_id
+            ),
+            None,
+        )
+        if front_record is None:
+            return {}
+        snapshot = extraction / "snapshots" / f"{front_record.slug}.html"
+        if not snapshot.is_file():
+            return {}
+        observed = parse_snapshot_shell(snapshot.read_text(encoding="utf-8"))
+        media_targets = {
+            entry.source_url: entry.target_url for entry in contracts.media_map
+        }
+        logo = next(iter(observed["media"]), None)
+        cta = next(iter(observed["header_ctas"]), None)
+        result: dict[str, Any] = {}
+        if logo and logo["url"] in media_targets:
+            result["siteLogo"] = {
+                "src": media_targets[logo["url"]],
+                "alt": logo.get("alt") or contracts.site_spec.site_name,
+            }
+        if cta:
+            result["headerCta"] = {
+                "href": cta.get("url") or "#",
+                "label": cta["label"],
+            }
+        return result
 
     @staticmethod
     def _write_navigation(
@@ -622,13 +722,21 @@ class BaselineService:
     ) -> None:
         navigation_sources = list(contracts.site_spec.global_navigation)
         if navigation_sources:
-            menu_sizes: dict[str, int] = {}
-            for source in navigation_sources:
-                menu_sizes[source.menu_id] = menu_sizes.get(source.menu_id, 0) + 1
-            primary_menu_id = max(
-                menu_sizes,
-                key=lambda menu_id: (menu_sizes[menu_id], menu_id),
-            )
+            assigned_primary = {
+                source.menu_id
+                for source in navigation_sources
+                if source.menu_id.startswith("menu:primary:")
+            }
+            if assigned_primary:
+                primary_menu_id = min(assigned_primary)
+            else:
+                menu_sizes: dict[str, int] = {}
+                for source in navigation_sources:
+                    menu_sizes[source.menu_id] = menu_sizes.get(source.menu_id, 0) + 1
+                primary_menu_id = max(
+                    menu_sizes,
+                    key=lambda menu_id: (menu_sizes[menu_id], menu_id),
+                )
             navigation_sources = [
                 source
                 for source in navigation_sources
@@ -770,8 +878,21 @@ class BaselineService:
 
     @staticmethod
     def _body_marker(value: str, limit: int = 80) -> str:
+        decoded = value
+        for _ in range(3):
+            unescaped = html.unescape(decoded)
+            if unescaped == decoded:
+                break
+            decoded = unescaped
+        decoded = re.sub(
+            r"</?(?:a|b|em|i|small|span|strong|u)(?:\s[^>]*)?>",
+            "",
+            decoded,
+            flags=re.IGNORECASE,
+        )
         candidates = [
-            re.sub(r"\s+", " ", part).strip() for part in re.split(r"<[^>]+>", value)
+            re.sub(r"\s+", " ", part).strip()
+            for part in re.split(r"<[^>]+>", decoded)
         ]
         candidates = [part for part in candidates if part]
         return max(candidates, key=len, default="")[:limit]

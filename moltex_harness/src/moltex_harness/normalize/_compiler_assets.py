@@ -56,6 +56,22 @@ class _AssetCompilerMixin(_CompilerSupport):
             if item.source_id is not None:
                 by_source_id[str(item.source_id)] = asset_id
 
+        for artifact in raw.html_references:
+            data = artifact.data if isinstance(artifact.data, dict) else {}
+            media = data.get("media", [])
+            for index, item in enumerate(media if isinstance(media, list) else []):
+                if not isinstance(item, dict) or not isinstance(item.get("url"), str):
+                    continue
+                source_url = str(item["url"])
+                asset_id = self._add_deferred_media(
+                    observations,
+                    source_url,
+                    _field_ref(artifact.evidence, f"/media/{index}/url"),
+                    str(item.get("role") or "img"),
+                )
+                observations[asset_id]["alt_text"] = str(item.get("alt") or "")
+                by_url.setdefault(source_url, asset_id)
+
         content_assets: dict[str, set[str]] = defaultdict(set)
         for content in raw.content:
             content_id = str(content.source_id)
@@ -120,6 +136,19 @@ class _AssetCompilerMixin(_CompilerSupport):
                     references.add(by_url[absolute])
                 elif source in by_url:
                     references.add(by_url[source])
+                elif (
+                    urlsplit(absolute).scheme in {"http", "https"}
+                    and parser.source_tags.get(source)
+                    in {"img", "source", "background"}
+                ):
+                    references.add(
+                        self._add_deferred_media(
+                            observations,
+                            absolute,
+                            content.evidence,
+                            parser.source_tags[source],
+                        )
+                    )
                 elif "/wp-content/uploads/" in absolute:
                     references.add(
                         self._add_missing_media(
@@ -138,7 +167,12 @@ class _AssetCompilerMixin(_CompilerSupport):
             source_url = observation["source_url"]
             evidence: EvidenceReference = observation["evidence"]
             bundle_path = media_item.artifact if media_item else None
-            target_path = self._media_target_path(asset_id, source_url, media_item)
+            target_path = self._media_target_path(
+                asset_id,
+                source_url,
+                media_item,
+                observation.get("media_kind"),
+            )
             target_url = "/" + target_path.removeprefix("public/")
             existing = target_paths.get(target_path)
             if existing and existing != asset_id:
@@ -156,7 +190,9 @@ class _AssetCompilerMixin(_CompilerSupport):
                 acquisition_method: Literal[
                     "bundle", "source-fetch", "operator-decision"
                 ] = "bundle"
-            elif declared and declared.status == "deferred":
+            elif (
+                declared and declared.status == "deferred"
+            ) or observation.get("acquisition_override") == "deferred":
                 acquisition_status = "deferred"
                 acquisition_method = "source-fetch"
             else:
@@ -192,7 +228,11 @@ class _AssetCompilerMixin(_CompilerSupport):
                     checksum=media_item.sha256 if media_item else None,
                     bytes=media_item.bytes if media_item else None,
                     mime_type=media_item.mime_type if media_item else None,
-                    alt_text=media_item.alt_text if media_item else None,
+                    alt_text=(
+                        media_item.alt_text
+                        if media_item
+                        else observation.get("alt_text")
+                    ),
                     referencing_content_ids=tuple(sorted(observation["refs"])),
                     transform=(
                         {"operation": "acquire-source", "stage": "h3"}
@@ -235,6 +275,7 @@ class _AssetCompilerMixin(_CompilerSupport):
         asset_id: str,
         source_url: str,
         item: RawMediaEvidence | None,
+        media_kind: str | None = None,
     ) -> str:
         """Assign a stable collision-resistant local destination for every source URL."""
         source_path = PurePosixPath(urlsplit(source_url).path)
@@ -266,7 +307,11 @@ class _AssetCompilerMixin(_CompilerSupport):
                 "image/webp": ".webp",
                 "video/mp4": ".mp4",
             }.get(item.mime_type.lower(), "")
-        suffix = suffix or ".bin"
+        # HTML image services commonly use extensionless transformation URLs. The
+        # materializer still validates the response signature before writing it;
+        # a stable image extension lets static hosts serve the acquired file as an
+        # image instead of an opaque download.
+        suffix = suffix or (".jpg" if media_kind in {"img", "source"} else ".bin")
         stem = stable_token(source_path.stem or "media")[:80]
         identity = stable_token(asset_id)[:80]
         filename = f"{identity}-{stem}-{stable_hash(source_url, length=12)}{suffix}"
@@ -286,6 +331,27 @@ class _AssetCompilerMixin(_CompilerSupport):
                 "source_url": source_url,
                 "refs": set(),
                 "evidence": evidence,
+            },
+        )
+        return asset_id
+
+    @staticmethod
+    def _add_deferred_media(
+        observations: dict[str, dict[str, Any]],
+        source_url: str,
+        evidence: EvidenceReference,
+        media_kind: str,
+    ) -> str:
+        asset_id = f"asset:deferred:{stable_hash(source_url)}"
+        observations.setdefault(
+            asset_id,
+            {
+                "raw": None,
+                "source_url": source_url,
+                "refs": set(),
+                "evidence": evidence,
+                "acquisition_override": "deferred",
+                "media_kind": media_kind,
             },
         )
         return asset_id

@@ -163,7 +163,7 @@ def test_converter_preserves_native_gutenberg_layout_and_spectra_content(
 <div class="wp-block-group">
 <!-- wp:columns {"style":{"spacing":{"blockGap":"2rem"}}} -->
 <div class="wp-block-columns"><div class="wp-block-column">
-<!-- wp:spectra/content {"tagName":"h1","text":"A preserved &amp; safe heading","textColor":"#ffffff","style":{"typography":{"fontSize":"2.5rem"}}} /-->
+<!-- wp:spectra/content {"tagName":"h1","text":"A preserved &amp; safe heading","textColor":"#ffffff","style":{"typography":{"fontSize":"2.5rem","textAlign":"center"}}} /-->
 <!-- wp:paragraph --><p>Native paragraph copy.</p><!-- /wp:paragraph -->
 </div></div><!-- /wp:columns -->
 </div><!-- /wp:group -->
@@ -182,8 +182,31 @@ def test_converter_preserves_native_gutenberg_layout_and_spectra_content(
     assert "moltex-core-group" in receipt.sanitized_html
     assert "moltex-core-columns" in receipt.sanitized_html
     assert "--moltex-font-size:2.5rem" in receipt.sanitized_html
+    assert "--moltex-text-align:center" in receipt.sanitized_html
+    assert "--moltex-font-weight:700" not in receipt.sanitized_html
     assert "moltex-placeholder" not in receipt.sanitized_html
     assert any(item.code == "gutenberg_blocks_converted" for item in receipt.findings)
+
+
+def test_converter_preserves_safe_inline_markup_in_spectra_text(
+    golden_contracts,
+) -> None:
+    source = (
+        '<!-- wp:spectra/content {"tagName":"h1","text":'
+        '"Start <strong><u>learning</u></strong> safely '
+        '<script>bad()</script>"} /-->'
+    )
+    record = golden_contracts.content_records[0].model_copy(
+        update={"original_html": source}
+    )
+
+    receipt = ContentConverter(
+        UrlRewriter(golden_contracts.site_spec.source_origin, {}, {})
+    ).convert(record)
+
+    assert "<strong><u>learning</u></strong>" in receipt.sanitized_html
+    assert "<script>" not in receipt.sanitized_html
+    assert "bad()" not in receipt.sanitized_html
 
 
 def test_converter_localizes_spectra_layout_background_and_button(
@@ -216,6 +239,27 @@ def test_converter_localizes_spectra_layout_background_and_button(
     assert receipt.rewritten_urls == 2
 
 
+def test_converter_localizes_spectra_background_media(golden_contracts) -> None:
+    origin = golden_contracts.site_spec.source_origin
+    source_image = f"{origin}/wp-content/uploads/hero.jpg"
+    source = (
+        '<!-- wp:spectra/container {"backgroundColor":"rgba(0,0,0,0.5)","background":{"type":"image","media":'
+        f'{{"url":"{source_image}"}},"backgroundSize":"cover",'
+        '"backgroundPosition":{"x":0.48,"y":0}}} /-->'
+    )
+    record = golden_contracts.content_records[0].model_copy(
+        update={"original_html": source}
+    )
+
+    receipt = ContentConverter(
+        UrlRewriter(origin, {}, {source_image: "/media/hero.jpg"})
+    ).convert(record)
+
+    assert 'url(&quot;/media/hero.jpg&quot;)' in receipt.sanitized_html
+    assert "--moltex-background-position:48% 0%" in receipt.sanitized_html
+    assert "--moltex-background-blend-mode:multiply" in receipt.sanitized_html
+
+
 def test_converter_keeps_dynamic_core_blocks_explicit(golden_contracts) -> None:
     record = golden_contracts.content_records[0].model_copy(
         update={"original_html": '<!-- wp:latest-posts {"postsToShow":3} /-->'}
@@ -227,6 +271,22 @@ def test_converter_keeps_dynamic_core_blocks_explicit(golden_contracts) -> None:
     assert 'data-moltex-dynamic-block="core/latest-posts"' in receipt.sanitized_html
     assert "Latest Posts" in receipt.sanitized_html
     assert any(item.code == "gutenberg_blocks_unresolved" for item in receipt.findings)
+
+
+def test_converter_preserves_semantic_spectra_icon_glyphs(golden_contracts) -> None:
+    record = golden_contracts.content_records[0].model_copy(
+        update={
+            "original_html": (
+                '<!-- wp:spectra/icon {"icon":"circle-arrow-down"} /-->'
+            )
+        }
+    )
+
+    receipt = ContentConverter(
+        UrlRewriter(golden_contracts.site_spec.source_origin, {}, {})
+    ).convert(record)
+
+    assert ">↓</span>" in receipt.sanitized_html
 
 
 def test_generated_gutenberg_styles_reject_css_injection(golden_contracts) -> None:

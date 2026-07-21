@@ -50,6 +50,8 @@ class AssetAcquisitionReceipt(BaselineModel):
     bytes: int = Field(ge=0)
     sha256: str
     attempts: int = Field(ge=1)
+    outcome: Literal["acquired", "placeholder"] = "acquired"
+    failure: str | None = None
 
 
 class SourceVisualEvidence(BaselineModel):

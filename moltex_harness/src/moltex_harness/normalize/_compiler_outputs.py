@@ -63,7 +63,7 @@ class _OutputCompilerMixin(_CompilerSupport):
             for menu_index, menu in enumerate(menus if isinstance(menus, list) else []):
                 if not isinstance(menu, dict):
                     continue
-                menu_id = f"menu:{stable_token(menu.get('term_id') or menu.get('slug') or menu_index)}"
+                menu_id = self._menu_id(menu, menu_index)
                 items = menu.get("items", [])
                 raw_ids = {
                     str(item.get("id")): f"navigation:{stable_token(item.get('id'))}"
@@ -126,6 +126,15 @@ class _OutputCompilerMixin(_CompilerSupport):
         return sorted(
             result, key=lambda item: (item.menu_id, item.order, item.navigation_id)
         )
+
+    @staticmethod
+    def _menu_id(menu: dict[str, Any], menu_index: int) -> str:
+        identity = stable_token(
+            menu.get("term_id") or menu.get("slug") or menu_index
+        )
+        locations = menu.get("locations", [])
+        is_primary = isinstance(locations, list) and "primary" in locations
+        return f"menu:{'primary:' if is_primary else ''}{identity}"
 
     @staticmethod
     def _url_map(routes: list[RouteContract], origin: str) -> list[UrlMapEntry]:

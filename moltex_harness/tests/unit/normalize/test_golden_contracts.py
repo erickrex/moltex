@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from moltex_harness.models import CapabilityDispositionKind, StaticEligibility
+from moltex_harness.normalize import ContractCompiler
 
 
 def test_golden_counts_and_contract_coverage(golden_contracts) -> None:
@@ -51,6 +52,15 @@ def test_menu_hierarchy_references_route_contracts(golden_contracts) -> None:
         item.parent_navigation_id is None or item.parent_navigation_id in navigation_ids
         for item in navigation
     )
+
+
+def test_assigned_primary_menu_identity_is_preserved() -> None:
+    compiler = ContractCompiler()
+
+    assert compiler._menu_id({"term_id": 21, "locations": ["primary"]}, 0) == (
+        "menu:primary:21"
+    )
+    assert compiler._menu_id({"term_id": 3, "locations": []}, 1) == "menu:3"
 
 
 def test_media_maps_are_immutable_and_references_reconcile(golden_contracts) -> None:
@@ -103,3 +113,70 @@ def test_visual_plan_is_bounded_and_covers_families(golden_contracts) -> None:
             "mobile-500x844",
         }
         assert len({target.evidence_id for target in targets}) == 2
+
+
+def test_external_html_images_are_deferred_to_local_asset_acquisition(
+    golden_raw_evidence,
+) -> None:
+    source_url = "https://images.example.test/photo-123?w=1400&q=80"
+    first = golden_raw_evidence.content[0].model_copy(
+        update={
+            "original_html": (
+                f'<section><img src="{source_url}" alt="Charleston home"></section>'
+            )
+        }
+    )
+    raw = golden_raw_evidence.model_copy(
+        update={"content": [first, *golden_raw_evidence.content[1:]]}
+    )
+
+    contracts = ContractCompiler().compile(raw)
+
+    mapping = next(item for item in contracts.media_map if item.source_url == source_url)
+    asset = next(
+        item for item in contracts.assets if item.asset_id == mapping.asset_contract_id
+    )
+    assert asset.acquisition_status == "deferred"
+    assert asset.acquisition_method == "source-fetch"
+    assert asset.runtime_policy == "local-only"
+    assert asset.needs_decision is False
+    assert asset.target_path.endswith(".jpg")
+    assert mapping.target_url.startswith("/media/")
+    assert not any(
+        decision.subject_id == asset.asset_id for decision in contracts.decisions
+    )
+
+
+def test_gutenberg_background_images_are_deferred_to_local_asset_acquisition(
+    golden_raw_evidence,
+) -> None:
+    source_url = "https://example.test/wp-content/uploads/hero.jpg"
+    first = golden_raw_evidence.content[0].model_copy(
+        update={
+            "original_html": (
+                "<!-- wp:spectra/container "
+                + json.dumps(
+                    {
+                        "background": {
+                            "type": "image",
+                            "media": {"url": source_url},
+                        }
+                    }
+                )
+                + " /-->"
+            )
+        }
+    )
+    raw = golden_raw_evidence.model_copy(
+        update={"content": [first, *golden_raw_evidence.content[1:]]}
+    )
+
+    contracts = ContractCompiler().compile(raw)
+
+    mapping = next(item for item in contracts.media_map if item.source_url == source_url)
+    asset = next(
+        item for item in contracts.assets if item.asset_id == mapping.asset_contract_id
+    )
+    assert asset.acquisition_status == "deferred"
+    assert asset.acquisition_method == "source-fetch"
+    assert asset.target_path.endswith(".jpg")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import base64
 import re
 import urllib.error
 import urllib.request
@@ -15,6 +16,9 @@ from moltex_harness.network import PublicNetworkPolicy, PublicRedirectHandler
 
 
 MAX_FETCH_BYTES = 50 * 1024 * 1024
+FALLBACK_JPEG = base64.b64decode(
+    "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAASACADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD1OiiivFPWCiiigAooooAKKKKAP//Z"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +31,10 @@ class FetchResult:
 
 class MediaFetcher(Protocol):
     def fetch(self, url: str) -> FetchResult: ...
+
+
+class PermanentMediaFetchError(ValueError):
+    """A public media URL returned a permanent HTTP response."""
 
 
 class PublicHttpFetcher:
@@ -47,7 +55,7 @@ class PublicHttpFetcher:
                 break
             except urllib.error.HTTPError as error:
                 if error.code not in {408, 429} and error.code < 500:
-                    raise ValueError(
+                    raise PermanentMediaFetchError(
                         f"Permanent media HTTP failure {error.code} for {url}"
                     ) from error
                 if attempt == 1:
@@ -86,6 +94,8 @@ class AssetMaterializer:
                 raise ValueError(f"Asset target escapes workspace: {asset.target_path}")
             target.parent.mkdir(parents=True, exist_ok=True)
             method: Literal["bundle", "source-fetch"]
+            outcome: Literal["acquired", "placeholder"] = "acquired"
+            failure: str | None = None
             if asset.acquisition_status == "bundled":
                 if not asset.bundle_path:
                     raise ValueError(f"Bundled asset has no artifact: {asset.asset_id}")
@@ -99,13 +109,24 @@ class AssetMaterializer:
                 attempts = 1
                 response_content_type = None
             else:
-                result = self.fetcher.fetch(asset.source_url)
-                data = result.data
                 method = "source-fetch"
                 artifact = None
-                final_url = result.final_url
-                attempts = result.attempts
-                response_content_type = result.content_type
+                try:
+                    result = self.fetcher.fetch(asset.source_url)
+                except PermanentMediaFetchError as error:
+                    if not asset.target_path.lower().endswith((".jpg", ".jpeg")):
+                        raise
+                    data = FALLBACK_JPEG
+                    final_url = asset.source_url
+                    attempts = 1
+                    response_content_type = "image/jpeg"
+                    outcome = "placeholder"
+                    failure = str(error)
+                else:
+                    data = result.data
+                    final_url = result.final_url
+                    attempts = result.attempts
+                    response_content_type = result.content_type
             self._validate_payload(asset, data, response_content_type)
             digest = hashlib.sha256(data).hexdigest()
             if asset.checksum and digest != asset.checksum:
@@ -124,6 +145,8 @@ class AssetMaterializer:
                     bytes=len(data),
                     sha256=digest,
                     attempts=attempts,
+                    outcome=outcome,
+                    failure=failure,
                 )
             )
         return tuple(receipts)

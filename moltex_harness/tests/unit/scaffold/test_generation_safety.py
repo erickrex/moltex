@@ -20,10 +20,37 @@ def test_hostile_site_name_is_data_not_astro_source(tmp_path) -> None:
     site = json.loads((tmp_path / "src/data/site.json").read_text(encoding="utf-8"))
     assert hostile not in layout
     assert "{site.siteName}" in layout
-    assert site == {"siteName": hostile}
+    assert site == {"siteName": hostile, "siteLogo": None, "headerCta": None}
     styles = (tmp_path / "src/styles/moltex.css").read_text(encoding="utf-8")
     assert "--moltex-color-0: #0f57fb" in styles
     assert ".moltex-block" in styles
+    assert ".site-menu__toggle" in styles
+    assert 'aria-label="Main menu toggle"' in layout
+    assert 'type="checkbox"' in layout
+    assert layout.count("<NavigationList") == 1
+    assert "<script>" not in layout
+
+
+def test_shell_renders_evidence_linked_logo_and_header_cta(tmp_path) -> None:
+    BaselineService._write_shell(
+        tmp_path,
+        "Example",
+        {
+            "siteLogo": {"src": "/media/logo.png", "alt": "Example logo"},
+            "headerCta": {"href": "/tutors/", "label": "Find A Tutor"},
+        },
+    )
+
+    site = json.loads((tmp_path / "src/data/site.json").read_text(encoding="utf-8"))
+    layout = (tmp_path / "src/layouts/BaseLayout.astro").read_text(
+        encoding="utf-8"
+    )
+    styles = (tmp_path / "src/styles/moltex.css").read_text(encoding="utf-8")
+    assert site["siteLogo"]["src"] == "/media/logo.png"
+    assert site["headerCta"] == {"href": "/tutors/", "label": "Find A Tutor"}
+    assert "site-brand__logo" in layout
+    assert "site-header__cta" in layout
+    assert ".site-header__cta" in styles
 
 
 def test_route_template_does_not_dump_media_outside_converted_content(tmp_path) -> None:
@@ -36,7 +63,7 @@ def test_route_template_does_not_dump_media_outside_converted_content(tmp_path) 
     assert "hasRenderedH1" in template
 
 
-def test_navigation_uses_largest_menu_as_primary(tmp_path) -> None:
+def test_navigation_uses_assigned_primary_menu_over_larger_stale_menu(tmp_path) -> None:
     def item(menu_id: str, navigation_id: str, label: str, order: int):
         return SimpleNamespace(
             menu_id=menu_id,
@@ -49,8 +76,11 @@ def test_navigation_uses_largest_menu_as_primary(tmp_path) -> None:
 
     sources = [
         item("footer", "privacy", "Privacy", 1),
-        item("primary", "home", "Home", 1),
-        item("primary", "services", "Services", 2),
+        item("menu:primary:21", "home", "Home", 1),
+        item("menu:primary:21", "courses", "Courses", 2),
+        item("stale", "about", "About", 1),
+        item("stale", "services", "Services", 2),
+        item("stale", "properties", "Properties", 3),
     ]
     contracts = SimpleNamespace(
         site_spec=SimpleNamespace(global_navigation=sources)
@@ -65,7 +95,7 @@ def test_navigation_uses_largest_menu_as_primary(tmp_path) -> None:
     navigation = json.loads(
         (tmp_path / "src/data/navigation.json").read_text(encoding="utf-8")
     )
-    assert [entry["label"] for entry in navigation] == ["Home", "Services"]
+    assert [entry["label"] for entry in navigation] == ["Home", "Courses"]
 
 
 def test_sitemap_uses_xml_serializer(golden_contracts, tmp_path) -> None:
@@ -113,3 +143,32 @@ def test_route_template_count_is_constant_for_large_route_tables(tmp_path) -> No
 
     assert len(list((tmp_path / "src/pages").glob("*.astro"))) == 2
     assert len(json.loads((tmp_path / "src/data/routes.json").read_text())) == 10_000
+
+
+def test_body_marker_normalizes_entity_encoded_gutenberg_formatting() -> None:
+    body = (
+        "&amp;lt;strong&amp;gt;&amp;lt;u&amp;gt;Start&amp;lt;/u&amp;gt;"
+        "&amp;lt;/strong&amp;gt; learning a new language today"
+    )
+
+    assert BaselineService._body_marker(body) == "Start learning a new language today"
+
+
+def test_body_marker_keeps_inline_link_text_with_adjacent_punctuation() -> None:
+    body = (
+        'Welcome to <a href="https://example.test/">Astra Starter Templates</a>.'
+        " This is your first post."
+    )
+
+    assert BaselineService._body_marker(body) == (
+        "Welcome to Astra Starter Templates. This is your first post."
+    )
+
+
+def test_baseline_verifier_normalizes_tag_spacing_before_punctuation(tmp_path) -> None:
+    BaselineService._write_scripts(tmp_path)
+    verifier = (tmp_path / "scripts/verify-baseline.mjs").read_text(
+        encoding="utf-8"
+    )
+
+    assert '.replace(/\\s+([.,;:!?])/g, "$1")' in verifier
