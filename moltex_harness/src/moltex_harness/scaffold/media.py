@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -21,6 +22,7 @@ class FetchResult:
     data: bytes
     final_url: str
     attempts: int = 1
+    content_type: str | None = None
 
 
 class MediaFetcher(Protocol):
@@ -40,8 +42,18 @@ class PublicHttpFetcher:
                 with opener.open(request, timeout=20) as response:
                     final_url = response.geturl()
                     self.policy.require_public(final_url)
+                    content_type = response.headers.get_content_type()
                     data = response.read(MAX_FETCH_BYTES + 1)
                 break
+            except urllib.error.HTTPError as error:
+                if error.code not in {408, 429} and error.code < 500:
+                    raise ValueError(
+                        f"Permanent media HTTP failure {error.code} for {url}"
+                    ) from error
+                if attempt == 1:
+                    raise ConnectionError(
+                        f"Transient media fetch failure for {url} after two attempts"
+                    ) from error
             except (urllib.error.URLError, TimeoutError) as error:
                 if attempt == 1:
                     raise ConnectionError(
@@ -49,7 +61,7 @@ class PublicHttpFetcher:
                     ) from error
         if len(data) > MAX_FETCH_BYTES:
             raise ValueError(f"Media response exceeds {MAX_FETCH_BYTES} bytes: {url}")
-        return FetchResult(data, final_url, attempt + 1)
+        return FetchResult(data, final_url, attempt + 1, content_type)
 
 
 class AssetMaterializer:
@@ -85,6 +97,7 @@ class AssetMaterializer:
                 artifact = asset.bundle_path
                 final_url = asset.source_url
                 attempts = 1
+                response_content_type = None
             else:
                 result = self.fetcher.fetch(asset.source_url)
                 data = result.data
@@ -92,6 +105,8 @@ class AssetMaterializer:
                 artifact = None
                 final_url = result.final_url
                 attempts = result.attempts
+                response_content_type = result.content_type
+            self._validate_payload(asset, data, response_content_type)
             digest = hashlib.sha256(data).hexdigest()
             if asset.checksum and digest != asset.checksum:
                 raise ValueError(f"Asset checksum mismatch: {asset.asset_id}")
@@ -112,3 +127,72 @@ class AssetMaterializer:
                 )
             )
         return tuple(receipts)
+
+    @staticmethod
+    def _validate_payload(
+        asset: AssetContract, data: bytes, response_content_type: str | None
+    ) -> None:
+        if not data:
+            raise ValueError(f"Asset payload is empty: {asset.asset_id}")
+        expected = AssetMaterializer._normalize_mime(asset.mime_type)
+        response = AssetMaterializer._normalize_mime(response_content_type)
+        detected = AssetMaterializer._detect_mime(data)
+        if response in {"text/html", "application/xhtml+xml"} or detected == "text/html":
+            raise ValueError(f"HTML response rejected as media: {asset.asset_id}")
+        if response and response != "application/octet-stream" and expected:
+            if response != expected:
+                raise ValueError(
+                    f"Media response MIME mismatch for {asset.asset_id}: {response}"
+                )
+        if expected and expected != "application/octet-stream":
+            if detected != expected:
+                raise ValueError(
+                    f"Media payload signature mismatch for {asset.asset_id}: {expected}"
+                )
+        if detected == "image/svg+xml":
+            AssetMaterializer._reject_active_svg(asset.asset_id, data)
+
+    @staticmethod
+    def _normalize_mime(value: str | None) -> str | None:
+        if not value:
+            return None
+        normalized = value.split(";", 1)[0].strip().lower()
+        return {"image/jpg": "image/jpeg"}.get(normalized, normalized)
+
+    @staticmethod
+    def _detect_mime(data: bytes) -> str | None:
+        if data.startswith(b"\x89PNG\r\n\x1a\n"):
+            return "image/png"
+        if data.startswith(b"\xff\xd8\xff"):
+            return "image/jpeg"
+        if data.startswith((b"GIF87a", b"GIF89a")):
+            return "image/gif"
+        if len(data) >= 12 and data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+            return "image/webp"
+        if data.startswith(b"%PDF-"):
+            return "application/pdf"
+        if len(data) >= 12 and data[4:8] == b"ftyp":
+            return "video/mp4"
+        if data.startswith(b"ID3") or data.startswith(b"\xff\xfb"):
+            return "audio/mpeg"
+        prefix = data[:4096].lstrip().lower()
+        if prefix.startswith(b"<svg") or (
+            prefix.startswith(b"<?xml") and b"<svg" in prefix
+        ):
+            return "image/svg+xml"
+        if prefix.startswith((b"<!doctype html", b"<html", b"<head", b"<body")):
+            return "text/html"
+        return None
+
+    @staticmethod
+    def _reject_active_svg(asset_id: str, data: bytes) -> None:
+        svg = data.decode("utf-8", errors="ignore")
+        active_patterns = (
+            r"<\s*script\b",
+            r"\bon[a-z]+\s*=",
+            r"(?:href|src)\s*=\s*['\"]\s*(?:javascript:|https?:|//)",
+            r"<\s*foreignObject\b",
+            r"\bdata:\s*text/html",
+        )
+        if any(re.search(pattern, svg, re.IGNORECASE) for pattern in active_patterns):
+            raise ValueError(f"Active SVG payload rejected: {asset_id}")

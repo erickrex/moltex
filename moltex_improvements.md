@@ -111,7 +111,7 @@ splitting large classes. File-size-only refactors are not acceptance criteria.
 | X2 | Implemented: every automatic HTTP/browser request obeys a public-network and TLS policy | Both | X1 |
 | X3 | Implemented: eligibility and failure semantics are truthful and durable | `moltex_harness` | X2 |
 | X4 | Implemented: the producer-to-consumer artifact handshake is closed and executable | Both | X3 |
-| X5 | Generated Astro repositories are injection-safe, payload-safe, and scalable | `moltex_harness` | X4 |
+| X5 | Implemented: generated Astro repositories are injection-safe, payload-safe, and scalable | `moltex_harness` | X4 |
 | X6 | The pipeline performs each expensive stage once and uses bounded resources | `moltex_harness` | X5 |
 | X7 | Supported site classes and release readiness are proven by live fixtures | Both | X6 |
 

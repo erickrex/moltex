@@ -148,12 +148,17 @@ def test_golden_export_compiles_complete_astro_baseline(
     assert (output / ".node-version").read_text(encoding="utf-8").strip() == NODE_VERSION
     assert "engine-strict=true" in (output / ".npmrc").read_text(encoding="utf-8")
     assert (output / "package-lock.json").is_file()
-    assert (output / "src" / "pages" / "index.astro").is_file()
+    assert (output / "src" / "pages" / "[...path].astro").is_file()
     assert (output / "public" / "sitemap.xml").is_file()
     assert (output / ".moltex" / "receipts" / "conversion.json").is_file()
     assert (output / ".moltex" / "evidence" / "source-visuals" / "capture-receipt.json").is_file()
     page_count = len(list((output / "src" / "pages").rglob("*.astro")))
-    assert page_count >= len(golden_contracts.routes)
+    assert page_count == 2
+    routes_data = json.loads(
+        (output / "src/data/routes.json").read_text(encoding="utf-8")
+    )
+    assert len(routes_data) == len(golden_contracts.routes)
+    assert page_count < len(routes_data)
     expected = json.loads(
         (samples_dir.parent / "moltex_harness" / "tests" / "fixtures" / "golden_h3_workspace.json").read_text(
             encoding="utf-8"
@@ -181,12 +186,10 @@ def test_golden_export_compiles_complete_astro_baseline(
         "Shoreline notes",
         "Community suppers",
     ]
-    stories_page = (output / "src/pages/stories/index.astro").read_text(
-        encoding="utf-8"
-    )
+    stories_route = next(item for item in routes_data if item["path"] == "stories")
     for record in golden_contracts.content_records:
         if record.content_type == "post":
-            assert record.title in stories_page
+            assert record.record_id in stories_route["listingRecordIds"]
     records = [
         json.loads(path.read_text(encoding="utf-8"))
         for path in (output / "src/content/records").glob("*.json")
@@ -247,6 +250,16 @@ def test_golden_export_compiles_complete_astro_baseline(
     assert json.loads(
         (output / ".moltex/reports/toolchain.json").read_text(encoding="utf-8")
     )["node"] == NODE_VERSION
+    characteristics = json.loads(
+        (output / ".moltex/reports/build-characteristics.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert characteristics["duration_ms"] > 0
+    assert characteristics["source_files"] == len(actual_src)
+    assert characteristics["source_bytes"] > 0
+    assert characteristics["output_files"] >= len(golden_contracts.routes)
+    assert characteristics["output_bytes"] > 0
 
     for level in ("baseline", "migration", "parity"):
         self_verification = subprocess.run(
@@ -787,7 +800,12 @@ def test_unavailable_route_and_content_are_excluded_from_baseline(
 
     assert outcome.exit_code == 0
     assert outcome.report.counts["omitted_routes"] == 1
-    assert not (output / "src/pages" / omitted_route.output_path.replace(".html", ".astro")).exists()
+    generated_routes = json.loads(
+        (output / "src/data/routes.json").read_text(encoding="utf-8")
+    )
+    assert omitted_route.contract_id not in {
+        route["routeId"] for route in generated_routes
+    }
     assert not (
         output
         / "src/content/records"

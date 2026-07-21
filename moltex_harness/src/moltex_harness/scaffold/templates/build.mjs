@@ -22,6 +22,7 @@ if (toolchain.node !== expectedNode || toolchain.npm !== expectedNpm) {
   console.error(message);
   process.exit(1);
 }
+const buildStarted = Date.now();
 const build = spawnSync(
   process.execPath,
   ["node_modules/astro/astro.js", "build"],
@@ -32,6 +33,36 @@ fs.writeFileSync(".moltex/reports/baseline-build.log", output);
 process.stdout.write(build.stdout ?? "");
 process.stderr.write(build.stderr ?? "");
 if (build.status) process.exit(build.status);
+
+const summarizeTree = (root) => {
+  if (!fs.existsSync(root)) return { files: 0, bytes: 0 };
+  const paths = fs.readdirSync(root, { recursive: true, withFileTypes: true });
+  const files = paths.filter((entry) => entry.isFile());
+  return {
+    files: files.length,
+    bytes: files.reduce(
+      (total, entry) => total + fs.statSync(`${entry.parentPath}/${entry.name}`).size,
+      0,
+    ),
+  };
+};
+const source = summarizeTree("src");
+const dist = summarizeTree("dist");
+fs.writeFileSync(
+  ".moltex/reports/build-characteristics.json",
+  JSON.stringify(
+    {
+      schema_version: 1,
+      duration_ms: Date.now() - buildStarted,
+      source_files: source.files,
+      source_bytes: source.bytes,
+      output_files: dist.files,
+      output_bytes: dist.bytes,
+    },
+    null,
+    2,
+  ) + "\n",
+);
 
 const verification = spawnSync(
   process.execPath,

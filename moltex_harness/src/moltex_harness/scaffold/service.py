@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import json
 import html
 import hashlib
 import re
 import shutil
 import tempfile
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, Literal
 
 from moltex_harness.contracts import CompilationService, ContractStore, ContractVerifier
@@ -243,20 +243,40 @@ class BaselineService:
         self._write_navigation(
             workspace, contracts, routes_by_id, omitted_route_ids
         )
-        posts = [item for item in content_by_id.values() if item["contentType"] == "post"]
-        geodirectory = [
-            item for item in content_by_id.values() if item["contentType"].startswith("gd_")
+        posts = [
+            item["recordId"]
+            for item in content_by_id.values()
+            if item["contentType"] == "post"
         ]
+        geodirectory = [
+            item["recordId"]
+            for item in content_by_id.values()
+            if item["contentType"].startswith("gd_")
+        ]
+        generated_routes: list[dict[str, Any]] = []
         for route in included_routes:
-            document = content_by_id.get(route.content_record_id or "", {
-                "recordId": route.contract_id,
-                "title": route.page_family.replace("_", " ").title(),
-                "renderedHtml": "<p>This route requires a target implementation.</p>",
-                "seo": {},
-            })
-            listing_items: list[dict[str, Any]] = []
+            record_id = route.content_record_id or route.contract_id
+            if record_id not in content_by_id:
+                document = {
+                    "recordId": record_id,
+                    "contentType": "system",
+                    "title": route.page_family.replace("_", " ").title(),
+                    "renderedHtml": (
+                        "<p>This route requires a target implementation.</p>"
+                    ),
+                    "seo": {},
+                    "media": [],
+                    "customFields": {},
+                }
+                content_by_id[record_id] = document
+                safe_name = record_id.replace(":", "-") + ".json"
+                write_json(
+                    workspace / "src" / "content" / "records" / safe_name,
+                    document,
+                )
+            listing_record_ids: list[str] = []
             if route.page_family == "listing":
-                listing_items = posts
+                listing_record_ids = posts
             route_receipt = next(
                 (
                     item
@@ -269,20 +289,38 @@ class BaselineService:
                 disposition.name in {"gd_listings", "gd_loop", "gd_search"}
                 for disposition in route_receipt.shortcodes
             ):
-                listing_items = geodirectory
-            self._write_page(workspace, route.output_path, document, listing_items)
-        if not (workspace / "src" / "pages" / "404.astro").exists():
-            self._write_page(
-                workspace,
-                "404.html",
-                {"recordId": "system:404", "title": "Page not found", "renderedHtml": "<p>The requested page could not be found.</p>", "seo": {"robots": "noindex"}},
-            )
+                listing_record_ids = geodirectory
+            if route.output_path != "404.html":
+                generated_routes.append(
+                    {
+                        "routeId": route.contract_id,
+                        "path": self._astro_route_path(route.output_path),
+                        "recordId": record_id,
+                        "listingRecordIds": listing_record_ids,
+                    }
+                )
+        system_404 = {
+            "recordId": "system:404",
+            "contentType": "system",
+            "title": "Page not found",
+            "renderedHtml": "<p>The requested page could not be found.</p>",
+            "seo": {"robots": "noindex", "structured_data_hints": []},
+            "media": [],
+            "customFields": {},
+        }
+        write_json(
+            workspace / "src" / "content" / "records" / "system-404.json",
+            system_404,
+        )
+        write_json(workspace / "src" / "data" / "routes.json", generated_routes)
+        self._write_route_templates(workspace)
         self._write_metadata(workspace, contracts, omitted_route_ids)
         self._write_scripts(workspace)
         return tuple(receipts)
 
     @staticmethod
     def _write_shell(workspace: Path, site_name: str) -> None:
+        write_json(workspace / "src" / "data" / "site.json", {"siteName": site_name})
         component = workspace / "src" / "components" / "NavigationList.astro"
         component.parent.mkdir(parents=True, exist_ok=True)
         component.write_text(
@@ -294,7 +332,7 @@ class BaselineService:
         layout = workspace / "src" / "layouts" / "BaseLayout.astro"
         layout.parent.mkdir(parents=True, exist_ok=True)
         layout.write_text(
-            "---\nimport nav from '../data/navigation.json';\nimport NavigationList from '../components/NavigationList.astro';\n"
+            "---\nimport nav from '../data/navigation.json';\nimport site from '../data/site.json';\nimport NavigationList from '../components/NavigationList.astro';\n"
             "const { title, description = '', canonical = '', robots = 'index,follow', openGraph = {}, structuredDataHints = [] } = Astro.props;\n"
             "const ogItems = Array.isArray(openGraph.items) ? openGraph.items : [openGraph];\n"
             "const ogEntries = ogItems.flatMap((item) => item && (item.property || item.name || item.key) ? [[item.property || item.name || item.key, item.content ?? item.value ?? '']] : Object.entries(item ?? {}).filter(([key]) => key !== 'items'));\n---\n"
@@ -302,7 +340,7 @@ class BaselineService:
             "<meta name=\"description\" content={description}><meta name=\"robots\" content={robots}><link rel=\"canonical\" href={canonical}>"
             "{ogEntries.map(([property, content]) => <meta property={String(property).startsWith('og:') ? String(property) : `og:${property}`} content={String(content)} />)}"
             "{structuredDataHints.map((hint) => <meta name=\"moltex:structured-data-hint\" content={hint} />)}<title>{title}</title></head>"
-            f"<body><a class=\"skip\" href=\"#content\">Skip to content</a><header><a href=\"/\">{site_name}</a><nav aria-label=\"Primary\"><NavigationList items={{nav}} /></nav></header>"
+            "<body><a class=\"skip\" href=\"#content\">Skip to content</a><header><a href=\"/\">{site.siteName}</a><nav aria-label=\"Primary\"><NavigationList items={nav} /></nav></header>"
             "<main id=\"content\"><slot /></main><footer>Generated by Moltex</footer></body></html>"
             "<style is:global>:root{font-family:system-ui,sans-serif;color:#17202a}body{margin:0}header,main,footer{max-width:72rem;margin:auto;padding:1rem}nav>ul{display:flex;gap:1rem}nav ul{list-style:none;padding:0}.skip{position:absolute;left:-10000px}.skip:focus{left:1rem;background:white;padding:.5rem}img{max-width:100%;height:auto}.moltex-placeholder{border:2px dashed #8a6500;padding:1rem}.listing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:1rem}.listing-card{border:1px solid #ccd1d1;padding:1rem}</style>\n",
             encoding="utf-8",
@@ -349,38 +387,45 @@ class BaselineService:
         write_json(workspace / "src" / "data" / "navigation.json", navigation)
 
     @staticmethod
-    def _write_page(
-        workspace: Path,
-        output_path: str,
-        document: dict[str, Any],
-        listing_items: list[dict[str, Any]] | None = None,
-    ) -> None:
-        pure = PurePosixPath(output_path)
-        parts = list(pure.parts)
-        if parts[-1] == "index.html":
-            parts[-1] = "index.astro"
-        elif parts[-1].endswith(".html"):
-            parts[-1] = parts[-1][:-5] + ".astro"
-        else:
-            raise ValueError(f"Unsupported static output path: {output_path}")
-        page = workspace / "src" / "pages" / Path(*parts)
-        page.parent.mkdir(parents=True, exist_ok=True)
-        layout_import = "../" * len(parts) + "layouts/BaseLayout.astro"
-        literal = json.dumps(document, ensure_ascii=False).replace("</", "<\\/")
-        listings_literal = json.dumps(listing_items or [], ensure_ascii=False).replace(
-            "</", "<\\/"
-        )
-        page.write_text(
-            f"---\nimport BaseLayout from '{layout_import}';\nconst record = {literal};\nconst listingItems = {listings_literal};\nconst seo = record.seo ?? {{}};\n"
-            "const typedFields = Object.entries(record.customFields ?? {}).filter(([key]) => key.startsWith('geodirectory.'));\n---\n"
+    def _write_route_templates(workspace: Path) -> None:
+        pages = workspace / "src" / "pages"
+        pages.mkdir(parents=True, exist_ok=True)
+        shared_render = (
             "<BaseLayout title={seo.title ?? record.title} description={seo.description ?? ''} canonical={seo.canonical_url ?? ''} robots={seo.robots ?? 'index,follow'} openGraph={seo.open_graph ?? {}} structuredDataHints={seo.structured_data_hints ?? []}>"
             "<article data-record-id={record.recordId}><h1>{record.title}</h1>"
             "{record.media?.map((media) => <img src={media.src} alt={media.alt} data-asset-id={media.assetId} />)}"
             "<div class=\"content\" set:html={record.renderedHtml} />"
             "{typedFields.length ? <dl class=\"typed-fields\">{typedFields.map(([key, value]) => <><dt>{key.replace('geodirectory.', '')}</dt><dd>{typeof value === 'object' ? JSON.stringify(value) : String(value ?? '')}</dd></>)}</dl> : null}"
             "{listingItems.length ? <section class=\"listing-grid\" aria-label=\"Listings\">{listingItems.map((item) => <article class=\"listing-card\" data-record-id={item.recordId}><h2>{item.targetUrl ? <a href={item.targetUrl}>{item.title}</a> : item.title}</h2>{item.excerpt ? <p>{item.excerpt}</p> : null}</article>)}</section> : null}"
-            "</article></BaseLayout>\n",
+            "</article></BaseLayout>\n"
+        )
+        (pages / "[...path].astro").write_text(
+            "---\nimport BaseLayout from '../layouts/BaseLayout.astro';\nimport routes from '../data/routes.json';\n"
+            "const recordModules = import.meta.glob('../content/records/*.json', { eager: true, import: 'default' });\n"
+            "const records = Object.values(recordModules) as any[];\n"
+            "export function getStaticPaths() { return routes.map((route) => ({ params: { path: route.path || undefined }, props: route })); }\n"
+            "const route = Astro.props;\nconst record = records.find((item) => item.recordId === route.recordId);\n"
+            "if (!record) throw new Error(`Missing route record: ${route.recordId}`);\n"
+            "const listingItems = route.listingRecordIds.map((id) => records.find((item) => item.recordId === id)).filter(Boolean);\n"
+            "const seo = record.seo ?? {};\nconst typedFields = Object.entries(record.customFields ?? {}).filter(([key]) => key.startsWith('geodirectory.'));\n---\n"
+            + shared_render,
             encoding="utf-8",
+        )
+        (pages / "404.astro").write_text(
+            "---\nimport BaseLayout from '../layouts/BaseLayout.astro';\nimport record from '../content/records/system-404.json';\n"
+            "const listingItems = [];\nconst seo = record.seo ?? {};\nconst typedFields = [];\n---\n"
+            + shared_render,
+            encoding="utf-8",
+        )
+
+    @staticmethod
+    def _astro_route_path(output_path: str) -> str:
+        if output_path == "index.html":
+            return ""
+        if output_path.endswith("/index.html"):
+            return output_path.removesuffix("/index.html")
+        raise ValueError(
+            f"Data-driven routes require an index.html output path: {output_path}"
         )
 
     @staticmethod
@@ -403,7 +448,9 @@ class BaselineService:
         ]
         write_json(workspace / "src" / "data" / "sitemap.json", sitemap)
         redirects = "\n".join(
-            f"{item.source_url} {item.target_url} {item.status_code}"
+            BaselineService._redirect_line(
+                item.source_url, item.target_url, item.status_code
+            )
             for item in contracts.redirects
             if not item.needs_decision
             and item.target_route_contract_id not in omitted_route_ids
@@ -412,14 +459,26 @@ class BaselineService:
         public.mkdir(exist_ok=True)
         (public / "_redirects").write_text(redirects + ("\n" if redirects else ""), encoding="utf-8")
         origin = contracts.site_spec.target_canonical_origin.rstrip("/")
-        sitemap_xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">" + "".join(
-            f"<url><loc>{origin}{path}</loc></url>" for path in sitemap
-        ) + "</urlset>\n"
-        (public / "sitemap.xml").write_text(sitemap_xml, encoding="utf-8")
+        namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
+        ET.register_namespace("", namespace)
+        urlset = ET.Element(f"{{{namespace}}}urlset")
+        for path in sitemap:
+            url = ET.SubElement(urlset, f"{{{namespace}}}url")
+            ET.SubElement(url, f"{{{namespace}}}loc").text = origin + path
+        sitemap_xml = ET.tostring(
+            urlset, encoding="utf-8", xml_declaration=True
+        ) + b"\n"
+        (public / "sitemap.xml").write_bytes(sitemap_xml)
         (workspace / "src" / "content.config.ts").write_text(
             "import { defineCollection } from 'astro:content';\nimport { glob } from 'astro/loaders';\nexport const collections = { records: defineCollection({ loader: glob({ pattern: '**/*.json', base: './src/content/records' }) }) };\n",
             encoding="utf-8",
         )
+
+    @staticmethod
+    def _redirect_line(source: str, target: str, status_code: int) -> str:
+        if any(character.isspace() for character in source + target):
+            raise ValueError("Redirect URLs must not contain whitespace")
+        return f"{source} {target} {status_code}"
 
     @staticmethod
     def _excerpt(value: str, limit: int = 240) -> str:

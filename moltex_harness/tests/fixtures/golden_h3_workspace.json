@@ -16,17 +16,13 @@
     "src/content/records/content-post-101.json",
     "src/content/records/content-post-102.json",
     "src/content/records/content-post-103.json",
+    "src/content/records/system-404.json",
     "src/data/navigation.json",
+    "src/data/routes.json",
+    "src/data/site.json",
     "src/data/sitemap.json",
     "src/layouts/BaseLayout.astro",
     "src/pages/404.astro",
-    "src/pages/about/index.astro",
-    "src/pages/autumn-workshops/index.astro",
-    "src/pages/contact/index.astro",
-    "src/pages/index.astro",
-    "src/pages/shoreline-notes/index.astro",
-    "src/pages/stories/index.astro",
-    "src/pages/visit/index.astro",
-    "src/pages/volunteer-table/index.astro"
+    "src/pages/[...path].astro"
   ]
 }
