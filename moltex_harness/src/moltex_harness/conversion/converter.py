@@ -36,6 +36,7 @@ ALLOWED_ATTRIBUTES = {
     "div": {"data-shortcode"},
 }
 COMPLEX_TAG = re.compile(r"<(?:table|picture|details)\b", re.I)
+DYNAMIC_MEDIA_PLACEHOLDERS = {"placeholder-image.jpg"}
 
 
 class _Text(HTMLParser):
@@ -66,7 +67,11 @@ class ContentConverter:
                 if (
                     name == "src"
                     and tag in {"img", "source"}
-                    and urlsplit(value).scheme in {"http", "https"}
+                    and (
+                        urlsplit(value).scheme in {"http", "https"}
+                        or urlsplit(value).path.rsplit("/", 1)[-1].casefold()
+                        in DYNAMIC_MEDIA_PLACEHOLDERS
+                    )
                 ):
                     removed_media += 1
                     return None
@@ -102,7 +107,7 @@ class ContentConverter:
                     code="unmapped_media_removed",
                     classification="blocked",
                     subject_id=record.record_id,
-                    message="Unmapped remote media was removed from the local-only baseline",
+                    message="Unmapped or dynamic placeholder media was removed from the local-only baseline",
                     context={"attributes_removed": removed_media},
                 )
             )

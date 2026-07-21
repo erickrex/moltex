@@ -17,20 +17,26 @@ uv sync --project moltex_harness
 uv run --project moltex_harness pytest
 uv run --project moltex_harness ruff check moltex_harness/src moltex_harness/tests
 uv run --project moltex_harness mypy --config-file moltex_harness/pyproject.toml moltex_harness/src/moltex_harness
-uv run --project moltex_harness moltex inspect samples/golden-export.zip --json
-uv run --project moltex_harness moltex compile-contracts samples/golden-export.zip --output output/golden-contracts
-uv run --project moltex_harness moltex verify-contracts output/golden-contracts
 uv run --project moltex_harness playwright install chromium
-uv run --project moltex_harness moltex capture-source output/golden-contracts --output output/golden-source-visuals
-uv run --project moltex_harness moltex compile samples/golden-export.zip --output output/golden-site --through baseline --source-visuals output/golden-source-visuals
-npm --prefix output/golden-site ci
-npm --prefix output/golden-site run build
-uv run --project moltex_harness moltex plan-workspace output/golden-site
-uv run --project moltex_harness moltex verify-task-graph output/golden-site
+uv run --project moltex_harness moltex create-site samples/golden-export.zip
 ```
 
-The default output directory is `output/intake/<archive-name>/`. Use
-`--report-dir` to override it.
+`create-site` is the normal operator entry point. It stages all intermediate work
+outside `output/` and reads the verified site name, domain, and filesystem-safe
+workspace slug from the export. It publishes `output/<artifact-workspace-slug>/`
+only after baseline compilation,
+the locked Node build, baseline verification, H4 planning, and task-graph
+verification pass. Contracts, source visuals, receipts, reports, source, and built
+output all live inside that one site folder. A failed run leaves no partial site
+folder, and the command never merges into an existing destination.
+
+Use `--output-root <directory>` only to place the artifact-named site beneath a
+different parent directory. The CLI never accepts an operator-provided site name.
+
+The phase-specific `inspect`, `compile-contracts`, `capture-source`, `compile`, and
+`plan-workspace` commands remain available for development diagnostics. Their
+required explicit output paths are not the normal multi-site output layout; `inspect`
+requires `--report-dir` and never defaults to a shared `output/intake` directory.
 
 ## Intake limits
 

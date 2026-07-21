@@ -5,6 +5,8 @@
  * @package Moltex_Exporter
  */
 
+require_once __DIR__ . '/class-site-identity.php';
+
 if ( ! defined( 'WPINC' ) ) {
 	die;
 }
@@ -50,6 +52,7 @@ class Moltex_Exporter_Bundle_Validator {
 			}
 
 			$this->validate_manifest_schema( $zip, $entries, $manifest, $errors );
+			$this->validate_site_identity( $manifest, $errors );
 			$this->validate_inventory( $zip, $entries, $manifest, $errors );
 			$this->validate_bundle_identity( $manifest, $errors );
 			$this->validate_completeness( $zip, $entries, $manifest, $errors );
@@ -68,6 +71,39 @@ class Moltex_Exporter_Bundle_Validator {
 			);
 		} finally {
 			$zip->close();
+		}
+	}
+
+	/**
+	 * Verify that the declared domain and workspace slug match site_origin.
+	 *
+	 * @param array $manifest Bundle manifest.
+	 * @param array $errors   Validation errors.
+	 */
+	private function validate_site_identity( array $manifest, array &$errors ) {
+		$version = isset( $manifest['exporter_version'] ) ? (string) $manifest['exporter_version'] : '0.0.0';
+		if ( empty( $manifest['site_identity'] ) || ! is_array( $manifest['site_identity'] ) ) {
+			if ( version_compare( $version, '1.2.10', '>=' ) ) {
+				$errors[] = 'site_identity is required for exporter 1.2.10 and newer.';
+			}
+			return;
+		}
+
+		try {
+			$expected = Moltex_Exporter_Site_Identity::from_values(
+				isset( $manifest['site_origin'] ) ? $manifest['site_origin'] : '',
+				isset( $manifest['site_identity']['site_name'] ) ? $manifest['site_identity']['site_name'] : ''
+			);
+		} catch ( InvalidArgumentException $error ) {
+			$errors[] = $error->getMessage();
+			return;
+		}
+
+		if ( ! isset( $manifest['site_identity']['domain'] ) || $expected['domain'] !== $manifest['site_identity']['domain'] ) {
+			$errors[] = 'site_identity.domain does not match site_origin.';
+		}
+		if ( ! isset( $manifest['site_identity']['workspace_slug'] ) || $expected['workspace_slug'] !== $manifest['site_identity']['workspace_slug'] ) {
+			$errors[] = 'site_identity.workspace_slug does not match site_origin.';
 		}
 	}
 

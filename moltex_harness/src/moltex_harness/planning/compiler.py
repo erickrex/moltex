@@ -465,12 +465,13 @@ class TaskGraphCompiler:
             (
                 "src/layouts/BaseLayout.astro",
                 "src/pages/404.astro",
+                "public/media/**",
                 "public/sitemap.xml",
                 "public/_redirects",
                 "src/styles/accessibility.css",
             ),
             (
-                "Production metadata and redirect outputs.",
+                "Production metadata, local media, and redirect outputs.",
                 "Accessible 404 and global interaction details.",
             ),
             TaskState.BLOCKED if blocking_decision_ids else TaskState.PENDING,

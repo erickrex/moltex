@@ -16,6 +16,7 @@ if ( ! defined( 'WPINC' ) ) {
 require_once __DIR__ . '/class-artifact-registry.php';
 require_once __DIR__ . '/class-schema-validator.php';
 require_once __DIR__ . '/class-bundle-validator.php';
+require_once __DIR__ . '/class-site-identity.php';
 
 /**
  * Packager Class
@@ -157,9 +158,10 @@ class Moltex_Exporter_Packager {
 				throw new Exception( 'ZipArchive extension is not available' );
 			}
 
-			// Generate ZIP filename with timestamp
+			// Generate a domain-bound ZIP filename from the validated bundle identity.
 			$timestamp = current_time( 'Y-m-d_H-i-s' );
-			$this->zip_filename = 'migration-artifacts-' . $timestamp . '.zip';
+			$site_slug = $this->get_bundle_site_slug();
+			$this->zip_filename = 'migration-artifacts-' . $site_slug . '-' . $timestamp . '.zip';
 			$this->zip_file_path = $this->artifacts_base_dir . $this->zip_filename;
 
 			// Create ZIP archive
@@ -217,6 +219,25 @@ class Moltex_Exporter_Packager {
 				'error'   => $e->getMessage(),
 			);
 		}
+	}
+
+	/**
+	 * Read the safe workspace slug from the finalized bundle manifest.
+	 *
+	 * @return string
+	 * @throws Exception When the bundle identity is unavailable or unsafe.
+	 */
+	private function get_bundle_site_slug() {
+		$manifest_path = trailingslashit( $this->export_dir ) . 'bundle.json';
+		$manifest = json_decode( file_get_contents( $manifest_path ), true );
+		$identity = is_array( $manifest ) && isset( $manifest['site_identity'] ) && is_array( $manifest['site_identity'] )
+			? $manifest['site_identity']
+			: array();
+		$slug = isset( $identity['workspace_slug'] ) ? (string) $identity['workspace_slug'] : '';
+		if ( ! preg_match( '/^[a-z0-9]+(?:-[a-z0-9]+)*$/', $slug ) || strlen( $slug ) > 100 ) {
+			throw new Exception( 'Bundle site identity does not contain a safe workspace slug' );
+		}
+		return $slug;
 	}
 
 	/**

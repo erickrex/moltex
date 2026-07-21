@@ -4,7 +4,7 @@ Tags: migration, export, astro, static-site
 Requires at least: 5.9
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.2.9
+Stable tag: 1.2.10
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -45,6 +45,10 @@ No. Transactional, account-heavy, multisite, and unknown custom behavior can pro
 blockers or manual-review items.
 
 == Changelog ==
+
+= 1.2.10 =
+* Add a verified site name, domain, and workspace slug to bundle.json.
+* Include the site workspace slug in downloaded migration ZIP filenames.
 
 = 1.2.9 =
 * Stopped reporting intentionally absent optional redirect CSV and database schema SQL sidecars as export warnings.

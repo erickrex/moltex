@@ -10,6 +10,7 @@ from ..archive import SafeArchive
 from ..errors import IntakeError
 from .base import AdapterValidation
 from .common import compile_raw_evidence
+from ..site_identity import derive_site_identity
 
 
 LEGACY_REQUIRED = (
@@ -131,11 +132,24 @@ class Legacy1Adapter:
             )
             for path in omissions
         )
+        origin = str(site.get("url") or site.get("home_url") or "")
+        try:
+            identity = derive_site_identity(
+                origin, str(site.get("site_title") or site.get("name") or "")
+            )
+        except ValueError as error:
+            raise IntakeError(
+                "invalid_site_identity",
+                str(error),
+                artifact="site_blueprint.json",
+                pointer="/site",
+            ) from error
         return AdapterValidation(
             adapter=self.name,
             bundle_id=f"sha256:{bundle.archive_sha256}",
             exporter_version=exporter_version,
-            site_origin=site.get("url") or site.get("home_url"),
+            site_origin=origin,
+            site_identity=identity,
             mode="complete" if completeness.get("complete") else "discovery",
             complete=bool(completeness.get("complete")),
             privacy={

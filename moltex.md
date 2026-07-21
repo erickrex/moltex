@@ -226,7 +226,8 @@ archive before download, and has an installable release artifact.
   validated writer, and checked against the schemas shipped inside the bundle. Optional
   binary, CSV, HTML, theme, plugin, asset, and media evidence is bounded and inventoried.
 - `bundle.json` records the normalized bundle identity, exporter and contract versions,
-  privacy state, completeness, counts, artifact registry, byte sizes, and SHA-256 hashes.
+  verified site display name, domain, filesystem-safe workspace slug, privacy state,
+  completeness, counts, artifact registry, byte sizes, and SHA-256 hashes.
   Packaging refuses an invalid contract archive; valid discovery archives remain
   downloadable but are marked ineligible for complete migration.
 - The standalone PHP validator checks ZIP structure, normalized paths, duplicates, declared
@@ -234,7 +235,8 @@ archive before download, and has an installable release artifact.
   `moltex_harness` or extracting untrusted entries.
 - The packager uses isolated temporary and stored-archive directories, signed downloads,
   streaming that clears output buffers and compression, retention cleanup, and release-time
-  validation.
+  validation. Downloaded ZIP filenames include the verified workspace slug rather than an
+  operator-supplied site name.
 - Release builds are byte-reproducible for a clean Git tree, use an explicit runtime
   allowlist, reject development-only files, and pin all four exporter version declarations.
 - The admin surface includes export preflight, complete/discovery controls, the per-type
@@ -328,9 +330,14 @@ moltex-export.zip
   "manifest_version": 1,
   "bundle_id": "sha256:...",
   "created_at": "2026-07-18T11:00:00Z",
-  "exporter_version": "1.2.9",
+  "exporter_version": "1.2.10",
   "mode": "complete",
   "site_origin": "https://example.test",
+  "site_identity": {
+    "site_name": "Example Site",
+    "domain": "example.test",
+    "workspace_slug": "example-test"
+  },
   "complete": true,
   "privacy": {
     "private_content_included": false,

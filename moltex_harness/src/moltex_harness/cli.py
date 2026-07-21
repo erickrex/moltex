@@ -13,6 +13,7 @@ from .intake.serialization import write_json
 from .intake.service import IntakeService
 from .models import TaskExecutionEvidence
 from .planning import PlanningService, TaskExecutionRecorder, TaskGraphVerifier
+from .pipeline import SitePipelineService
 from .scaffold import BaselineService
 from .visuals import SourceVisualService
 
@@ -32,9 +33,12 @@ def main() -> None:
 def inspect_command(
     archive: Annotated[Path, typer.Argument(help="Moltex export ZIP to inspect")],
     report_dir: Annotated[
-        Path | None,
-        typer.Option("--report-dir", help="Directory for deterministic H1 reports"),
-    ] = None,
+        Path,
+        typer.Option(
+            "--report-dir",
+            help="Explicit diagnostic directory for deterministic H1 reports",
+        ),
+    ],
     as_json: Annotated[
         bool,
         typer.Option(
@@ -44,7 +48,7 @@ def inspect_command(
 ) -> None:
     """Safely inspect an export and compile raw source evidence."""
 
-    destination = report_dir or Path("output") / "intake" / archive.stem
+    destination = report_dir
     outcome = IntakeService().inspect(archive, destination)
     if as_json:
         typer.echo(deterministic_json(outcome.result.report), nl=False)
@@ -159,6 +163,45 @@ def compile_command(
         typer.echo(f"Compiled H3 Astro baseline into {output}")
     else:
         typer.echo(f"Baseline compilation failed: {outcome.report.message}", err=True)
+    if outcome.exit_code:
+        raise typer.Exit(outcome.exit_code)
+
+
+@app.command("create-site")
+def create_site_command(
+    archive: Annotated[Path, typer.Argument(help="Accepted Moltex export ZIP")],
+    output_root: Annotated[
+        Path,
+        typer.Option(
+            "--output-root",
+            help="Parent directory; the verified bundle identity names the site folder",
+        ),
+    ] = Path("output"),
+    timeout: Annotated[
+        float,
+        typer.Option(
+            "--timeout", min=1, help="Timeout for each Node install/build command"
+        ),
+    ] = 900,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Write the pipeline report as JSON")
+    ] = False,
+) -> None:
+    """Create, build, verify, and plan one self-contained site workspace."""
+
+    outcome = SitePipelineService().create(
+        archive, output_root, timeout_seconds=timeout
+    )
+    if as_json:
+        typer.echo(deterministic_json(outcome.report), nl=False)
+    elif outcome.exit_code == 0:
+        typer.echo(f"Created complete site workspace at {outcome.destination}")
+    else:
+        typer.echo(
+            f"Site pipeline failed during {outcome.report.phase}: "
+            f"{outcome.report.message}",
+            err=True,
+        )
     if outcome.exit_code:
         raise typer.Exit(outcome.exit_code)
 

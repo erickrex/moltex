@@ -60,14 +60,14 @@ export const buildChecks = (contracts) => {
     return /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|\bAKIA[0-9A-Z]{16}\b|\bsk-[a-z0-9_-]{20,}\b|(?:password|api[_-]?key)\s*[=:]\s*[^\s"']{8,}/i.test(value) ? [posix(path.relative("dist", file))] : [];
   });
   return [result("build.output-inventory", "dist", missing.length === 0 && unexpected.length === 0 && sensitive.length === 0, {
-    contractIds: contracts.routes.filter((route) => route.public).map((route) => route.contract_id),
+    contractIds: contracts.publishedRoutes.map((route) => route.contract_id),
     evidenceRefs: [".moltex/verification/baseline-expectations.json"], expected: [...expected].sort(), actual: [...actual].sort(),
     message: `Build integrity differs; missing=${missing.join(",") || "none"}; unexpected=${unexpected.join(",") || "none"}; sensitive=${sensitive.join(",") || "none"}`,
     artifacts: [".moltex/reports/built-route-inventory.json"], passMessage: `Build contains exactly ${actual.size} expected HTML outputs`,
   })];
 };
 
-export const routeAndContentChecks = (contracts) => contracts.routes.filter((route) => route.public).flatMap((route) => {
+export const routeAndContentChecks = (contracts) => contracts.publishedRoutes.flatMap((route) => {
   const file = path.join("dist", ...route.output_path.split("/"));
   const exists = fs.existsSync(file);
   const html = exists ? fs.readFileSync(file, "utf8") : "";
@@ -89,7 +89,7 @@ export const routeAndContentChecks = (contracts) => contracts.routes.filter((rou
 });
 
 export const assetChecks = (contracts) => {
-  const required = contracts.assets.filter((asset) => !asset.needs_decision);
+  const required = contracts.publishedAssets;
   const checks = required.flatMap((asset) => {
     const file = asset.target_path.startsWith("public/") ? path.join("dist", asset.target_path.slice(7)) : path.join("dist", asset.target_path);
     const exists = fs.existsSync(file);
@@ -134,10 +134,10 @@ export const assetChecks = (contracts) => {
 };
 
 export const linkChecks = (contracts) => {
-  const expectedPaths = new Set(contracts.routes.filter((route) => route.public).map((route) => new URL(route.target_url, "https://moltex.invalid").pathname));
+  const expectedPaths = new Set(contracts.publishedRoutes.map((route) => new URL(route.target_url, "https://moltex.invalid").pathname));
   expectedPaths.add("/404.html");
   const results = [];
-  for (const route of contracts.routes.filter((item) => item.public)) {
+  for (const route of contracts.publishedRoutes) {
     const file = path.join("dist", ...route.output_path.split("/"));
     if (!fs.existsSync(file)) continue;
     const html = fs.readFileSync(file, "utf8");
@@ -145,6 +145,7 @@ export const linkChecks = (contracts) => {
       const parsed = new URL(href, "https://moltex.invalid");
       if (href.startsWith("#")) {
         const id = parsed.hash.slice(1);
+        if (!id) continue;
         const exists = Boolean(id) && new RegExp(`\\sid=["']${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`, "i").test(html);
         results.push(result("link.internal-target", `${route.target_url}${parsed.hash}`, exists, {
           contractIds: [route.contract_id], evidenceRefs: [`.moltex/contracts/contracts/routes.json#${route.contract_id}`], expected: `fragment ${parsed.hash}`, actual: exists, message: `Missing same-page fragment ${parsed.hash} from ${route.target_url}`,
@@ -197,8 +198,8 @@ export const navigationChecks = (contracts) => {
   })];
 };
 
-export const seoChecks = (contracts) => contracts.seo.flatMap((seo) => {
-  const route = contracts.routes.find((item) => item.contract_id === seo.route_contract_id);
+export const seoChecks = (contracts) => contracts.publishedSeo.flatMap((seo) => {
+  const route = contracts.publishedRoutes.find((item) => item.contract_id === seo.route_contract_id);
   const file = route ? path.join("dist", ...route.output_path.split("/")) : "";
   const exists = file && fs.existsSync(file);
   const html = exists ? fs.readFileSync(file, "utf8") : "";
@@ -229,15 +230,15 @@ export const seoChecks = (contracts) => contracts.seo.flatMap((seo) => {
     })),
   ];
 }).concat((() => {
-  const expected = contracts.routes.filter((route) => route.public && route.expected_status === 200).filter((route) => {
-    const seo = contracts.seo.find((item) => item.route_contract_id === route.contract_id);
+  const expected = contracts.publishedRoutes.filter((route) => route.expected_status === 200).filter((route) => {
+    const seo = contracts.publishedSeo.find((item) => item.route_contract_id === route.contract_id);
     return !seo || !seo.robots.toLowerCase().includes("noindex");
   }).map((route) => route.target_url).sort();
   const actual = readJson("src/data/sitemap.json", []).sort();
   const xml = fs.existsSync("dist/sitemap.xml") ? fs.readFileSync("dist/sitemap.xml", "utf8") : "";
   const missingXml = expected.filter((route) => !xml.includes(route));
   return [result("seo.sitemap", "sitemap", JSON.stringify(actual) === JSON.stringify(expected) && missingXml.length === 0, {
-    contractIds: contracts.seo.map((item) => item.contract_id), evidenceRefs: [".moltex/contracts/contracts/seo.json", "src/data/sitemap.json"],
+    contractIds: contracts.publishedSeo.map((item) => item.contract_id), evidenceRefs: [".moltex/contracts/contracts/seo.json", "src/data/sitemap.json"],
     expected, actual: { routes: actual, missing_xml: missingXml }, message: "Sitemap entries differ from indexable route contracts",
   })];
 })());
@@ -257,7 +258,7 @@ export const redirectChecks = (contracts) => {
   });
   const built = fs.existsSync("dist/_redirects") ? fs.readFileSync("dist/_redirects", "utf8").trim().split(/\r?\n/).filter(Boolean) : [];
   const expected = active.map((item) => `${item.source_url} ${item.target_url} ${item.status_code}`).sort();
-  const routeTargets = new Set(contracts.routes.filter((item) => item.public).map((item) => new URL(item.target_url, "https://moltex.invalid").pathname));
+  const routeTargets = new Set(contracts.publishedRoutes.map((item) => new URL(item.target_url, "https://moltex.invalid").pathname));
   const missingTargets = active.filter((item) => {
     const target = new URL(item.target_url, "https://moltex.invalid");
     return target.origin === "https://moltex.invalid" && !routeTargets.has(target.pathname);

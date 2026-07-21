@@ -20,6 +20,7 @@ require_once MOLTEX_TESTS_DIR . '/ContractFixtureTrait.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/trait-error-logger.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-callback-resolver.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-source-identifier.php';
+require_once MOLTEX_PLUGIN_DIR . '/includes/class-site-identity.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-security-filters.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-preflight.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-admin-page.php';

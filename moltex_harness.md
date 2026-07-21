@@ -1321,6 +1321,7 @@ The `moltex_harness` CLI exposes verification and eval commands alongside intake
 compilation:
 
 ```bash
+uv run --project moltex_harness moltex create-site exports/acme.zip
 uv run --project moltex_harness moltex verify output/acme-moltex --level final
 uv run --project moltex_harness moltex eval --fixture golden-blog --suite clean
 uv run --project moltex_harness moltex eval --fixture golden-blog --suite mutations
@@ -1330,6 +1331,17 @@ uv run --project moltex_harness moltex eval --suite browser --keep-workspace-on-
 uv run --project moltex_harness moltex eval --list-fixtures
 uv run --project moltex_harness moltex eval --list-mutations
 ```
+
+`create-site` is the normal operator entry point. It validates and reads the source site
+name, domain, and safe workspace slug from the accepted bundle; the operator does not name
+the site. It stages H1-H5 intermediates outside the shared output root and publishes exactly
+one self-contained `output/<artifact-workspace-slug>/` directory
+only after baseline compilation, the locked production build, baseline verification,
+workspace planning, and task-graph verification pass. Contracts, visual evidence, receipts,
+reports, source, dependencies, and built output remain beneath that site root. Failed runs
+must not leave a destination directory, and an existing destination is never merged into or
+overwritten. Phase-specific commands may still materialize explicit diagnostic fixtures for
+development and acceptance tests, but they are not the production multi-site workflow.
 
 Common flags:
 

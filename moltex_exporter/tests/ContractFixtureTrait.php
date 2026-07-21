@@ -85,6 +85,11 @@ trait Moltex_Exporter_Contract_Fixture_Trait {
 				'exporter_version' => '1.1.0',
 				'mode'             => $mode,
 				'site_origin'      => 'https://fixture.example',
+				'site_identity'    => array(
+					'site_name'      => 'E2 Fixture',
+					'domain'         => 'fixture.example',
+					'workspace_slug' => 'fixture-example',
+				),
 				'complete'     => 'complete' === $mode,
 				'counts'       => array( 'post' => array( 'discovered' => 1, 'exported' => 1, 'excluded' => 0, 'failed' => 0, 'complete' => true ) ),
 				'privacy'      => array(

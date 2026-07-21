@@ -7,7 +7,7 @@ const safeName = (value) => value.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g,
 
 export const httpChecks = async (contracts, baseUrl) => {
   const checks = [];
-  for (const route of contracts.routes.filter((item) => item.public)) {
+  for (const route of contracts.publishedRoutes) {
     const name = safeName(route.contract_id);
     const artifact = `.moltex/reports/http/${name}.response.json`;
     try {
@@ -34,11 +34,11 @@ export const httpChecks = async (contracts, baseUrl) => {
     const { response } = await requestArtifact(baseUrl, missingRoute, missingArtifact);
     checks.push(checkResult({
       checkId: "http.not-found", status: response.status === 404 ? "pass" : "fail", severity: response.status === 404 ? "info" : "critical",
-      subject: missingRoute, contractIds: contracts.routes.map((item) => item.contract_id), evidenceRefs: [".moltex/contracts/contracts/routes.json"],
+      subject: missingRoute, contractIds: contracts.publishedRoutes.map((item) => item.contract_id), evidenceRefs: [".moltex/contracts/contracts/routes.json"],
       expected: 404, actual: response.status, message: response.status === 404 ? "Unknown public path returns a real 404" : `Unknown public path is a soft 404 with status ${response.status}`, artifacts: [missingArtifact],
     }));
   } catch (error) {
-    checks.push(checkResult({ checkId: "http.not-found", status: "error", severity: "critical", subject: missingRoute, contractIds: contracts.routes.map((item) => item.contract_id), evidenceRefs: [".moltex/contracts/contracts/routes.json"], expected: 404, actual: null, message: `404 probe failed: ${error.message}`, artifacts: [missingArtifact] }));
+    checks.push(checkResult({ checkId: "http.not-found", status: "error", severity: "critical", subject: missingRoute, contractIds: contracts.publishedRoutes.map((item) => item.contract_id), evidenceRefs: [".moltex/contracts/contracts/routes.json"], expected: 404, actual: null, message: `404 probe failed: ${error.message}`, artifacts: [missingArtifact] }));
   }
   return checks;
 };
@@ -52,7 +52,7 @@ export const browserChecks = async (contracts, baseUrl) => {
   const artifactRecords = [];
   try {
     const profiles = [{ name: "desktop", width: 1440, height: 1200 }, { name: "mobile", width: 500, height: 844 }];
-    const routes = contracts.routes.filter((item) => item.public).slice(0, 5);
+    const routes = contracts.publishedRoutes.slice(0, 5);
     for (const profile of profiles) {
       const context = await browser.newContext({ viewport: { width: profile.width, height: profile.height } });
       const trace = `.moltex/reports/browser/${profile.name}.trace.zip`;

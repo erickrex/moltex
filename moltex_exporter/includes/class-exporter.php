@@ -16,6 +16,7 @@ if ( ! defined( 'WPINC' ) ) {
 require_once __DIR__ . '/class-artifact-registry.php';
 require_once __DIR__ . '/class-schema-validator.php';
 require_once __DIR__ . '/class-artifact-writer.php';
+require_once __DIR__ . '/class-site-identity.php';
 
 /**
  * Exporter Class
@@ -763,12 +764,16 @@ class Moltex_Exporter_Exporter {
 		$content = isset( $this->results['content'] ) && is_array( $this->results['content'] ) ? $this->results['content'] : array();
 		$completeness = isset( $content['completeness'] ) && is_array( $content['completeness'] ) ? $content['completeness'] : array();
 		$excluded_statuses = isset( $completeness['excluded_statuses'] ) && is_array( $completeness['excluded_statuses'] ) ? $completeness['excluded_statuses'] : array();
+		$site = isset( $this->results['site']['site'] ) && is_array( $this->results['site']['site'] ) ? $this->results['site']['site'] : array();
+		$site_origin = isset( $site['url'] ) ? $site['url'] : '';
+		$site_name = isset( $site['site_title'] ) ? $site['site_title'] : '';
 
 		return array(
 			'created_at'       => gmdate( 'c' ),
-			'exporter_version' => defined( 'MOLTEX_EXPORTER_VERSION' ) ? MOLTEX_EXPORTER_VERSION : '1.2.9',
+			'exporter_version' => defined( 'MOLTEX_EXPORTER_VERSION' ) ? MOLTEX_EXPORTER_VERSION : '1.2.10',
 			'mode'             => isset( $content['export_mode'] ) && 'discovery' === $content['export_mode'] ? 'discovery' : 'complete',
-			'site_origin'      => isset( $this->results['site']['site']['url'] ) ? $this->results['site']['site']['url'] : '',
+			'site_origin'      => $site_origin,
+			'site_identity'    => Moltex_Exporter_Site_Identity::from_values( $site_origin, $site_name ),
 			'complete'     => ! empty( $completeness['complete'] ),
 			'counts'       => isset( $completeness['post_types'] ) ? $completeness['post_types'] : array(),
 			'privacy'      => array(

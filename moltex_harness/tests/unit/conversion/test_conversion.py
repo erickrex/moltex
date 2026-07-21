@@ -106,6 +106,7 @@ def test_unmapped_remote_media_is_removed_from_local_only_baseline(
             "original_html": (
                 '<img src="https://old.example/plugin-placeholder.png" '
                 'srcset="https://old.example/a.png 1x, /media/local.png 2x">'
+                '<img src="placeholder-image.jpg" alt="Template placeholder">'
             )
         }
     )
@@ -114,6 +115,7 @@ def test_unmapped_remote_media_is_removed_from_local_only_baseline(
     ).convert(record)
 
     assert "https://old.example" not in receipt.sanitized_html
+    assert "placeholder-image.jpg" not in receipt.sanitized_html
     assert "/media/local.png 2x" in receipt.sanitized_html
     assert any(item.code == "unmapped_media_removed" for item in receipt.findings)
 

@@ -165,6 +165,25 @@ def _build_numeric_internal_links_export(source: Path, destination: Path) -> Pat
     return _write_export(files, manifest, destination)
 
 
+def _build_site_identity_export(
+    source: Path, destination: Path, workspace_slug: str
+) -> Path:
+    with zipfile.ZipFile(source) as input_zip:
+        files = {
+            info.filename: input_zip.read(info.filename)
+            for info in input_zip.infolist()
+            if not info.is_dir() and info.filename != "bundle.json"
+        }
+        manifest = json.loads(input_zip.read("bundle.json"))
+    manifest["site_identity"] = {
+        "site_name": "Fixture Site",
+        "domain": "fixture.example",
+        "workspace_slug": workspace_slug,
+    }
+    manifest["site_origin"] = "https://fixture.example"
+    return _write_export(files, manifest, destination)
+
+
 @pytest.mark.parametrize(
     ("filename", "adapter", "content_count"),
     [
@@ -196,6 +215,9 @@ def test_supported_sample_exports_compile_raw_evidence(
         assert len(outcome.result.evidence.media) == 2
         assert len(outcome.result.evidence.html_references) == 8
         assert len(outcome.result.evidence.screenshot_references) == 2
+    assert outcome.result.evidence.source_manifest.site_identity is not None
+    assert outcome.result.evidence.source_manifest.site_identity.domain
+    assert outcome.result.evidence.source_manifest.site_identity.workspace_slug
 
 
 def test_all_emitted_evidence_references_resolve_once(
@@ -220,6 +242,41 @@ def test_all_emitted_evidence_references_resolve_once(
 
     assert all(reference.artifact in inventory for reference in references)
     assert len({reference.evidence_id for reference in references}) == len(references)
+
+
+def test_manifest_site_identity_is_retained_after_cross_validation(
+    samples_dir: Path, tmp_path: Path
+) -> None:
+    archive = _build_site_identity_export(
+        samples_dir / "golden-export.zip",
+        tmp_path / "identity.zip",
+        "fixture-example",
+    )
+
+    outcome = IntakeService().inspect(archive, tmp_path / "identity-report")
+
+    assert outcome.exit_code == 0
+    assert outcome.result.evidence is not None
+    assert outcome.result.evidence.source_manifest.site_identity is not None
+    assert (
+        outcome.result.evidence.source_manifest.site_identity.workspace_slug
+        == "fixture-example"
+    )
+
+
+def test_manifest_site_identity_cannot_select_an_unrelated_output_folder(
+    samples_dir: Path, tmp_path: Path
+) -> None:
+    archive = _build_site_identity_export(
+        samples_dir / "golden-export.zip",
+        tmp_path / "identity-mismatch.zip",
+        "unrelated-site",
+    )
+
+    outcome = IntakeService().inspect(archive, tmp_path / "identity-mismatch-report")
+
+    assert outcome.exit_code == 3
+    assert outcome.result.report.findings[0].code == "invalid_site_identity"
 
 
 def test_reduced_export_with_shared_media_artifact_is_accepted(

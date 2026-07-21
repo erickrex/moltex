@@ -49,6 +49,18 @@ class EvidenceReference(StrictModel):
     sha256: str
 
 
+class SiteIdentity(StrictModel):
+    """Exporter-declared identity used for display and safe workspace naming."""
+
+    site_name: str = Field(min_length=1, max_length=300)
+    domain: str = Field(min_length=1, max_length=253)
+    workspace_slug: str = Field(
+        min_length=1,
+        max_length=100,
+        pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
+    )
+
+
 class RawSourceManifest(StrictModel):
     schema_version: Literal[1] = 1
     source_schema: Literal["legacy-1", "moltex-export/1"]
@@ -56,6 +68,7 @@ class RawSourceManifest(StrictModel):
     archive_sha256: str
     exporter_version: str | None = None
     site_origin: str | None = None
+    site_identity: SiteIdentity | None = None
     mode: str
     complete: bool
     privacy: dict[str, Any] = Field(default_factory=dict)

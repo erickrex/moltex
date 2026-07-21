@@ -72,6 +72,24 @@ class BundleValidatorTest extends TestCase {
 		$this->assertStringContainsString( 'Manifest artifact is missing from ZIP: site_settings.json', implode( ' ', $result['errors'] ) );
 	}
 
+	public function test_site_identity_cannot_select_an_unrelated_workspace_slug() {
+		$this->write_contract_fixture( $this->directory );
+		$manifest_path = $this->directory . '/bundle.json';
+		$manifest = json_decode( file_get_contents( $manifest_path ), true );
+		$manifest['site_identity']['workspace_slug'] = 'unrelated-site';
+		file_put_contents( $manifest_path, wp_json_encode( $manifest, JSON_PRETTY_PRINT ) . "\n" );
+		$zip_path = $this->directory . '/identity-mismatch.zip';
+		$this->zip_contract_fixture( $this->directory, $zip_path );
+
+		$result = ( new Moltex_Exporter_Bundle_Validator() )->validate_zip( $zip_path );
+
+		$this->assertFalse( $result['valid'] );
+		$this->assertStringContainsString(
+			'site_identity.workspace_slug does not match site_origin',
+			implode( ' ', $result['errors'] )
+		);
+	}
+
 	public function test_traversal_entry_is_rejected() {
 		$this->write_contract_fixture( $this->directory );
 		$zip_path = $this->directory . '/traversal.zip';

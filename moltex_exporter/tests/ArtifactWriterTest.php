@@ -27,6 +27,9 @@ class ArtifactWriterTest extends TestCase {
 		$this->assertMatchesRegularExpression( '/^sha256:[a-f0-9]{64}$/', $first['bundle_id'] );
 		$this->assertFileExists( $this->directory . '/bundle.json' );
 		$this->assertFileExists( $this->directory . '/schemas/content-item.schema.json' );
+		$this->assertSame( 'E2 Fixture', $first['site_identity']['site_name'] );
+		$this->assertSame( 'fixture.example', $first['site_identity']['domain'] );
+		$this->assertSame( 'fixture-example', $first['site_identity']['workspace_slug'] );
 		$paths = array_column( $first['artifacts'], 'path' );
 		$sorted = $paths;
 		sort( $sorted, SORT_STRING );

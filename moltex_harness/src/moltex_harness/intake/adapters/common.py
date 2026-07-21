@@ -368,6 +368,7 @@ def compile_raw_evidence(
         archive_sha256=bundle.archive_sha256,
         exporter_version=validation.exporter_version,
         site_origin=validation.site_origin,
+        site_identity=validation.site_identity,
         mode=validation.mode,
         complete=validation.complete,
         privacy=validation.privacy,

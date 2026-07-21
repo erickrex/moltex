@@ -6,7 +6,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from moltex_harness.models import Finding, RawSourceEvidence
+from moltex_harness.models import Finding, RawSourceEvidence, SiteIdentity
 
 from ..archive import SafeArchive
 
@@ -18,6 +18,7 @@ class AdapterValidation(BaseModel):
     bundle_id: str
     exporter_version: str | None = None
     site_origin: str | None = None
+    site_identity: SiteIdentity | None = None
     mode: str
     complete: bool
     privacy: dict[str, Any] = Field(default_factory=dict)

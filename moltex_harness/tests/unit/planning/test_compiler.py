@@ -68,6 +68,10 @@ def test_compiler_derives_bounded_deterministic_task_graph(
     assert {
         contract_id for task in route_tasks for contract_id in task.contract_ids
     } == {route.contract_id for route in golden_contracts.routes if route.public}
+    production = next(
+        task for task in graph.tasks if task.family == TaskFamily.PRODUCTION
+    )
+    assert "public/media/**" in production.allowed_paths
 
 
 def test_confirmed_omission_has_no_task_and_is_preserved_in_parity(

@@ -10,13 +10,14 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
-from moltex_harness.models import Finding, RawSourceEvidence
+from moltex_harness.models import Finding, RawSourceEvidence, SiteIdentity
 
 from ..archive import SafeArchive
 from ..errors import IntakeError, UnsupportedExportError
 from .base import AdapterValidation
 from .common import compile_raw_evidence
 from .legacy_1 import Legacy1Adapter
+from ..site_identity import derive_site_identity, verify_site_identity
 
 
 SCHEMA_ROOT = Path(__file__).parents[1] / "schemas" / "moltex-export-1"
@@ -128,6 +129,7 @@ class MoltexExport1Adapter:
                     )
                 self._validate_schema(instance, schema_name, path)
 
+        site_identity = self._site_identity(bundle, manifest)
         self._validate_registry(manifest, declared)
         completeness = self._object(bundle, "export_completeness.json")
         readiness = self._object(bundle, "migration_readiness.json")
@@ -176,6 +178,7 @@ class MoltexExport1Adapter:
             bundle_id=str(manifest["bundle_id"]),
             exporter_version=str(manifest["exporter_version"]),
             site_origin=str(manifest["site_origin"]),
+            site_identity=site_identity,
             mode=str(manifest["mode"]),
             complete=bool(manifest["complete"]),
             privacy=manifest.get("privacy", {}),
@@ -200,6 +203,31 @@ class MoltexExport1Adapter:
                 "invalid_json_shape", "Artifact must be a JSON object", artifact=path
             )
         return value
+
+    @classmethod
+    def _site_identity(
+        cls, bundle: SafeArchive, manifest: dict[str, Any]
+    ) -> SiteIdentity:
+        origin = str(manifest["site_origin"])
+        value = manifest.get("site_identity")
+        if value is not None:
+            try:
+                return verify_site_identity(origin, SiteIdentity.model_validate(value))
+            except ValueError as error:
+                raise IntakeError(
+                    "invalid_site_identity",
+                    str(error),
+                    artifact="bundle.json",
+                    pointer="/site_identity",
+                ) from error
+
+        blueprint = cls._object(bundle, "site_blueprint.json")
+        site = blueprint.get("site")
+        site_data = site if isinstance(site, dict) else {}
+        return derive_site_identity(
+            origin,
+            str(site_data.get("site_title") or site_data.get("name") or ""),
+        )
 
     @staticmethod
     def _declared_artifacts(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:

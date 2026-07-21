@@ -8,17 +8,26 @@ export const loadContracts = () => {
   const index = readJson(`${CONTRACT_ROOT}/contract-index.json`);
   const sourceManifest = readJson(`${CONTRACT_ROOT}/source-manifest.json`);
   const siteSpec = readJson(`${CONTRACT_ROOT}/site-spec.json`);
+  const routes = contract("routes");
+  const assets = contract("assets");
+  const seo = contract("seo");
+  const expectations = readJson(".moltex/verification/baseline-expectations.json");
+  const publishedRouteIds = new Set(expectations.routes.map((item) => item.id));
+  const publishedAssetIds = new Set(expectations.assets.map((item) => item.id));
   return {
     index,
     sourceManifest,
     siteSpec,
-    routes: contract("routes"),
-    assets: contract("assets"),
-    seo: contract("seo"),
+    routes,
+    assets,
+    seo,
+    publishedRoutes: routes.filter((item) => item.public && publishedRouteIds.has(item.contract_id)),
+    publishedAssets: assets.filter((item) => publishedAssetIds.has(item.asset_id)),
+    publishedSeo: seo.filter((item) => publishedRouteIds.has(item.route_contract_id)),
     redirects: contract("redirects"),
     capabilities: contract("capabilities"),
     parity: readJson(`${CONTRACT_ROOT}/parity-matrix.json`, []),
-    expectations: readJson(".moltex/verification/baseline-expectations.json"),
+    expectations,
     taskGraph: readJson(".moltex/tasks/task-graph.json", null),
     planningParity: readJson(".moltex/parity-matrix.json", null),
   };
@@ -34,5 +43,9 @@ export const verifyContractReceipts = (contracts) => {
     if (data.length !== receipt.bytes || sha256(data) !== receipt.sha256) errors.push(`checksum ${receipt.path}`);
   }
   if (contracts.expectations.bundleId !== contracts.sourceManifest.bundle_id) errors.push("expectation bundle ID mismatch");
+  if (contracts.publishedRoutes.length !== contracts.expectations.routes.length) errors.push("unknown published route expectation");
+  if (contracts.publishedAssets.length !== contracts.expectations.assets.length) errors.push("unknown published asset expectation");
+  const omitted = new Set((contracts.expectations.omittedRoutes ?? []).map((item) => item.route_contract_id));
+  if (contracts.publishedRoutes.some((item) => omitted.has(item.contract_id))) errors.push("route is both published and omitted");
   return errors;
 };

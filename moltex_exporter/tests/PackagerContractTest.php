@@ -9,6 +9,7 @@ use PHPUnit\Framework\TestCase;
 
 class PackagerContractTest extends TestCase {
 	use Moltex_Exporter_Temp_Directory_Trait;
+	use Moltex_Exporter_Contract_Fixture_Trait;
 
 	private $directory;
 
@@ -27,5 +28,28 @@ class PackagerContractTest extends TestCase {
 
 		$this->assertFalse( $result['success'] );
 		$this->assertStringContainsString( 'Required bundle.json is missing', $result['error'] );
+	}
+
+	public function test_zip_filename_contains_the_verified_site_workspace_slug() {
+		global $mock_upload_dir;
+		$uploads = $this->directory . '/uploads';
+		mkdir( $uploads, 0755, true );
+		$mock_upload_dir = array( 'basedir' => $uploads );
+		try {
+			$packager = new Moltex_Exporter_Packager();
+			$export = $packager->create_artifacts_directory();
+			$this->assertNotFalse( $export );
+			$this->write_contract_fixture( $export );
+
+			$result = $packager->create_zip( $export );
+
+			$this->assertTrue( $result['success'], isset( $result['error'] ) ? $result['error'] : '' );
+			$this->assertMatchesRegularExpression(
+				'/^migration-artifacts-fixture-example-[^.]+\.zip$/',
+				$result['zip_filename']
+			);
+		} finally {
+			$mock_upload_dir = null;
+		}
 	}
 }

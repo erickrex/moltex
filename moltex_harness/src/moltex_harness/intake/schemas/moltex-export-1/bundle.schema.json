@@ -12,6 +12,16 @@
     "exporter_version": {"type": "string", "minLength": 1},
     "mode": {"type": "string", "enum": ["complete", "discovery"]},
     "site_origin": {"type": "string", "minLength": 1},
+    "site_identity": {
+      "type": ["object", "null"],
+      "required": ["site_name", "domain", "workspace_slug"],
+      "properties": {
+        "site_name": {"type": "string", "minLength": 1, "maxLength": 300},
+        "domain": {"type": "string", "minLength": 1, "maxLength": 253},
+        "workspace_slug": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$", "maxLength": 100}
+      },
+      "additionalProperties": false
+    },
     "complete": {"type": "boolean"},
     "privacy": {"type": "object"},
     "counts": {"type": "object"},

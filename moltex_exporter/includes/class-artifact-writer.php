@@ -125,6 +125,7 @@ class Moltex_Exporter_Artifact_Writer {
 			'exporter_version'  => isset( $metadata['exporter_version'] ) ? $metadata['exporter_version'] : 'unknown',
 			'mode'              => isset( $metadata['mode'] ) ? $metadata['mode'] : 'complete',
 			'site_origin'       => isset( $metadata['site_origin'] ) ? $metadata['site_origin'] : '',
+			'site_identity'     => isset( $metadata['site_identity'] ) ? $metadata['site_identity'] : null,
 			'complete'          => ! empty( $metadata['complete'] ),
 			'privacy'           => isset( $metadata['privacy'] ) ? $metadata['privacy'] : array(),
 			'counts'            => isset( $metadata['counts'] ) ? $metadata['counts'] : array(),

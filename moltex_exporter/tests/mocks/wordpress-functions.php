@@ -17,6 +17,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	define( 'ABSPATH', '/var/www/html/' );
 }
 
+if ( ! defined( 'HOUR_IN_SECONDS' ) ) {
+	define( 'HOUR_IN_SECONDS', 3600 );
+}
+
 // Define WP_PLUGIN_DIR constant
 if ( ! defined( 'WP_PLUGIN_DIR' ) ) {
 	define( 'WP_PLUGIN_DIR', ABSPATH . 'wp-content/plugins' );
@@ -511,6 +515,35 @@ function current_time( $type, $gmt = 0 ) {
  */
 function wp_json_encode( $data, $options = 0 ) {
 	return json_encode( $data, $options );
+}
+
+/**
+ * Mock wp_salt().
+ */
+function wp_salt( $scheme = 'auth' ) {
+	return 'moltex-test-salt-' . $scheme;
+}
+
+function wp_generate_password( $length = 12, $special_chars = true, $extra_special_chars = false ) {
+	return substr( str_repeat( 'moltex-test-password', $length ), 0, $length );
+}
+
+function set_transient( $transient, $value, $expiration = 0 ) {
+	global $mock_transients;
+	$mock_transients[ $transient ] = $value;
+	return true;
+}
+
+function wp_create_nonce( $action = -1 ) {
+	return substr( hash( 'sha256', (string) $action ), 0, 10 );
+}
+
+function admin_url( $path = '' ) {
+	return 'https://example.com/wp-admin/' . ltrim( $path, '/' );
+}
+
+function add_query_arg( $args, $url = '' ) {
+	return $url . ( false === strpos( $url, '?' ) ? '?' : '&' ) . http_build_query( $args );
 }
 
 /**
