@@ -9,16 +9,27 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from time import perf_counter_ns
 from typing import Callable, Protocol
 
 from moltex_harness.harness.processes import ProcessSupervisor
 from moltex_harness.harness.toolchain import Toolchain
 from moltex_harness.intake.serialization import write_json
-from moltex_harness.intake.service import IntakeService
-from moltex_harness.models import PipelinePhase, SiteIdentity, SitePipelineReport
+from moltex_harness.models import (
+    PipelinePhase,
+    PipelineStageReport,
+    SiteIdentity,
+    SitePipelineReport,
+)
 from moltex_harness.planning import PlanningOutcome, PlanningService
 from moltex_harness.scaffold import BaselineService
 from moltex_harness.scaffold.service import BaselineOutcome
+
+from .context import (
+    PipelineContext,
+    PipelinePreparationError,
+    PipelinePreparationService,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,13 +46,18 @@ class SitePipelineOutcome:
     destination: Path | None = None
 
 
-class SiteIdentityResolver(Protocol):
-    def resolve(self, archive: Path) -> SiteIdentity: ...
+class PipelinePreparer(Protocol):
+    def prepare(self, archive: Path, root: Path) -> PipelineContext: ...
 
 
 class BaselineCompiler(Protocol):
     def compile_archive(
-        self, archive: Path, output: Path, source_visuals: Path | None = None
+        self,
+        archive: Path,
+        output: Path,
+        source_visuals: Path | None = None,
+        *,
+        prepared: PipelineContext | None = None,
     ) -> BaselineOutcome: ...
 
 
@@ -50,34 +66,15 @@ class WorkspacePlanner(Protocol):
 
 
 class WorkspaceBuilder(Protocol):
-    def build(self, workspace: Path, *, timeout_seconds: float) -> WorkspaceBuildResult: ...
-
-
-class BundleSiteIdentityResolver:
-    """Read identity only after the bundle passes the safe H1 intake boundary."""
-
-    def resolve(self, archive: Path) -> SiteIdentity:
-        with tempfile.TemporaryDirectory(prefix="moltex-identity-") as temporary:
-            outcome = IntakeService().inspect(archive, Path(temporary) / "intake")
-            evidence = outcome.result.evidence
-            if outcome.exit_code or evidence is None:
-                findings = outcome.result.report.findings
-                if findings:
-                    finding = findings[0]
-                    raise ValueError(f"{finding.code}: {finding.message}")
-                raise ValueError("Bundle intake failed without a diagnostic finding")
-            identity = evidence.source_manifest.site_identity
-            if identity is None:
-                raise ValueError("Accepted bundle has no resolvable site identity")
-            return identity
+    def build(
+        self, workspace: Path, *, timeout_seconds: float
+    ) -> WorkspaceBuildResult: ...
 
 
 class NodeWorkspaceBuilder:
     """Install and build with the exact generated-workspace Node toolchain."""
 
-    def build(
-        self, workspace: Path, *, timeout_seconds: float
-    ) -> WorkspaceBuildResult:
+    def build(self, workspace: Path, *, timeout_seconds: float) -> WorkspaceBuildResult:
         try:
             toolchain = Toolchain.resolve()
         except ValueError as error:
@@ -133,13 +130,13 @@ class SitePipelineService:
         baseline: BaselineCompiler | None = None,
         builder: WorkspaceBuilder | None = None,
         planner: WorkspacePlanner | None = None,
-        identity_resolver: SiteIdentityResolver | None = None,
+        preparer: PipelinePreparer | None = None,
         run_id_factory: Callable[[], str] | None = None,
     ) -> None:
         self.baseline = baseline or BaselineService()
         self.builder = builder or NodeWorkspaceBuilder()
         self.planner = planner or PlanningService()
-        self.identity_resolver = identity_resolver or BundleSiteIdentityResolver()
+        self.preparer = preparer or PipelinePreparationService()
         self.run_id_factory = run_id_factory or self._new_run_id
 
     def create(
@@ -152,46 +149,64 @@ class SitePipelineService:
         root = output_root.resolve()
         root.mkdir(parents=True, exist_ok=True)
         run_id = self.run_id_factory()
-        try:
-            identity = self.identity_resolver.resolve(archive)
-        except ValueError as error:
-            return self._failure(
-                root,
-                None,
-                None,
-                run_id,
-                "preflight",
-                "site_identity_invalid",
-                str(error),
-                3,
-            )
-        destination = (root / identity.workspace_slug).resolve()
-        if destination.parent != root:
-            return self._failure(
-                root,
-                identity,
-                None,
-                run_id,
-                "preflight",
-                "site_identity_unsafe",
-                "Site output escapes output root",
-                3,
-            )
-        if destination.exists():
-            return self._failure(
-                root,
-                identity,
-                None,
-                run_id,
-                "preflight",
-                "output_exists",
-                f"Site output already exists: {identity.workspace_slug}",
-                2,
-            )
-
         with tempfile.TemporaryDirectory(prefix="moltex-site-") as temporary:
-            workspace = Path(temporary) / "site"
-            baseline = self.baseline.compile_archive(archive, workspace)
+            temporary_root = Path(temporary)
+            try:
+                context = self.preparer.prepare(archive, temporary_root / "prepared")
+            except PipelinePreparationError as error:
+                return self._failure(
+                    root,
+                    None,
+                    None,
+                    run_id,
+                    "preflight",
+                    error.code,
+                    str(error),
+                    error.exit_code,
+                )
+            except ValueError as error:
+                return self._failure(
+                    root,
+                    None,
+                    None,
+                    run_id,
+                    "preflight",
+                    "pipeline_preparation_failed",
+                    str(error),
+                    3,
+                )
+            identity = context.identity
+            destination = (root / identity.workspace_slug).resolve()
+            if destination.parent != root:
+                return self._failure(
+                    root,
+                    identity,
+                    None,
+                    run_id,
+                    "preflight",
+                    "site_identity_unsafe",
+                    "Site output escapes output root",
+                    3,
+                )
+            if destination.exists():
+                return self._failure(
+                    root,
+                    identity,
+                    None,
+                    run_id,
+                    "preflight",
+                    "output_exists",
+                    f"Site output already exists: {identity.workspace_slug}",
+                    2,
+                )
+
+            workspace = temporary_root / "site"
+            stages = list(context.metrics)
+            baseline_started = perf_counter_ns()
+            baseline = self.baseline.compile_archive(
+                archive, workspace, prepared=context
+            )
+            stages.append(self._stage_metric("baseline", baseline_started, workspace))
             if baseline.exit_code:
                 return self._failure(
                     root,
@@ -203,11 +218,17 @@ class SitePipelineService:
                     else "baseline",
                     baseline.report.code,
                     baseline.report.message,
-                    6 if baseline.report.classification == "blocked" else baseline.exit_code,
+                    6
+                    if baseline.report.classification == "blocked"
+                    else baseline.exit_code,
                     blocked=baseline.report.classification == "blocked",
                 )
 
+            build_started = perf_counter_ns()
             build = self.builder.build(workspace, timeout_seconds=timeout_seconds)
+            stages.append(
+                self._stage_metric("build", build_started, workspace / "dist")
+            )
             if not build.success:
                 return self._failure(
                     root,
@@ -220,7 +241,13 @@ class SitePipelineService:
                     7,
                 )
 
+            planning_started = perf_counter_ns()
             planning = self.planner.compile_workspace(workspace)
+            stages.append(
+                self._stage_metric(
+                    "planning", planning_started, workspace / ".moltex" / "tasks"
+                )
+            )
             if planning.exit_code:
                 return self._failure(
                     root,
@@ -245,6 +272,7 @@ class SitePipelineService:
                 output=".",
                 site_identity=identity,
                 counts=counts,
+                stages=tuple(stages),
             )
             write_json(
                 workspace / ".moltex" / "reports" / "site-pipeline-report.json",
@@ -288,6 +316,20 @@ class SitePipelineService:
                     5,
                 )
         return SitePipelineOutcome(report, 0, destination)
+
+    @staticmethod
+    def _stage_metric(stage: str, started: int, path: Path) -> PipelineStageReport:
+        files = (
+            tuple(item for item in path.rglob("*") if item.is_file())
+            if path.is_dir()
+            else ()
+        )
+        return PipelineStageReport(
+            stage=stage,
+            duration_ms=max(0, (perf_counter_ns() - started) // 1_000_000),
+            artifacts=len(files),
+            bytes=sum(item.stat().st_size for item in files),
+        )
 
     @classmethod
     def _failure(

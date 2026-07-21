@@ -1347,6 +1347,20 @@ retains only redacted, bounded diagnostics beneath
 complete. Phase-specific commands may still materialize explicit diagnostic fixtures for
 development and acceptance tests, but they are not the production multi-site workflow.
 
+The composed workflow creates one immutable pipeline context containing the accepted raw
+evidence, extracted bundle, resolved identity, canonical contracts, contract directory, and
+stage metrics. H1 intake/extraction and H2 compilation each run exactly once; H3 consumes
+that context instead of reopening the archive or recompiling contracts. Standalone phase
+commands call the same intake and compilation services and produce byte-equivalent
+contracts. The site report records per-stage duration, artifact count, and byte size without
+logging private content.
+
+Source capture batches the deterministic visual plan into one Playwright browser launch,
+using an isolated context/page per target. Route probes use a bounded worker pool and one
+global deadline; results are restored to canonical contract order before receipt emission.
+The capture receipt records browser launches, maximum simultaneous pages, probe workers,
+and target count.
+
 Pipeline state and exit semantics:
 
 | State/code | Meaning | Exit |

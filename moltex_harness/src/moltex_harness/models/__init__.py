@@ -67,7 +67,7 @@ from .planning import (
     TaskGraphVerificationReport,
     TaskState,
 )
-from .pipeline import PipelinePhase, SitePipelineReport
+from .pipeline import PipelinePhase, PipelineStageReport, SitePipelineReport
 
 __all__ = [
     "ArtifactInventoryItem",
@@ -131,4 +131,5 @@ __all__ = [
     "TaskState",
     "SitePipelineReport",
     "PipelinePhase",
+    "PipelineStageReport",
 ]

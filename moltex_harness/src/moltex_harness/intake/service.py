@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tempfile
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,7 +30,13 @@ class IntakeService:
     def __init__(self, limits: ArchiveLimits | None = None) -> None:
         self.limits = limits or ArchiveLimits()
 
-    def inspect(self, archive: Path, report_dir: Path) -> InspectionOutcome:
+    def inspect(
+        self,
+        archive: Path,
+        report_dir: Path,
+        *,
+        extraction_dir: Path | None = None,
+    ) -> InspectionOutcome:
         archive = archive.expanduser()
         report_dir = report_dir.expanduser()
         report_path = report_dir / "intake-report.json"
@@ -38,7 +45,12 @@ class IntakeService:
         adapter_name: str | None = None
         bundle_id: str | None = None
         try:
-            with tempfile.TemporaryDirectory(prefix="moltex-intake-") as temporary:
+            extraction = (
+                tempfile.TemporaryDirectory(prefix="moltex-intake-")
+                if extraction_dir is None
+                else nullcontext(str(extraction_dir))
+            )
+            with extraction as temporary:
                 safe_archive = SafeArchive(archive, Path(temporary), self.limits)
                 safe_archive.prepare()
                 adapter = select_adapter(safe_archive)

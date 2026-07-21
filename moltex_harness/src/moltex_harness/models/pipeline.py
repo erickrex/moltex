@@ -20,6 +20,15 @@ PipelinePhase = Literal[
 ]
 
 
+class PipelineStageReport(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    stage: str
+    duration_ms: int = Field(ge=0)
+    artifacts: int = Field(ge=0)
+    bytes: int = Field(ge=0)
+
+
 class SitePipelineReport(BaseModel):
     """Stable summary of creating one complete generated site workspace."""
 
@@ -34,3 +43,4 @@ class SitePipelineReport(BaseModel):
     diagnostics: str | None = None
     site_identity: SiteIdentity | None = None
     counts: dict[str, int] = Field(default_factory=dict)
+    stages: tuple[PipelineStageReport, ...] = ()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from io import BytesIO
 
 import pytest
@@ -25,6 +26,24 @@ class FakeCapture:
             "test-chromium",
             "1.0",
         )
+
+
+class BatchCapture(FakeCapture):
+    def __init__(self, render) -> None:
+        super().__init__(render)
+        self.batch_calls = 0
+        self.capture_calls = 0
+        self.browser_launches = 0
+        self.max_concurrent_pages = 1
+
+    def capture(self, target):
+        self.capture_calls += 1
+        return super().capture(target)
+
+    def capture_all(self, targets):
+        self.batch_calls += 1
+        self.browser_launches += 1
+        return tuple(super(BatchCapture, self).capture(target) for target in targets)
 
 
 class OffOriginCapture(FakeCapture):
@@ -58,6 +77,12 @@ class FakeProbe:
         return self.results.get(url, RouteProbeResult(200, url))
 
 
+class SlowProbe:
+    def probe(self, url):
+        time.sleep(0.05)
+        return RouteProbeResult(200, url)
+
+
 def test_visual_receipt_is_bundle_bound_and_checksum_verified(
     golden_contracts, capture_png, tmp_path
 ) -> None:
@@ -76,6 +101,48 @@ def test_visual_receipt_is_bundle_bound_and_checksum_verified(
     assert verified.bundle_id == golden_contracts.source_manifest.bundle_id
     assert len(receipt.evidence) == len(golden_contracts.visual_capture_plan.targets)
     assert (destination / "capture-receipt.json").is_file()
+
+
+def test_visual_capture_batches_all_targets_in_one_browser_session(
+    golden_contracts, capture_png, tmp_path
+) -> None:
+    contracts_dir = tmp_path / "contracts"
+    ContractStore().write(contracts_dir, golden_contracts)
+    backend = BatchCapture(capture_png)
+
+    receipt = SourceVisualService().capture(
+        contracts_dir, tmp_path / "source", backend, FakeProbe()
+    )
+
+    assert backend.batch_calls == 1
+    assert backend.capture_calls == 0
+    assert receipt.resources == {
+        "browser_launches": 1,
+        "max_concurrent_pages": 1,
+        "probe_workers": min(8, len(golden_contracts.routes)),
+        "capture_targets": len(golden_contracts.visual_capture_plan.targets),
+    }
+    assert [item.evidence_id for item in receipt.evidence] == [
+        target.evidence_id for target in golden_contracts.visual_capture_plan.targets
+    ]
+
+
+def test_route_probes_obey_one_global_deadline(
+    golden_contracts, capture_png, tmp_path
+) -> None:
+    contracts_dir = tmp_path / "contracts"
+    ContractStore().write(contracts_dir, golden_contracts)
+    service = SourceVisualService(probe_deadline_seconds=0.001)
+
+    with pytest.raises(TimeoutError, match="global deadline"):
+        service.capture(
+            contracts_dir,
+            tmp_path / "source",
+            FakeCapture(capture_png),
+            SlowProbe(),
+        )
+
+    assert not (tmp_path / "source").exists()
 
 
 def test_confirmed_unavailable_route_is_recorded_and_not_captured(
@@ -110,9 +177,7 @@ def test_confirmed_unavailable_route_is_recorded_and_not_captured(
         item.route_contract_id == omitted_target.route_contract_id
         for item in receipt.evidence
     )
-    SourceVisualService().verify_and_copy(
-        contracts_dir, source, tmp_path / "protected"
-    )
+    SourceVisualService().verify_and_copy(contracts_dir, source, tmp_path / "protected")
 
 
 def test_transient_or_server_route_failure_is_not_omitted(
@@ -146,9 +211,7 @@ def test_capture_rejects_off_origin_and_blank_evidence(
         )
     assert not (tmp_path / "off-origin").exists()
     with pytest.raises(ValueError, match="blank"):
-        SourceVisualService().capture(
-            contracts_dir, tmp_path / "blank", BlankCapture()
-        )
+        SourceVisualService().capture(contracts_dir, tmp_path / "blank", BlankCapture())
     assert not (tmp_path / "blank").exists()
 
 
@@ -159,9 +222,7 @@ def test_visual_verification_rejects_receipt_mutations(
     contracts_dir = tmp_path / "contracts"
     ContractStore().write(contracts_dir, golden_contracts)
     source = tmp_path / "source"
-    SourceVisualService().capture(
-        contracts_dir, source, FakeCapture(capture_png)
-    )
+    SourceVisualService().capture(contracts_dir, source, FakeCapture(capture_png))
     receipt_path = source / "capture-receipt.json"
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     if mutation == "missing":

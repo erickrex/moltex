@@ -2,15 +2,16 @@
 
 from .service import (
     NodeWorkspaceBuilder,
-    BundleSiteIdentityResolver,
     SitePipelineOutcome,
     SitePipelineService,
     WorkspaceBuildResult,
 )
+from .context import PipelineContext, PipelinePreparationService
 
 __all__ = [
     "NodeWorkspaceBuilder",
-    "BundleSiteIdentityResolver",
+    "PipelineContext",
+    "PipelinePreparationService",
     "SitePipelineOutcome",
     "SitePipelineService",
     "WorkspaceBuildResult",

@@ -10,7 +10,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from moltex_harness.contracts import CompilationService, ContractStore, ContractVerifier
 from moltex_harness.conversion import (
@@ -26,6 +26,9 @@ from moltex_harness.visuals import CaptureBackend, SourceVisualService
 
 from .media import AssetMaterializer, MediaFetcher
 from .toolchain import NODE_VERSION, NPM_VERSION
+
+if TYPE_CHECKING:
+    from moltex_harness.pipeline.context import PipelineContext
 
 
 TEMPLATES = Path(__file__).parent / "templates"
@@ -53,20 +56,43 @@ class BaselineService:
         archive: Path,
         output: Path,
         source_visuals: Path | None = None,
+        *,
+        prepared: PipelineContext | None = None,
     ) -> BaselineOutcome:
         if output.exists() and any(output.iterdir()):
-            return self._failure(output, None, "output_not_empty", "Baseline output directory must be empty")
+            return self._failure(
+                output,
+                None,
+                "output_not_empty",
+                "Baseline output directory must be empty",
+            )
         output.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix="moltex-h3-") as temporary:
             root = Path(temporary)
-            contracts_dir = root / "contracts"
-            h2 = CompilationService().compile_archive(archive, contracts_dir)
-            if h2.exit_code:
-                return self._failure(output, h2.report.get("bundle_id"), "h2_failed", h2.report["message"])
+            if prepared is None:
+                contracts_dir = root / "contracts"
+                h2 = CompilationService().compile_archive(archive, contracts_dir)
+                if h2.exit_code:
+                    return self._failure(
+                        output,
+                        h2.report.get("bundle_id"),
+                        "h2_failed",
+                        h2.report["message"],
+                    )
+                contracts, _ = ContractStore().load(contracts_dir)
+                extraction = root / "bundle"
+            else:
+                contracts_dir = prepared.contracts_dir
+                contracts = prepared.contracts
+                extraction = prepared.extracted_bundle
             verification = ContractVerifier().verify(contracts_dir)
             if verification.status != "pass":
-                return self._failure(output, verification.bundle_id, "h2_verification_failed", verification.errors[0])
-            contracts, _ = ContractStore().load(contracts_dir)
+                return self._failure(
+                    output,
+                    verification.bundle_id,
+                    "h2_verification_failed",
+                    verification.errors[0],
+                )
             if contracts.site_spec.static_eligibility == "ineligible":
                 return self._failure(
                     output,
@@ -77,9 +103,16 @@ class BaselineService:
                 )
             workspace = root / "workspace"
             try:
+                if prepared is None:
+                    safe_archive = SafeArchive(
+                        archive, extraction, ArchiveLimits()
+                    )
+                    safe_archive.prepare()
                 workspace.mkdir(parents=True)
                 shutil.copytree(contracts_dir, workspace / ".moltex" / "contracts")
-                visual_destination = workspace / ".moltex" / "evidence" / "source-visuals"
+                visual_destination = (
+                    workspace / ".moltex" / "evidence" / "source-visuals"
+                )
                 visuals = SourceVisualService()
                 if source_visuals is None:
                     captured = root / "source-visuals"
@@ -88,9 +121,6 @@ class BaselineService:
                 visual_receipt = visuals.verify_and_copy(
                     contracts_dir, source_visuals, visual_destination
                 )
-                extraction = root / "bundle"
-                safe_archive = SafeArchive(archive, extraction, ArchiveLimits())
-                safe_archive.prepare()
                 omitted_route_ids = {
                     item.route_contract_id
                     for item in visual_receipt.route_availability
@@ -166,7 +196,9 @@ class BaselineService:
                 "source_visuals": ".moltex/evidence/source-visuals/capture-receipt.json",
             },
         )
-        write_json(output / ".moltex" / "reports" / "baseline-compilation-report.json", report)
+        write_json(
+            output / ".moltex" / "reports" / "baseline-compilation-report.json", report
+        )
         return BaselineOutcome(report, 0)
 
     def _generate(
@@ -177,7 +209,9 @@ class BaselineService:
     ) -> tuple[Any, ...]:
         workspace.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(TEMPLATES / "package.json", workspace / "package.json")
-        shutil.copyfile(TEMPLATES / "package-lock.json", workspace / "package-lock.json")
+        shutil.copyfile(
+            TEMPLATES / "package-lock.json", workspace / "package-lock.json"
+        )
         shutil.copyfile(TEMPLATES / ".node-version", workspace / ".node-version")
         shutil.copyfile(TEMPLATES / ".npmrc", workspace / ".npmrc")
         (workspace / "astro.config.mjs").write_text(
@@ -186,7 +220,10 @@ class BaselineService:
         )
         write_json(
             workspace / "tsconfig.json",
-            {"extends": "astro/tsconfigs/strict", "compilerOptions": {"baseUrl": ".", "paths": {"@/*": ["src/*"]}}},
+            {
+                "extends": "astro/tsconfigs/strict",
+                "compilerOptions": {"baseUrl": ".", "paths": {"@/*": ["src/*"]}},
+            },
         )
         routes_by_id = {route.contract_id: route for route in contracts.routes}
         included_routes = tuple(
@@ -201,9 +238,13 @@ class BaselineService:
         }
         seo_by_route = {item.route_contract_id: item for item in contracts.seo}
         url_map = {entry.source_url: entry.target_url for entry in contracts.url_map}
-        media_map = {entry.source_url: entry.target_url for entry in contracts.media_map}
+        media_map = {
+            entry.source_url: entry.target_url for entry in contracts.media_map
+        }
         assets_by_id = {asset.asset_id: asset for asset in contracts.assets}
-        converter = ContentConverter(UrlRewriter(contracts.site_spec.source_origin, url_map, media_map))
+        converter = ContentConverter(
+            UrlRewriter(contracts.site_spec.source_origin, url_map, media_map)
+        )
         frontmatter = FrontmatterNormalizer()
         content_by_id: dict[str, dict[str, Any]] = {}
         receipts = []
@@ -214,7 +255,14 @@ class BaselineService:
             if any(finding.severity == "error" for finding in receipt.findings):
                 raise ValueError(f"Unsafe content conversion: {record.record_id}")
             receipts.append(receipt)
-            route = next((item for item in contracts.routes if item.content_record_id == record.record_id), None)
+            route = next(
+                (
+                    item
+                    for item in contracts.routes
+                    if item.content_record_id == record.record_id
+                ),
+                None,
+            )
             seo = seo_by_route.get(route.contract_id) if route else None
             document = {
                 **frontmatter.normalize(record, seo),
@@ -223,7 +271,8 @@ class BaselineService:
                 "media": [
                     {
                         "assetId": asset.asset_id,
-                        "src": "/" + asset.target_path.removeprefix("public/").lstrip("/"),
+                        "src": "/"
+                        + asset.target_path.removeprefix("public/").lstrip("/"),
                         "alt": asset.alt_text or "",
                         "mimeType": asset.mime_type,
                     }
@@ -240,9 +289,7 @@ class BaselineService:
             write_json(workspace / "src" / "content" / "records" / safe_name, document)
         write_json(workspace / ".moltex" / "receipts" / "conversion.json", receipts)
         self._write_shell(workspace, contracts.site_spec.site_name)
-        self._write_navigation(
-            workspace, contracts, routes_by_id, omitted_route_ids
-        )
+        self._write_navigation(workspace, contracts, routes_by_id, omitted_route_ids)
         posts = [
             item["recordId"]
             for item in content_by_id.values()
@@ -325,7 +372,7 @@ class BaselineService:
         component.parent.mkdir(parents=True, exist_ok=True)
         component.write_text(
             "---\nconst { items = [] } = Astro.props;\n---\n"
-            '<ul>{items.map((item) => <li><a href={item.href}>{item.label}</a>'
+            "<ul>{items.map((item) => <li><a href={item.href}>{item.label}</a>"
             "{item.children?.length ? <Astro.self items={item.children} /> : null}</li>)}</ul>\n",
             encoding="utf-8",
         )
@@ -336,12 +383,12 @@ class BaselineService:
             "const { title, description = '', canonical = '', robots = 'index,follow', openGraph = {}, structuredDataHints = [] } = Astro.props;\n"
             "const ogItems = Array.isArray(openGraph.items) ? openGraph.items : [openGraph];\n"
             "const ogEntries = ogItems.flatMap((item) => item && (item.property || item.name || item.key) ? [[item.property || item.name || item.key, item.content ?? item.value ?? '']] : Object.entries(item ?? {}).filter(([key]) => key !== 'items'));\n---\n"
-            "<!doctype html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width\">"
-            "<meta name=\"description\" content={description}><meta name=\"robots\" content={robots}><link rel=\"canonical\" href={canonical}>"
+            '<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width">'
+            '<meta name="description" content={description}><meta name="robots" content={robots}><link rel="canonical" href={canonical}>'
             "{ogEntries.map(([property, content]) => <meta property={String(property).startsWith('og:') ? String(property) : `og:${property}`} content={String(content)} />)}"
-            "{structuredDataHints.map((hint) => <meta name=\"moltex:structured-data-hint\" content={hint} />)}<title>{title}</title></head>"
-            "<body><a class=\"skip\" href=\"#content\">Skip to content</a><header><a href=\"/\">{site.siteName}</a><nav aria-label=\"Primary\"><NavigationList items={nav} /></nav></header>"
-            "<main id=\"content\"><slot /></main><footer>Generated by Moltex</footer></body></html>"
+            '{structuredDataHints.map((hint) => <meta name="moltex:structured-data-hint" content={hint} />)}<title>{title}</title></head>'
+            '<body><a class="skip" href="#content">Skip to content</a><header><a href="/">{site.siteName}</a><nav aria-label="Primary"><NavigationList items={nav} /></nav></header>'
+            '<main id="content"><slot /></main><footer>Generated by Moltex</footer></body></html>'
             "<style is:global>:root{font-family:system-ui,sans-serif;color:#17202a}body{margin:0}header,main,footer{max-width:72rem;margin:auto;padding:1rem}nav>ul{display:flex;gap:1rem}nav ul{list-style:none;padding:0}.skip{position:absolute;left:-10000px}.skip:focus{left:1rem;background:white;padding:.5rem}img{max-width:100%;height:auto}.moltex-placeholder{border:2px dashed #8a6500;padding:1rem}.listing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:1rem}.listing-card{border:1px solid #ccd1d1;padding:1rem}</style>\n",
             encoding="utf-8",
         )
@@ -394,9 +441,9 @@ class BaselineService:
             "<BaseLayout title={seo.title ?? record.title} description={seo.description ?? ''} canonical={seo.canonical_url ?? ''} robots={seo.robots ?? 'index,follow'} openGraph={seo.open_graph ?? {}} structuredDataHints={seo.structured_data_hints ?? []}>"
             "<article data-record-id={record.recordId}><h1>{record.title}</h1>"
             "{record.media?.map((media) => <img src={media.src} alt={media.alt} data-asset-id={media.assetId} />)}"
-            "<div class=\"content\" set:html={record.renderedHtml} />"
+            '<div class="content" set:html={record.renderedHtml} />'
             "{typedFields.length ? <dl class=\"typed-fields\">{typedFields.map(([key, value]) => <><dt>{key.replace('geodirectory.', '')}</dt><dd>{typeof value === 'object' ? JSON.stringify(value) : String(value ?? '')}</dd></>)}</dl> : null}"
-            "{listingItems.length ? <section class=\"listing-grid\" aria-label=\"Listings\">{listingItems.map((item) => <article class=\"listing-card\" data-record-id={item.recordId}><h2>{item.targetUrl ? <a href={item.targetUrl}>{item.title}</a> : item.title}</h2>{item.excerpt ? <p>{item.excerpt}</p> : null}</article>)}</section> : null}"
+            '{listingItems.length ? <section class="listing-grid" aria-label="Listings">{listingItems.map((item) => <article class="listing-card" data-record-id={item.recordId}><h2>{item.targetUrl ? <a href={item.targetUrl}>{item.title}</a> : item.title}</h2>{item.excerpt ? <p>{item.excerpt}</p> : null}</article>)}</section> : null}'
             "</article></BaseLayout>\n"
         )
         (pages / "[...path].astro").write_text(
@@ -457,7 +504,9 @@ class BaselineService:
         )
         public = workspace / "public"
         public.mkdir(exist_ok=True)
-        (public / "_redirects").write_text(redirects + ("\n" if redirects else ""), encoding="utf-8")
+        (public / "_redirects").write_text(
+            redirects + ("\n" if redirects else ""), encoding="utf-8"
+        )
         origin = contracts.site_spec.target_canonical_origin.rstrip("/")
         namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
         ET.register_namespace("", namespace)
@@ -465,9 +514,9 @@ class BaselineService:
         for path in sitemap:
             url = ET.SubElement(urlset, f"{{{namespace}}}url")
             ET.SubElement(url, f"{{{namespace}}}loc").text = origin + path
-        sitemap_xml = ET.tostring(
-            urlset, encoding="utf-8", xml_declaration=True
-        ) + b"\n"
+        sitemap_xml = (
+            ET.tostring(urlset, encoding="utf-8", xml_declaration=True) + b"\n"
+        )
         (public / "sitemap.xml").write_bytes(sitemap_xml)
         (workspace / "src" / "content.config.ts").write_text(
             "import { defineCollection } from 'astro:content';\nimport { glob } from 'astro/loaders';\nexport const collections = { records: defineCollection({ loader: glob({ pattern: '**/*.json', base: './src/content/records' }) }) };\n",
@@ -488,8 +537,7 @@ class BaselineService:
     @staticmethod
     def _body_marker(value: str, limit: int = 80) -> str:
         candidates = [
-            re.sub(r"\s+", " ", part).strip()
-            for part in re.split(r"<[^>]+>", value)
+            re.sub(r"\s+", " ", part).strip() for part in re.split(r"<[^>]+>", value)
         ]
         candidates = [part for part in candidates if part]
         return max(candidates, key=len, default="")[:limit]
@@ -522,7 +570,9 @@ class BaselineService:
                             marker
                             for marker in [
                                 BaselineService._body_marker(
-                                    conversion_by_id[route.content_record_id].sanitized_html
+                                    conversion_by_id[
+                                        route.content_record_id
+                                    ].sanitized_html
                                 )
                                 if route.content_record_id in conversion_by_id
                                 else ""
@@ -530,11 +580,15 @@ class BaselineService:
                             if marker
                         ],
                     }
-                    for route in contracts.routes if route.public
-                    and route.contract_id not in omitted_route_ids
+                    for route in contracts.routes
+                    if route.public and route.contract_id not in omitted_route_ids
                 ],
                 "assets": [
-                    {"id": receipt.asset_id, "path": receipt.target_path.removeprefix("public/"), "sha256": receipt.sha256}
+                    {
+                        "id": receipt.asset_id,
+                        "path": receipt.target_path.removeprefix("public/"),
+                        "sha256": receipt.sha256,
+                    }
                     for receipt in receipts
                 ],
                 "contentRecords": [

@@ -83,6 +83,7 @@ class SourceVisualReceipt(BaselineModel):
     browser_version: str
     route_availability: tuple[RouteAvailabilityEvidence, ...]
     evidence: tuple[SourceVisualEvidence, ...]
+    resources: dict[str, int] = Field(default_factory=dict)
 
 
 class BaselineCompilationReport(BaselineModel):
@@ -91,6 +92,8 @@ class BaselineCompilationReport(BaselineModel):
     bundle_id: str | None
     code: str
     message: str
-    classification: Literal["permanent", "blocked", "transient", "harness"] | None = None
+    classification: Literal["permanent", "blocked", "transient", "harness"] | None = (
+        None
+    )
     counts: dict[str, int] = Field(default_factory=dict)
     outputs: dict[str, str] = Field(default_factory=dict)

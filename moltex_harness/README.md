@@ -34,6 +34,13 @@ bounded report under `output/.moltex-failures/<site>/<run-id>/`; success means t
 workspace is built, baseline-verified, and planned, not that Codex migration work is
 already complete.
 
+The composed command prepares one immutable pipeline context: archive extraction and H1
+intake run once, H2 contract compilation runs once, and H3 consumes those exact accepted
+artifacts. Its final report records bounded per-stage duration, artifact-count, and byte-size
+metrics without source content. Source visual targets are captured through one browser
+launch with isolated pages, while route probes use a bounded worker pool, a global deadline,
+and contract-order receipts.
+
 Use `--output-root <directory>` only to place the artifact-named site beneath a
 different parent directory. The CLI never accepts an operator-provided site name.
 

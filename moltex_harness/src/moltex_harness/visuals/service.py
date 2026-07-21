@@ -6,6 +6,7 @@ import hashlib
 import shutil
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, wait
 from io import BytesIO
 from dataclasses import dataclass
 from pathlib import Path
@@ -70,75 +71,115 @@ class PublicRouteProbe:
             self.policy.require_public(error.geturl())
             return RouteProbeResult(error.code, error.geturl())
         except (urllib.error.URLError, TimeoutError) as error:
-            raise ConnectionError(f"Route availability probe failed for {url}") from error
+            raise ConnectionError(
+                f"Route availability probe failed for {url}"
+            ) from error
 
 
 class PlaywrightCaptureBackend:
     def __init__(self, policy: PublicNetworkPolicy | None = None) -> None:
         self.policy = policy or PublicNetworkPolicy()
+        self.browser_launches = 0
+        self.max_concurrent_pages = 1
 
     def capture(self, target: VisualCaptureTarget) -> CaptureResult:
+        return self.capture_all((target,))[0]
+
+    def capture_all(
+        self, targets: tuple[VisualCaptureTarget, ...]
+    ) -> tuple[CaptureResult, ...]:
         from playwright.sync_api import sync_playwright
 
-        self.policy.require_public(target.source_url)
-        source_origin = self.policy.origin(target.source_url)
-        blocked: list[str] = []
+        for target in targets:
+            self.policy.require_public(target.source_url)
+        results: list[CaptureResult] = []
         with sync_playwright() as runtime:
             browser = runtime.chromium.launch(headless=True)
-            context = browser.new_context(
-                viewport={"width": target.viewport.width, "height": target.viewport.height},
-                device_scale_factor=1,
-            )
-
-            def enforce(route) -> None:
-                request = route.request
-                try:
-                    self.policy.require_public(request.url)
-                    if request.is_navigation_request() and self.policy.origin(
-                        request.url
-                    ) != source_origin:
-                        raise ValueError("Off-origin navigation")
-                except ValueError:
-                    blocked.append(request.url)
-                    route.abort("blockedbyclient")
-                    return
-                route.continue_()
-
-            context.route("**/*", enforce)
-            page = context.new_page()
+            self.browser_launches += 1
             try:
-                response = page.goto(
-                    target.source_url, wait_until="networkidle", timeout=30_000
-                )
-            except Exception as error:
-                if blocked:
-                    browser.close()
-                    raise ValueError(
-                        "Source capture blocked a non-public or off-origin request"
-                    ) from error
+                for target in targets:
+                    source_origin = self.policy.origin(target.source_url)
+                    blocked: list[str] = []
+                    context = browser.new_context(
+                        viewport={
+                            "width": target.viewport.width,
+                            "height": target.viewport.height,
+                        },
+                        device_scale_factor=1,
+                    )
+
+                    def enforce(route) -> None:
+                        request = route.request
+                        try:
+                            self.policy.require_public(request.url)
+                            if (
+                                request.is_navigation_request()
+                                and self.policy.origin(request.url) != source_origin
+                            ):
+                                raise ValueError("Off-origin navigation")
+                        except ValueError:
+                            blocked.append(request.url)
+                            route.abort("blockedbyclient")
+                            return
+                        route.continue_()
+
+                    context.route("**/*", enforce)
+                    page = context.new_page()
+                    try:
+                        response = page.goto(
+                            target.source_url,
+                            wait_until="networkidle",
+                            timeout=30_000,
+                        )
+                        if blocked:
+                            raise ValueError(
+                                "Source capture blocked a non-public or off-origin request"
+                            )
+                        if response is None or not response.ok:
+                            status = (
+                                response.status
+                                if response is not None
+                                else "no response"
+                            )
+                            raise ValueError(
+                                f"Source capture returned HTTP {status} for {target.source_url}"
+                            )
+                        results.append(
+                            CaptureResult(
+                                page.screenshot(full_page=True, type="png"),
+                                page.url,
+                                "playwright-chromium",
+                                browser.version,
+                            )
+                        )
+                    except Exception as error:
+                        if blocked:
+                            raise ValueError(
+                                "Source capture blocked a non-public or off-origin request"
+                            ) from error
+                        raise
+                    finally:
+                        context.close()
+            finally:
                 browser.close()
-                raise
-            if blocked:
-                browser.close()
-                raise ValueError(
-                    "Source capture blocked a non-public or off-origin request"
-                )
-            if response is None or not response.ok:
-                browser.close()
-                status = response.status if response is not None else "no response"
-                raise ValueError(
-                    f"Source capture returned HTTP {status} for {target.source_url}"
-                )
-            png = page.screenshot(full_page=True, type="png")
-            final_url = page.url
-            version = browser.version
-            browser.close()
-        return CaptureResult(png, final_url, "playwright-chromium", version)
+        return tuple(results)
 
 
 class SourceVisualService:
-    def __init__(self, policy: PublicNetworkPolicy | None = None) -> None:
+    def __init__(
+        self,
+        policy: PublicNetworkPolicy | None = None,
+        *,
+        probe_workers: int = 8,
+        probe_deadline_seconds: float = 60,
+    ) -> None:
+        if probe_workers < 1 or probe_workers > 32:
+            raise ValueError("Route probe workers must be between 1 and 32")
+        if probe_deadline_seconds <= 0 or probe_deadline_seconds > 300:
+            raise ValueError("Route probe deadline must be between 0 and 300 seconds")
         self.policy = policy or PublicNetworkPolicy()
+        self.probe_workers = probe_workers
+        self.probe_deadline_seconds = probe_deadline_seconds
 
     def capture(
         self,
@@ -151,7 +192,9 @@ class SourceVisualService:
             raise ValueError("Source visual output directory must be empty")
         verification = ContractVerifier().verify(contract_dir)
         if verification.status != "pass":
-            raise ValueError("H2 contracts must pass verification before source capture")
+            raise ValueError(
+                "H2 contracts must pass verification before source capture"
+            )
         contracts, _ = ContractStore().load(contract_dir)
         plan = contracts.visual_capture_plan
         output.mkdir(parents=True, exist_ok=True)
@@ -159,10 +202,13 @@ class SourceVisualService:
         evidence_dir.mkdir(exist_ok=True)
         default_backend = backend is None
         backend = backend or PlaywrightCaptureBackend(self.policy)
+        effective_probe = route_probe or (
+            PublicRouteProbe(self.policy) if default_backend else None
+        )
         try:
             availability = self._route_availability(
                 contracts,
-                route_probe or (PublicRouteProbe(self.policy) if default_backend else None),
+                effective_probe,
                 validate_network=default_backend,
             )
         except Exception:
@@ -176,10 +222,13 @@ class SourceVisualService:
         evidence: list[SourceVisualEvidence] = []
         browser_identity: tuple[str, str] | None = None
         seen: set[str] = set()
+        targets = tuple(
+            target
+            for target in plan.targets
+            if target.route_contract_id not in omitted_route_ids
+        )
         try:
-            for target in plan.targets:
-                if target.route_contract_id in omitted_route_ids:
-                    continue
+            for target in targets:
                 if target.evidence_id in seen:
                     raise ValueError(
                         f"Duplicate visual evidence id: {target.evidence_id}"
@@ -187,7 +236,15 @@ class SourceVisualService:
                 seen.add(target.evidence_id)
                 if default_backend:
                     self.policy.require_public(target.source_url)
-                result = backend.capture(target)
+            capture_all = getattr(backend, "capture_all", None)
+            results = (
+                tuple(capture_all(targets))
+                if callable(capture_all)
+                else tuple(backend.capture(target) for target in targets)
+            )
+            if len(results) != len(targets):
+                raise ValueError("Capture backend returned an incomplete target set")
+            for target, result in zip(targets, results, strict=True):
                 if self._origin(result.final_url) != self._origin(target.source_url):
                     raise ValueError(
                         f"Off-origin source capture redirect: {result.final_url}"
@@ -229,12 +286,24 @@ class SourceVisualService:
             browser_version=version,
             route_availability=availability,
             evidence=tuple(evidence),
+            resources={
+                "browser_launches": int(getattr(backend, "browser_launches", 0)),
+                "max_concurrent_pages": int(
+                    getattr(backend, "max_concurrent_pages", 1 if targets else 0)
+                ),
+                "probe_workers": (
+                    min(self.probe_workers, len(availability)) if effective_probe else 0
+                ),
+                "capture_targets": len(targets),
+            },
         )
         write_json(output / "manifest.json", receipt.evidence)
         write_json(output / "capture-receipt.json", receipt)
         return receipt
 
-    def verify_and_copy(self, contract_dir: Path, source: Path, destination: Path) -> SourceVisualReceipt:
+    def verify_and_copy(
+        self, contract_dir: Path, source: Path, destination: Path
+    ) -> SourceVisualReceipt:
         contracts, _ = ContractStore().load(contract_dir)
         receipt = SourceVisualReceipt.model_validate_json(
             (source / "capture-receipt.json").read_text(encoding="utf-8")
@@ -243,13 +312,19 @@ class SourceVisualService:
         if receipt.bundle_id != contracts.source_manifest.bundle_id:
             raise ValueError("Visual receipt belongs to a different source bundle")
         expected_hash = hashlib.sha256(deterministic_json(plan).encode()).hexdigest()
-        if receipt.capture_plan_id != plan.plan_id or receipt.capture_plan_sha256 != expected_hash:
-            raise ValueError("Visual receipt does not match the H2 capture plan")
-        public_routes = {route.contract_id: route for route in contracts.routes if route.public}
-        availability = {item.route_contract_id: item for item in receipt.route_availability}
         if (
-            set(availability) != set(public_routes)
-            or len(availability) != len(receipt.route_availability)
+            receipt.capture_plan_id != plan.plan_id
+            or receipt.capture_plan_sha256 != expected_hash
+        ):
+            raise ValueError("Visual receipt does not match the H2 capture plan")
+        public_routes = {
+            route.contract_id: route for route in contracts.routes if route.public
+        }
+        availability = {
+            item.route_contract_id: item for item in receipt.route_availability
+        }
+        if set(availability) != set(public_routes) or len(availability) != len(
+            receipt.route_availability
         ):
             raise ValueError("Route availability receipt is incomplete or duplicated")
         for route_id, item in availability.items():
@@ -288,7 +363,9 @@ class SourceVisualService:
                 or visual.height != target.viewport.height
                 or self._origin(visual.final_url) != self._origin(visual.source_url)
             ):
-                raise ValueError(f"Visual evidence viewport or final URL mismatch: {evidence_id}")
+                raise ValueError(
+                    f"Visual evidence viewport or final URL mismatch: {evidence_id}"
+                )
             artifact = (source / visual.artifact).resolve()
             if source.resolve() not in artifact.parents or not artifact.is_file():
                 raise ValueError(
@@ -319,13 +396,29 @@ class SourceVisualService:
     ) -> tuple[RouteAvailabilityEvidence, ...]:
         values: list[RouteAvailabilityEvidence] = []
         origin = contracts.site_spec.source_origin.rstrip("/") + "/"
-        for route in contracts.routes:
-            if not route.public:
-                continue
-            source_url = urljoin(origin, route.legacy_url)
+        public_routes = tuple(route for route in contracts.routes if route.public)
+        source_urls = tuple(
+            urljoin(origin, route.legacy_url) for route in public_routes
+        )
+        if probe is None:
+            results = tuple(RouteProbeResult(200, url) for url in source_urls)
+        else:
+            workers = min(self.probe_workers, len(source_urls))
+            executor = ThreadPoolExecutor(max_workers=max(1, workers))
+            futures = [executor.submit(probe.probe, url) for url in source_urls]
+            completed, pending = wait(futures, timeout=self.probe_deadline_seconds)
+            if pending:
+                for future in pending:
+                    future.cancel()
+                executor.shutdown(wait=False, cancel_futures=True)
+                raise TimeoutError("Route availability exceeded its global deadline")
+            executor.shutdown(wait=True)
+            results = tuple(future.result() for future in futures)
+        for route, source_url, result in zip(
+            public_routes, source_urls, results, strict=True
+        ):
             if validate_network:
                 self.policy.require_public(source_url)
-            result = probe.probe(source_url) if probe else RouteProbeResult(200, source_url)
             disposition, reason = self._availability_disposition(result, source_url)
             item = RouteAvailabilityEvidence(
                 route_contract_id=route.contract_id,
@@ -346,7 +439,9 @@ class SourceVisualService:
         final_path = urlsplit(result.final_url).path.lower()
         if result.status_code in {401, 403, 404, 410}:
             return "omitted", f"http_{result.status_code}"
-        if "wp-login.php" in final_path or final_path.rstrip("/").endswith(("/login", "/sign-in")):
+        if "wp-login.php" in final_path or final_path.rstrip("/").endswith(
+            ("/login", "/sign-in")
+        ):
             return "omitted", "authentication_redirect"
         if source_url and cls._origin(result.final_url) != cls._origin(source_url):
             return "omitted", "off_origin_redirect"
@@ -377,7 +472,9 @@ class SourceVisualService:
                 if source.format != "PNG" or source.width != width:
                     raise ValueError("Source capture does not match its viewport width")
                 if source.height < minimum_height or source.height > 30_000:
-                    raise ValueError("Source capture height is outside the allowed bounds")
+                    raise ValueError(
+                        "Source capture height is outside the allowed bounds"
+                    )
                 image = source.convert("RGB")
                 background = Image.new("RGB", image.size, image.getpixel((0, 0)))
                 if ImageChops.difference(image, background).getbbox() is None:
