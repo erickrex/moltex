@@ -7,8 +7,12 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $scriptDir))
 $composeFile = Join-Path $scriptDir 'docker-compose-release.yml'
 $outputDir = Join-Path $scriptDir 'release-output'
-$releasePath = Join-Path $repoRoot 'dist/moltex-exporter-1.2.9.zip'
-if (-not (Test-Path -LiteralPath $releasePath)) { throw 'Build dist/moltex-exporter-1.2.9.zip before running the release smoke.' }
+$pluginEntry = Get-Content -LiteralPath (Join-Path $repoRoot 'moltex_exporter/moltex_exporter.php') -Raw
+$releaseVersion = [regex]::Match($pluginEntry, '(?m)^ \* Version:\s*([0-9]+\.[0-9]+\.[0-9]+)\s*$').Groups[1].Value
+if (-not $releaseVersion) { throw 'Could not derive the release version from the plugin entry point.' }
+$releaseName = "moltex-exporter-$releaseVersion.zip"
+$releasePath = Join-Path $repoRoot "dist/$releaseName"
+if (-not (Test-Path -LiteralPath $releasePath)) { throw "Build dist/$releaseName before running the release smoke." }
 
 function Invoke-Compose {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)

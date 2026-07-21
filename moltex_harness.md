@@ -19,6 +19,12 @@ acceptance, and the `moltex_exporter` implementation plan. This document does no
 how WordPress is scanned, which plugin admin controls exist, or how the exporter packages
 and downloads its ZIP.
 
+The authoritative three-state support matrix lives in
+[`moltex.md`](./moltex.md#authoritative-support-matrix). The harness enforces that imported
+boundary: Elementor or Divi plugin, post-meta, shortcode, or rendered-markup evidence emits
+an evidence-linked `unsupported_page_builder` finding and an ineligible site contract. A
+generic HTML fallback is not a builder adapter.
+
 | Concern | Owned here | Imported boundary |
 |---|---:|---|
 | Safe ZIP intake and export-version adapters | Yes | `moltex-export/1` from `moltex.md` |

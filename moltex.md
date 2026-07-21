@@ -26,7 +26,7 @@ authoritative; the harness implementation must be updated to consume that bounda
 - Product name: **Moltex**
 - Exporter project: `moltex_exporter`
 - Harness project: `moltex_harness`
-- Current exporter release: **1.2.9**
+- Current exporter release candidate: **1.2.10**
 - Current export contract: **`moltex-export/1`**
 - Target output: Git-managed Astro 5 static site
 - Primary implementation surface: Codex Desktop working on a generated repository
@@ -145,6 +145,26 @@ Ecommerce, memberships, communities, learning systems, booking applications, mul
 and other transactional systems are blocked or routed to an explicit decision.
 
 ## Product Scope
+
+### Authoritative support matrix
+
+“Supported” means Moltex has deterministic exporter evidence, canonical contracts,
+generation behavior, and clean/negative verification coverage for the stated boundary. It
+does not mean arbitrary plugin behavior or pixel-perfect layout is inferred automatically.
+
+| State | WordPress site or capability | Complete-migration behavior |
+|---|---|---|
+| Supported | Public standard posts/pages; classic-editor or Gutenberg content; navigation, taxonomies, authors, media, SEO, redirects; static ACF values; content-led brochure, corporate, blog, editorial, and portfolio sites | Eligible when the export is complete and no other blocker is present |
+| Supported tested subset | GeoDirectory public listing fields, locations, gallery media, taxonomies, tabs, and approved review display | Static listing content is reproduced; discovery behavior is handled separately below |
+| Conditional, explicit decision required | Forms/submission destinations, external integrations, custom shortcodes, widgets, custom hooks/plugins, GeoDirectory search/sort, and safe third-party embeds | The contract must name reproduce, replace, externalize, or approved omission before final verification |
+| Unsupported for complete migration | Elementor, Elementor Pro, Divi/Divi Builder, and any other page builder without a dedicated accepted adapter | Plugin, post-meta, shortcode, or rendered-markup evidence makes the site ineligible; generic HTML conversion is not presented as builder support |
+| Unsupported for complete migration | Ecommerce, memberships, authenticated communities, LMS, booking/transactional applications, multisite, private application state, or incomplete/unbounded exports | A structured readiness blocker stops source capture and Astro publication |
+
+A future builder-support phase is separate for each builder. It must add exporter evidence,
+canonical models, deterministic conversion limits, representative fixtures, visual
+acceptance, negative mutations, and explicit fallback behavior before this table can move
+that builder out of “unsupported.” Current readiness examples and evidence are summarized in
+[`docs/support-readiness.md`](./docs/support-readiness.md).
 
 ### Hackathon scope
 

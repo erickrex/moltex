@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from moltex_harness.intake.artifacts import CAPABILITY_CONSUMERS
+from moltex_harness.intake.serialization import deterministic_json
 from moltex_harness.models import (
     CapabilityDisposition,
     CapabilityDispositionKind,
@@ -36,7 +37,7 @@ class _CapabilityCompilerMixin(_CompilerSupport):
         findings: list[NormalizationFinding],
         decisions: list[DecisionItem],
     ) -> list[CapabilityDisposition]:
-        capabilities: list[CapabilityDisposition] = []
+        capabilities = self._page_builder_capabilities(raw, routes, findings, decisions)
         content_by_route = {
             route.contract_id: next(
                 (
@@ -221,6 +222,8 @@ class _CapabilityCompilerMixin(_CompilerSupport):
                     if not isinstance(plugin, dict) or not plugin.get("active"):
                         continue
                     slug = str(plugin.get("plugin_slug") or index)
+                    if self._builder_from_plugin_slug(slug):
+                        continue
                     if slug in {"moltex-exporter", "wordpress-seo"}:
                         continue
                     features_value = plugin.get("features")
@@ -346,6 +349,168 @@ class _CapabilityCompilerMixin(_CompilerSupport):
                 "capability_collision", "Capability IDs are not unique"
             )
         return list(unique.values())
+
+    def _page_builder_capabilities(
+        self,
+        raw: RawSourceEvidence,
+        routes: list[RouteContract],
+        findings: list[NormalizationFinding],
+        decisions: list[DecisionItem],
+    ) -> list[CapabilityDisposition]:
+        route_by_source = {route.source_content_id: route for route in routes}
+        signals: dict[str, tuple[EvidenceReference, set[str], set[str]]] = {}
+
+        def observe(
+            builder: str,
+            evidence: EvidenceReference,
+            signal: str,
+            route_id: str | None = None,
+        ) -> None:
+            existing = signals.get(builder)
+            if existing is None:
+                existing = (evidence, set(), set())
+                signals[builder] = existing
+            existing[1].add(signal)
+            if route_id:
+                existing[2].add(route_id)
+
+        for artifact in raw.capabilities:
+            if artifact.artifact != "plugins/plugins_fingerprint.json":
+                continue
+            data = artifact.data if isinstance(artifact.data, dict) else {}
+            fingerprints = data.get("fingerprints", [])
+            for index, plugin in enumerate(
+                fingerprints if isinstance(fingerprints, list) else []
+            ):
+                if not isinstance(plugin, dict) or not plugin.get("active"):
+                    continue
+                slug = str(plugin.get("plugin_slug") or "")
+                builder = self._builder_from_plugin_slug(slug)
+                if builder:
+                    observe(
+                        builder,
+                        _field_ref(artifact.evidence, f"/fingerprints/{index}"),
+                        "active_plugin",
+                    )
+
+        for content in raw.content:
+            route = route_by_source.get(str(content.source_id))
+            route_id = route.contract_id if route else None
+            metadata = deterministic_json(content.postmeta).lower()
+            markup = content.original_html.lower()
+            if any(
+                marker in metadata
+                for marker in ("_elementor_data", "_elementor_edit_mode")
+            ):
+                observe(
+                    "elementor",
+                    _field_ref(content.evidence, "/postmeta"),
+                    "post_meta",
+                    route_id,
+                )
+            if any(
+                marker in markup
+                for marker in (
+                    "data-elementor",
+                    "elementor-element",
+                    "elementor-widget",
+                )
+            ):
+                observe(
+                    "elementor",
+                    _field_ref(content.evidence, "/raw_html"),
+                    "rendered_markup",
+                    route_id,
+                )
+            if any(
+                marker in metadata
+                for marker in ("_et_pb_use_builder", "_et_pb_old_content")
+            ):
+                observe(
+                    "divi",
+                    _field_ref(content.evidence, "/postmeta"),
+                    "post_meta",
+                    route_id,
+                )
+            if "[et_pb_" in markup:
+                observe(
+                    "divi",
+                    _field_ref(content.evidence, "/raw_html"),
+                    "shortcode",
+                    route_id,
+                )
+            elif any(marker in markup for marker in ("et_pb_section", "et_pb_module")):
+                observe(
+                    "divi",
+                    _field_ref(content.evidence, "/raw_html"),
+                    "rendered_markup",
+                    route_id,
+                )
+
+        capabilities: list[CapabilityDisposition] = []
+        for builder, (evidence, signal_names, route_ids) in sorted(signals.items()):
+            capability = CapabilityDisposition(
+                capability_id=f"capability:page-builder:{builder}",
+                capability_type="unsupported_page_builder",
+                source_construct=(
+                    f"{builder.title()} evidence: {', '.join(sorted(signal_names))}"
+                ),
+                source_plugin=builder,
+                business_critical=True,
+                disposition=CapabilityDispositionKind.NEEDS_DECISION,
+                target_behavior=None,
+                verification_method=None,
+                required_operator_decision=(
+                    f"A dedicated accepted {builder.title()} adapter is required"
+                ),
+                observed_route_ids=tuple(sorted(route_ids)),
+                lineage=_lineage(
+                    CapabilityDisposition,
+                    evidence,
+                    "unsupported-page-builder/1",
+                    decision="dedicated_adapter_required",
+                ),
+            )
+            decision = self._decision(
+                "unsupported-page-builder",
+                capability.capability_id,
+                (
+                    f"Provide a dedicated accepted {builder.title()} adapter or migrate "
+                    "from a supported content-led source."
+                ),
+                ("provide-dedicated-adapter", "use-supported-source"),
+                evidence,
+            )
+            self._append_unique(decisions, decision)
+            self._append_unique(
+                findings,
+                self._finding(
+                    "unsupported_page_builder",
+                    "error",
+                    capability.capability_id,
+                    (
+                        f"{builder.title()} evidence blocks complete migration until a "
+                        "dedicated adapter and fixtures are accepted."
+                    ),
+                    evidence,
+                    decision.decision_id,
+                ),
+            )
+            capabilities.append(capability)
+        return capabilities
+
+    @staticmethod
+    def _builder_from_plugin_slug(slug: str) -> str | None:
+        normalized = slug.strip().lower()
+        if normalized in {"elementor", "elementor-pro"} or normalized.startswith(
+            "elementor/"
+        ):
+            return "elementor"
+        if normalized in {"divi", "divi-builder"} or normalized.startswith(
+            ("divi/", "divi-builder/")
+        ):
+            return "divi"
+        return None
 
     def _capability_decision(
         self,

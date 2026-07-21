@@ -34,18 +34,15 @@ other project's internal state.
 
 ## Current Status
 
-`moltex_exporter` has completed E1 through E3: its executable baseline is green, it emits
-and enforces `moltex-export/1`, and the reviewed real WordPress Golden Export is frozen for
-harness intake. Current E3 release hardening keeps the WordPress export one-click and
-defers automatic source screenshot capture to the H2-to-H3 transition. There is no E4;
-H1 safe intake and H2 canonical contract compilation are implemented; H3 is the
-next product phase.
+`moltex_exporter` emits and enforces `moltex-export/1`, packages only privacy-scanned
+producer artifacts, and declares unsupported site families through executable readiness
+evidence. The 1.2.10 release candidate is the current implementation line.
 
-`moltex_harness` now has its uv-managed package, bounded archive intake,
-`legacy-1` and `moltex-export/1` adapters, deterministic raw-source evidence, canonical
-route/asset/SEO/redirect/capability contracts, evidence lineage, parity seeds, and a
-bounded visual-capture plan. Later conversion and generation phases remain specified in
-the companion plan.
+`moltex_harness` implements bounded intake, canonical contracts, safe public-network
+acquisition, source visuals, scalable Astro generation, the self-contained verifier,
+planning, lifecycle/eval orchestration, and the atomic `create-site` workflow. A successful
+pipeline result is a built, baseline-verified, planned workspace—not a claim that later
+Codex migration tasks are already complete.
 
 ## Plans
 
@@ -73,7 +70,10 @@ AGENTS.md              Repository guidance
 Moltex targets brochure sites, blogs, portfolios, and similar content-led WordPress
 installations. Transactional applications such as ecommerce, memberships, communities,
 learning systems, bookings, and multisite are outside the initial static-migration
-profile and must produce explicit readiness blockers.
+profile and must produce explicit readiness blockers. Elementor and Divi are also
+unsupported for complete migration until each has a dedicated accepted adapter and fixture
+suite; they cannot silently pass as ordinary content-led sites. See the authoritative
+support matrix in [`moltex.md`](./moltex.md#authoritative-support-matrix).
 
 The generated Astro repository becomes the source of truth after migration. Routine
 content is stored in editable Astro content collections; WordPress is not required. A

@@ -51,4 +51,12 @@ class ReleasePackagingTest extends TestCase {
 		$this->assertStringNotContainsString( 'Reference Screenshots', $template );
 		$this->assertStringNotContainsString( 'No reviewed desktop/mobile reference screenshots', $preflight );
 	}
+
+	public function test_release_smoke_derives_version_from_plugin_entry_point() {
+		$smoke = file_get_contents( MOLTEX_PLUGIN_DIR . '/tests/wordpress/run-release-smoke.ps1' );
+
+		$this->assertStringContainsString( 'moltex_exporter/moltex_exporter.php', $smoke );
+		$this->assertStringContainsString( '$releaseVersion', $smoke );
+		$this->assertStringNotContainsString( 'moltex-exporter-1.2.9.zip', $smoke );
+	}
 }

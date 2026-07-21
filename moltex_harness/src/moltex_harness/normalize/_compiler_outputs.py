@@ -264,7 +264,10 @@ class _OutputCompilerMixin(_CompilerSupport):
         readiness = raw.source_manifest.readiness
         eligible = readiness.get("eligible")
         blockers = readiness.get("blockers", [])
-        if eligible is False or blockers:
+        unsupported_builder = any(
+            item.capability_type == "unsupported_page_builder" for item in capabilities
+        )
+        if eligible is False or blockers or unsupported_builder:
             static_eligibility = StaticEligibility.INELIGIBLE
         elif any(decision.severity == "blocking" for decision in decisions):
             static_eligibility = StaticEligibility.NEEDS_DECISION

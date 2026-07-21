@@ -48,6 +48,27 @@ class MigrationReadinessScannerTest extends TestCase {
 		$this->assertSame( 'ecommerce', $result['blockers'][0]['category'] );
 	}
 
+	public function test_elementor_and_divi_sites_are_blocked_as_page_builders() {
+		global $mock_options;
+		foreach ( array( 'elementor/elementor.php', 'divi-builder/divi-builder.php' ) as $plugin_file ) {
+			$mock_options['active_plugins'] = array( $plugin_file );
+			$scanner = new Moltex_Exporter_Migration_Readiness_Scanner(
+				array(
+					'context' => array(
+						'content' => array(
+							'completeness' => array( 'complete' => true ),
+						),
+					),
+				)
+			);
+
+			$result = $scanner->scan();
+
+			$this->assertFalse( $result['eligible'] );
+			$this->assertSame( 'page_builder', $result['blockers'][0]['category'] );
+		}
+	}
+
 	public function test_incomplete_export_is_blocked() {
 		$scanner = new Moltex_Exporter_Migration_Readiness_Scanner(
 			array(

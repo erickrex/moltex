@@ -13,6 +13,9 @@ class Moltex_Exporter_Preflight {
 
 	public static function get_blocked_plugin_families() {
 		return array(
+			'elementor/' => array( 'page_builder', 'Elementor' ),
+			'elementor-pro/' => array( 'page_builder', 'Elementor Pro' ),
+			'divi-builder/' => array( 'page_builder', 'Divi Builder' ),
 			'woocommerce/' => array( 'ecommerce', 'WooCommerce' ),
 			'easy-digital-downloads/' => array( 'ecommerce', 'Easy Digital Downloads' ),
 			'memberpress/' => array( 'membership', 'MemberPress' ),

@@ -9,7 +9,10 @@ site. The exporter observes and packages WordPress; `moltex_harness` interprets 
 The complete profile targets content-led brochure, corporate, blog, editorial, portfolio,
 and Gutenberg-first sites. Ecommerce, memberships, communities, learning systems,
 bookings, multisite, unknown plugins, and custom behavior require explicit review or a
-readiness blocker.
+readiness blocker. Elementor and Divi are explicitly unsupported for complete migration:
+their active-plugin evidence produces a page-builder readiness blocker, and the harness also
+checks exported post meta, shortcodes, and rendered markup. A builder is not supported until
+it has its own accepted evidence model, adapter, fixtures, visual checks, and fallbacks.
 
 ## Install the release
 
