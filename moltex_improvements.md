@@ -113,7 +113,7 @@ splitting large classes. File-size-only refactors are not acceptance criteria.
 | X4 | Implemented: the producer-to-consumer artifact handshake is closed and executable | Both | X3 |
 | X5 | Implemented: generated Astro repositories are injection-safe, payload-safe, and scalable | `moltex_harness` | X4 |
 | X6 | Implemented: the pipeline performs each expensive stage once and uses bounded resources | `moltex_harness` | X5 |
-| X7 | Implemented support enforcement; live release/staging evidence remains gated as recorded in `docs/support-readiness.md` | Both | X6 |
+| X7 | Implemented: support enforcement, exact release smoke, Golden evals, and explicit Meganoche blocking pass; a fresh supported staging pilot remains external | Both | X6 |
 
 ## Phase X1 - Make the Export Privacy Boundary Truthful
 

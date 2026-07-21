@@ -290,14 +290,14 @@ archive before download, and has an installable release artifact.
 
 | Evidence | Current result |
 |---|---|
-| Local PHPUnit suite | PASS on July 18, 2026: 123 tests, 1,730 assertions |
+| Local PHPUnit suite | PASS on July 21, 2026: 151 tests, 1,959 assertions |
 | Standalone exporter regressions | PASS: content, scope, directory isolation, download, scanner inventory, callback paths, identity, and Golden privacy |
 | Synthetic `moltex-export/1` fixture | PASS: 24 artifacts, no validator errors or warnings, complete-migration eligible |
 | Immutable Golden Export | PASS: 401 artifacts, no validator errors or warnings, complete-migration eligible |
 | Golden identity | `sha256:1700381e5023e1ee456439f62ba00e17bd5af18917169c76679fd17fe5aba03f` |
-| Current release ZIP | `dist/moltex-exporter-1.2.9.zip`, 187,369 bytes, 69 files |
-| Current release SHA-256 | `9ceaac338007a94ba7f47ac7e42fffeb8021050e87cb77a5bd4b7d58867ca864` |
-| Recorded compatibility smoke | PASS for WordPress 5.9.10/PHP 7.4 and WordPress 7.0.1/PHP 8.2 at the E3 release gate |
+| Current release ZIP | `dist/moltex-exporter-1.2.10.zip`, 193,607 bytes, 73 runtime files; byte-reproducible |
+| Current release SHA-256 | `7edc933d4c7c3017f1b4a7a5e1b6c583f020ba25954c28ec46d7036d4819f212` |
+| Recorded compatibility smoke | PASS on the exact 1.2.10 ZIP for WordPress 5.9.10/PHP 7.4.29 and WordPress 7.0.1/PHP 8.2.32 |
 
 The current local checks do not replace a staging-clone pilot. The latest checked-in live
 WordPress receipts prove the E3 and compatibility gates; changes after 1.2.0 are protected by
@@ -311,7 +311,7 @@ still requires the staging runbook and manual privacy review.
 | The exporter still executes a broad 33-scanner registry | Keep the audited surface; do not add a scanner without a declared consumer and behavior-focused tests. |
 | Complete exports have a 5,000-item per-post-type default ceiling | Mark the bundle incomplete when exceeded; do not claim unbounded-site support. |
 | The contract has global limits of 5,000 files and 250 MiB uncompressed | Fail safely or require a scoped export instead of weakening archive bounds. |
-| Redirect CSV and database SQL sidecars are optional | Their intentional absence is silent as of 1.2.9; genuine scanner, writer, and package failures remain diagnostics. |
+| Redirect CSV and database SQL sidecars are optional | Their intentional absence is silent as of 1.2.10; genuine scanner, writer, and package failures remain diagnostics. |
 | Deferred GeoDirectory gallery media is not bundled in the primary blueprint | Preserve every source URL and acquisition state; the harness must acquire or explicitly dispose it before local-only output can pass. |
 | Unknown plugins and custom runtime behavior cannot be proven static automatically | Emit capability/readiness evidence and require an explicit downstream decision. |
 | Screenshots are not captured by WordPress | Capture them automatically in the harness from the canonical route plan. |
@@ -831,7 +831,7 @@ adapter for breaking changes.
 
 ### Release behavior drifts beyond the last live WordPress receipt
 
-Mitigation: keep the 1.2.9 unit/regression and reproducible-release gates green, then run the
+Mitigation: keep the 1.2.10 unit/regression and reproducible-release gates green, then run the
 install-from-ZIP smoke and staging-clone pilot before making production claims for a newer
 release.
 
@@ -886,7 +886,7 @@ Moltex is ready for submission only when:
 ## Current Next Actions
 
 1. Treat exporter phases E1-E3 as accepted maintenance gates, not open implementation work.
-2. Pilot `dist/moltex-exporter-1.2.9.zip` on a staging clone using the checked-in runbook;
+2. Pilot `dist/moltex-exporter-1.2.10.zip` on a supported staging clone using the checked-in runbook;
    validate the downloaded bundle and review privacy/readiness evidence before production.
 3. Keep the PHPUnit suite, standalone regressions, synthetic bundle, legacy fixture, and
    immutable Golden fixture green for every exporter change.
