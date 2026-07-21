@@ -3,12 +3,22 @@
 from __future__ import annotations
 
 import html
+import hashlib
 import json
 import re
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Callable
 
 import nh3
+
+from moltex_harness.models import BlockDisposition
+
+from .blocks import (
+    BlockConverterRegistry,
+    BlockDispositionKind,
+    default_block_registry,
+)
 
 
 BLOCK_COMMENT = re.compile(
@@ -19,15 +29,23 @@ BLOCK_COMMENT = re.compile(
 
 SPECTRA_PRESENTATION_BLOCKS = frozenset(
     {
+        "spectra/accordion",
+        "spectra/accordion-child-details",
+        "spectra/accordion-child-header",
+        "spectra/accordion-child-header-content",
+        "spectra/accordion-child-header-icon",
+        "spectra/accordion-child-item",
         "spectra/button",
         "spectra/buttons",
         "spectra/container",
         "spectra/content",
+        "spectra/google-map",
         "spectra/icon",
         "spectra/icons",
         "spectra/list",
         "spectra/list-child-icon",
         "spectra/list-child-item",
+        "spectra/separator",
     }
 )
 
@@ -39,10 +57,6 @@ ATOMIC_WIND_PRESENTATION_BLOCKS = frozenset(
         "atomic-wind/link",
         "atomic-wind/text",
     }
-)
-
-SUPPORTED_PRESENTATION_BLOCKS = (
-    SPECTRA_PRESENTATION_BLOCKS | ATOMIC_WIND_PRESENTATION_BLOCKS
 )
 
 CORE_LAYOUT_BLOCKS = frozenset(
@@ -137,6 +151,17 @@ _CSS_COLOR = re.compile(
 )
 _CSS_FONT = re.compile(r"^[a-z0-9 _,-]{1,80}$", re.IGNORECASE)
 _ASTRA_COLOR = re.compile(r"(?:var\(--)?ast-global-color-([0-8])(?:\))?", re.I)
+DEFAULT_BLOCK_REGISTRY = default_block_registry(
+    core=CORE_LAYOUT_BLOCKS,
+    dynamic=DYNAMIC_CORE_BLOCKS,
+    spectra=SPECTRA_PRESENTATION_BLOCKS,
+    atomic_wind=ATOMIC_WIND_PRESENTATION_BLOCKS,
+)
+SUPPORTED_PRESENTATION_BLOCKS = frozenset(
+    spec.name
+    for spec in DEFAULT_BLOCK_REGISTRY.specs
+    if spec.adapter in {"spectra", "atomic-wind"}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,6 +170,7 @@ class GutenbergRenderResult:
     converted_blocks: int
     unresolved_blocks: int
     rewritten_urls: int
+    blocks: tuple[BlockDisposition, ...]
 
 
 class GutenbergRenderer:
@@ -154,12 +180,15 @@ class GutenbergRenderer:
         self,
         rewrite_url: Callable[[str], tuple[str, bool]],
         legacy_bindings: dict[str, dict[str, str | None]],
+        registry: BlockConverterRegistry | None = None,
     ) -> None:
         self.rewrite_url = rewrite_url
         self.legacy_bindings = legacy_bindings
+        self.registry = registry or DEFAULT_BLOCK_REGISTRY
         self.converted_blocks = 0
         self.unresolved_blocks = 0
         self.rewritten_urls = 0
+        self.block_counts: Counter[tuple[str, str, BlockDispositionKind]] = Counter()
 
     def render(self, source: str) -> GutenbergRenderResult:
         rendered = BLOCK_COMMENT.sub(self._replace, source)
@@ -168,6 +197,18 @@ class GutenbergRenderer:
             converted_blocks=self.converted_blocks,
             unresolved_blocks=self.unresolved_blocks,
             rewritten_urls=self.rewritten_urls,
+            blocks=tuple(
+                BlockDisposition(
+                    name=name,
+                    namespace=name.partition("/")[0],
+                    attribute_signature=signature,
+                    disposition=disposition,
+                    count=count,
+                )
+                for (name, signature, disposition), count in sorted(
+                    self.block_counts.items()
+                )
+            ),
         )
 
     def _replace(self, match: re.Match[str]) -> str:
@@ -176,10 +217,24 @@ class GutenbergRenderer:
         attributes = self._attributes(match.group(3))
         self_closing = bool(match.group(4))
 
-        if name in SPECTRA_PRESENTATION_BLOCKS:
+        if not closing:
+            disposition = self.registry.resolve(
+                name, self_closing=self_closing
+            ).disposition
+            signature = hashlib.sha256(
+                json.dumps(
+                    self._attribute_shape(attributes),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ).hexdigest()[:16]
+            self.block_counts[(name, signature, disposition)] += 1
+
+        spec = self.registry.resolve(name, self_closing=self_closing)
+        if spec.adapter == "spectra":
             self.converted_blocks += 1
             return self._spectra(name, attributes, closing)
-        if name in ATOMIC_WIND_PRESENTATION_BLOCKS:
+        if spec.adapter == "atomic-wind":
             self.converted_blocks += 1
             if name == "atomic-wind/icon" and self_closing and not closing:
                 icon = str(attributes.get("icon") or "check")
@@ -189,17 +244,39 @@ class GutenbergRenderer:
             # Atomic Wind serializes its semantic HTML between the comments. Its
             # paired comments can be discarded without losing the rendered tree.
             return ""
-        if name.startswith("core/"):
+        if spec.adapter in {"core", "dynamic"}:
             return self._core(name, attributes, closing, self_closing)
         if closing or not self_closing:
             # Paired custom blocks normally include already-rendered HTML between
             # comments. Preserve that inner markup and discard only the comments.
             return ""
-        binding = self.legacy_bindings.get(f"block:{name}")
-        if binding is None:
-            return ""
+        binding = self.legacy_bindings.get(f"block:{name}", {})
         self.unresolved_blocks += 1
         return self._placeholder(name, binding)
+
+    @staticmethod
+    def _attribute_shape(value: Any) -> Any:
+        """Return a value-free deterministic shape for support coverage."""
+        if isinstance(value, dict):
+            return {
+                str(key): GutenbergRenderer._attribute_shape(item)
+                for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+            }
+        if isinstance(value, list):
+            shapes = [GutenbergRenderer._attribute_shape(item) for item in value]
+            return sorted(
+                {
+                    json.dumps(item, sort_keys=True, separators=(",", ":"))
+                    for item in shapes
+                }
+            )
+        if value is None:
+            return "null"
+        if isinstance(value, bool):
+            return "boolean"
+        if isinstance(value, (int, float)):
+            return "number"
+        return "string"
 
     @staticmethod
     def _normalize_name(name: str) -> str:
@@ -255,19 +332,53 @@ class GutenbergRenderer:
         slug = name.removeprefix("spectra/")
         if closing:
             return {
+                "accordion": "</div>",
+                "accordion-child-details": "</div>",
+                "accordion-child-header": "</summary>",
+                "accordion-child-item": "</details>",
                 "container": "</div>",
                 "buttons": "</div>",
                 "icons": "</div>",
                 "list": "</ul>",
                 "list-child-item": "</li>",
             }.get(slug, "")
+        if slug == "accordion":
+            return f'<div class="moltex-block moltex-accordion"{self._style(attributes)}>'
+        if slug == "accordion-child-item":
+            return f'<details class="moltex-block moltex-accordion__item"{self._style(attributes)}>'
+        if slug == "accordion-child-header":
+            return f'<summary class="moltex-block moltex-accordion__summary"{self._style(attributes)}>'
+        if slug == "accordion-child-header-icon":
+            return '<span class="moltex-accordion__icon" aria-hidden="true"></span>'
+        if slug == "accordion-child-header-content":
+            text = self._safe_text(attributes.get("text", ""))
+            return f'<span class="moltex-accordion__label">{text}</span>'
+        if slug == "accordion-child-details":
+            return f'<div class="moltex-block moltex-accordion__details"{self._style(attributes)}>'
+        if slug == "google-map":
+            address = str(attributes.get("address") or "").strip()
+            height = self._length(attributes.get("height")) or "350px"
+            query = html.escape(address, quote=True)
+            href = "https://www.google.com/maps/search/?api=1&amp;query=" + html.escape(
+                address.replace(" ", "+"), quote=True
+            )
+            return (
+                '<div class="moltex-block moltex-map" role="img" '
+                f'aria-label="Map for {query}" style="--moltex-height:{height}">'
+                f'<a href="{href}" target="_blank" rel="noopener noreferrer">'
+                f'View {html.escape(address or "location")} on Google Maps</a></div>'
+            )
         if slug == "container":
             attributes = self._container_defaults(attributes)
         if slug == "content":
             tag = self._safe_tag(attributes.get("tagName"), "p")
-            attributes = self._content_defaults(attributes, tag)
             text = self._safe_text(attributes.get("text", ""))
             return f'<{tag} class="moltex-block moltex-content"{self._style(attributes)}>{text}</{tag}>'
+        if slug == "separator":
+            return (
+                '<hr class="moltex-block moltex-separator"'
+                f'{self._style(attributes)} aria-hidden="true">'
+            )
         if slug == "button":
             href = str(attributes.get("linkURL") or attributes.get("url") or "#")
             rewritten, changed = self.rewrite_url(href)
@@ -298,16 +409,16 @@ class GutenbergRenderer:
     def _icon_glyph(icon: str) -> str:
         normalized = icon.casefold()
         if normalized in {"check", "check-circle"}:
-            return "✓"
+            return "\u2713"
         if normalized in {"circle-arrow-down", "arrow-down"}:
-            return "↓"
+            return "\u2193"
         if normalized in {"circle-arrow-right", "arrow-right"}:
-            return "→"
+            return "\u2192"
         if normalized in {"plus", "plus-circle"}:
             return "+"
         if normalized in {"star", "star-half"}:
-            return "★"
-        return "•"
+            return "\u2605"
+        return "\u2022"
 
     @staticmethod
     def _container_defaults(attributes: dict[str, Any]) -> dict[str, Any]:
@@ -339,26 +450,6 @@ class GutenbergRenderer:
         return result
 
     @staticmethod
-    def _content_defaults(attributes: dict[str, Any], tag: str) -> dict[str, Any]:
-        result = dict(attributes)
-        style = dict(result.get("style") or {})
-        typography = dict(style.get("typography") or {})
-        default_sizes = {
-            "h1": "2.5rem",
-            "h2": "2.25rem",
-            "h3": "1.5rem",
-            "h4": "1.3rem",
-            "h5": "1.125rem",
-            "h6": "1rem",
-            "p": "1rem",
-            "span": "1rem",
-        }
-        typography.setdefault("fontSize", default_sizes.get(tag, "1rem"))
-        style["typography"] = typography
-        result["style"] = style
-        return result
-
-    @staticmethod
     def _safe_text(value: Any) -> str:
         decoded = html.unescape(str(value))
         cleaned = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", decoded)
@@ -383,7 +474,13 @@ class GutenbergRenderer:
             for viewport in ("lg", "md", "sm"):
                 values = responsive.get(viewport)
                 if isinstance(values, dict):
-                    self._style_values(values, f"-{viewport}", declarations)
+                    viewport_values = dict(values)
+                    viewport_values.setdefault(
+                        "isBlockRootParent", base.get("isBlockRootParent")
+                    )
+                    self._style_values(
+                        viewport_values, f"-{viewport}", declarations
+                    )
         if not declarations:
             return ""
         value = ";".join(f"{key}:{item}" for key, item in sorted(declarations.items()))
@@ -416,6 +513,24 @@ class GutenbergRenderer:
         self._put(output, "justify", suffix, self._alignment(layout.get("justifyContent"), horizontal=True))
         self._put(output, "align", suffix, self._alignment(layout.get("verticalAlignment"), horizontal=False))
         self._put(output, "gap", suffix, self._length(layout.get("gap") or spacing.get("blockGap")))
+        if layout.get("type") == "constrained":
+            width_property = (
+                "content-width"
+                if attributes.get("isBlockRootParent")
+                else "max-width"
+            )
+            self._put(
+                output,
+                width_property,
+                suffix,
+                self._length(layout.get("contentSize") or attributes.get("contentSize")),
+            )
+            self._put(
+                output,
+                "wide-width",
+                suffix,
+                self._length(layout.get("wideSize") or attributes.get("wideSize")),
+            )
 
         for name, source in (
             ("width", attributes.get("width")),
@@ -460,7 +575,69 @@ class GutenbergRenderer:
             if border.get("style") in {"solid", "dashed", "dotted", "double", "none"}:
                 self._put(output, "border-style", suffix, str(border["style"]))
             self._put(output, "border-color", suffix, self._color(border.get("color")))
-            self._put(output, "border-radius", suffix, self._length(border.get("radius")))
+            radius = border.get("radius")
+            if isinstance(radius, dict):
+                for corner in ("topLeft", "topRight", "bottomRight", "bottomLeft"):
+                    css_corner = re.sub(r"(?<!^)(?=[A-Z])", "-", corner).lower()
+                    self._put(
+                        output,
+                        f"border-{css_corner}-radius",
+                        suffix,
+                        self._length(radius.get(corner)),
+                    )
+            else:
+                self._put(output, "border-radius", suffix, self._length(radius))
+            for side in ("top", "right", "bottom", "left"):
+                side_value = border.get(side)
+                if not isinstance(side_value, dict):
+                    continue
+                self._put(
+                    output,
+                    f"border-{side}-width",
+                    suffix,
+                    self._length(side_value.get("width")),
+                )
+                if side_value.get("style") in {
+                    "solid",
+                    "dashed",
+                    "dotted",
+                    "double",
+                    "none",
+                }:
+                    self._put(
+                        output,
+                        f"border-{side}-style",
+                        suffix,
+                        str(side_value["style"]),
+                    )
+                self._put(
+                    output,
+                    f"border-{side}-color",
+                    suffix,
+                    self._color(side_value.get("color")),
+                )
+        shadow = style.get("shadow") or attributes.get("boxShadow")
+        self._put(output, "box-shadow", suffix, self._shadow(shadow))
+        gradient = (
+            attributes.get("advBgGradient")
+            or attributes.get("backgroundGradient")
+            or style.get("gradient")
+        )
+        self._put(output, "background-gradient", suffix, self._gradient(gradient))
+        overlay_opacity = attributes.get("overlayOpacity")
+        dim_ratio = attributes.get("dimRatio")
+        if (
+            isinstance(overlay_opacity, (int, float))
+            and 0 <= overlay_opacity <= 100
+        ):
+            self._put(
+                output,
+                "overlay-opacity",
+                suffix,
+                f"{overlay_opacity / 100:g}",
+            )
+        elif isinstance(dim_ratio, (int, float)) and 0 <= dim_ratio <= 100:
+            self._put(output, "overlay-opacity", suffix, f"{dim_ratio / 100:g}")
 
         overlay = attributes.get("overlayImage")
         if attributes.get("overlayType") == "image" and isinstance(overlay, dict):
@@ -473,8 +650,14 @@ class GutenbergRenderer:
             size = attributes.get("overlaySize")
             if size in {"cover", "contain", "auto"}:
                 self._put(output, "background-size", suffix, str(size))
-            x = self._length(attributes.get("overlayPositionX"))
-            y = self._length(attributes.get("overlayPositionY"))
+            position = attributes.get("overlayPosition")
+            position = position if isinstance(position, dict) else {}
+            x = self._position(
+                position.get("x", attributes.get("overlayPositionX"))
+            )
+            y = self._position(
+                position.get("y", attributes.get("overlayPositionY"))
+            )
             if x and y:
                 self._put(output, "background-position", suffix, f"{x} {y}")
 
@@ -494,6 +677,19 @@ class GutenbergRenderer:
         size = value.get("backgroundSize")
         if size in {"cover", "contain", "auto"}:
             self._put(output, "background-size", suffix, str(size))
+        repeat = value.get("backgroundRepeat")
+        if repeat in {
+            "repeat",
+            "repeat-x",
+            "repeat-y",
+            "no-repeat",
+            "space",
+            "round",
+        }:
+            self._put(output, "background-repeat", suffix, str(repeat))
+        attachment = value.get("backgroundAttachment")
+        if attachment in {"scroll", "fixed", "local"}:
+            self._put(output, "background-attachment", suffix, str(attachment))
         position = value.get("backgroundPosition")
         if isinstance(position, dict):
             x = self._position(position.get("x"))
@@ -517,8 +713,46 @@ class GutenbergRenderer:
         layout_type = layout.get("type")
         if layout_type == "grid":
             return "grid"
-        if layout_type == "flex" or any(key in layout for key in ("orientation", "justifyContent", "verticalAlignment", "flexWrap")):
+        if layout_type in {"constrained", "flow"}:
+            return None
+        if layout_type == "flex" or any(
+            key in layout for key in ("orientation", "flexWrap")
+        ):
             return "flex"
+        return None
+
+    @staticmethod
+    def _gradient(value: Any) -> str | None:
+        candidate = str(value or "").strip()
+        candidate = re.sub(
+            r"var\(--ast-global-color-([0-8])\)",
+            lambda match: f"var(--moltex-color-{match.group(1)})",
+            candidate,
+            flags=re.IGNORECASE,
+        )
+        candidate = re.sub(
+            r"var:preset\|color\|ast-global-color-([0-8])",
+            lambda match: f"var(--moltex-color-{match.group(1)})",
+            candidate,
+            flags=re.IGNORECASE,
+        )
+        if not re.fullmatch(
+            r"(?:linear|radial)-gradient\([#a-zA-Z0-9.%(),\s/-]{1,500}\)",
+            candidate,
+        ):
+            return None
+        return candidate if "url" not in candidate.casefold() else None
+
+    @staticmethod
+    def _shadow(value: Any) -> str | None:
+        candidate = str(value or "").strip()
+        if re.fullmatch(
+            r"(?:inset\s+)?-?[0-9.]+(?:px|rem|em)\s+-?[0-9.]+(?:px|rem|em)"
+            r"(?:\s+[0-9.]+(?:px|rem|em)){0,2}\s+"
+            r"(?:#[0-9a-fA-F]{3,8}|(?:rgb|rgba|hsl|hsla)\([0-9.%\s,/-]+\))",
+            candidate,
+        ):
+            return candidate
         return None
 
     @staticmethod

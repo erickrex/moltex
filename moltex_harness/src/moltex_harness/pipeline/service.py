@@ -274,17 +274,21 @@ class SitePipelineService:
                 value for key, value in task_counts.items() if key != "complete"
             )
             report = SitePipelineReport(
-                status="migration_planned" if unfinished else "workspace_ready",
-                phase="planning" if unfinished else "workspace_ready",
+                status=(
+                    "baseline_generated_non_deployable"
+                    if unfinished
+                    else "migration_in_progress"
+                ),
+                phase="planning",
                 code=(
                     "workspace_planned_with_unfinished_tasks"
                     if unfinished
-                    else "workspace_migration_complete"
+                    else "workspace_requires_migration_verification"
                 ),
                 message=(
-                    f"Generated baseline is built and planned; {unfinished} migration tasks remain"
+                    f"Generated non-deployable baseline is built and planned; {unfinished} migration tasks remain"
                     if unfinished
-                    else "Generated site workspace is fully migrated and verified"
+                    else "Generated site workspace requires migration-level verification before deployment"
                 ),
                 output=".",
                 site_identity=identity,

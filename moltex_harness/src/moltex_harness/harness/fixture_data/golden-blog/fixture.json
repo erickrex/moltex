@@ -5,7 +5,7 @@
   "source_sha256": "12929f58f44ce82d2f22de84bd05ce4bd24dc7a5d4160d4ff6e3fa0224253478",
   "bundle_id": "sha256:1700381e5023e1ee456439f62ba00e17bd5af18917169c76679fd17fe5aba03f",
   "expected_contract_artifact": "moltex_harness/tests/fixtures/golden_h2_expectations.json",
-  "expected_contract_revision": "50806be286e1d5ac5d7afeb2a27110cf2f3a0888574d09b45c75365ba253de7b",
+  "expected_contract_revision": "020107ce6ffcb59203ee47f34ccdc91ba247196cb3837506e50ec6142f018e3b",
   "provenance": "Sanitized Moltex golden export committed under samples/golden-export.zip",
   "sanitization": "Private, draft, credential, and user-secret markers are excluded by the reviewed exporter fixture.",
   "license": "Moltex project fixture",

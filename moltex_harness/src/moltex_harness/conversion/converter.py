@@ -23,7 +23,7 @@ ALLOWED_TAGS = {
     "a", "abbr", "article", "aside", "blockquote", "br", "caption", "code", "col", "colgroup",
     "dd", "del", "details", "div", "dl", "dt", "em", "figcaption", "figure",
     "h1", "h2", "h3", "h4", "h5", "h6", "hr", "img", "li", "mark", "ol",
-    "footer", "header", "main", "nav", "p", "picture", "pre", "q", "s", "section", "small", "source", "span", "strong",
+    "button", "footer", "form", "header", "input", "label", "main", "nav", "p", "picture", "pre", "q", "s", "section", "small", "source", "span", "strong", "textarea",
     "sub", "summary", "sup", "table", "tbody", "td", "tfoot", "th", "thead",
     "time", "tr", "u", "ul",
 }
@@ -39,6 +39,10 @@ ALLOWED_ATTRIBUTES = {
     "td": {"colspan", "rowspan"},
     "th": {"colspan", "rowspan", "scope"},
     "div": {"data-shortcode", "data-moltex-evidence", "data-moltex-capability", "data-moltex-decision"},
+    "form": {"data-shortcode", "data-source-form"},
+    "input": {"type", "name", "autocomplete", "required"},
+    "textarea": {"name", "rows", "required"},
+    "button": {"type"},
 }
 COMPLEX_TAG = re.compile(r"<(?:table|picture|details)\b", re.I)
 DYNAMIC_MEDIA_PLACEHOLDERS = {"placeholder-image.jpg"}
@@ -56,12 +60,19 @@ SAFE_INLINE_VALUE = re.compile(
     r"^(?:"
     r"-?(?:\d+(?:\.\d+)?|\.\d+)(?:px|rem|em|%|vh|vw|ch)?|"
     r"#[0-9a-f]{3,8}|(?:rgb|rgba|hsl|hsla)\([0-9.%\s,/-]+\)|"
-    r"(?:block|grid|flex|none|auto|cover|contain|fill|solid|dashed|dotted|double|nowrap|wrap|row|column|center|stretch|flex-start|flex-end|space-between|space-around|normal|bold|multiply|transparent|currentColor)|"
+    r"(?:block|grid|flex|none|auto|cover|contain|fill|solid|dashed|dotted|double|nowrap|wrap|row|column|center|stretch|flex-start|flex-end|space-between|space-around|normal|bold|multiply|transparent|currentColor|repeat|repeat-x|repeat-y|no-repeat|space|round|scroll|fixed|local)|"
     r"repeat\([1-9][0-9]?,minmax\(0,1fr\)\)|"
     r"var\(--moltex-color-[0-8]\)|"
     r"-?(?:\d+(?:\.\d+)?|\.\d+)(?:px|rem|em|%|vh|vw|ch)?\s+-?(?:\d+(?:\.\d+)?|\.\d+)(?:px|rem|em|%|vh|vw|ch)?|"
     r"url\(\&quot;/[a-z0-9_./%-]+\&quot;\)|url\(\"/[a-z0-9_./%-]+\"\)"
     r")$",
+    re.IGNORECASE,
+)
+SAFE_COMPLEX_INLINE_VALUE = re.compile(
+    r"^(?:(?:linear|radial)-gradient\([#a-zA-Z0-9.%(),\s/-]{1,500}\)|"
+    r"(?:inset\s+)?-?[0-9.]+(?:px|rem|em)\s+-?[0-9.]+(?:px|rem|em)"
+    r"(?:\s+[0-9.]+(?:px|rem|em)){0,2}\s+"
+    r"(?:#[0-9a-fA-F]{3,8}|(?:rgb|rgba|hsl|hsla)\([0-9.%\s,/-]+\)))$",
     re.IGNORECASE,
 )
 
@@ -161,7 +172,10 @@ class ContentConverter:
                     if (
                         separator
                         and SAFE_INLINE_STYLE.fullmatch(property_name)
-                        and SAFE_INLINE_VALUE.fullmatch(property_value)
+                        and (
+                            SAFE_INLINE_VALUE.fullmatch(property_value)
+                            or SAFE_COMPLEX_INLINE_VALUE.fullmatch(property_value)
+                        )
                     ):
                         declarations.append(f"{property_name}:{property_value}")
                 return ";".join(declarations) or None
@@ -171,7 +185,7 @@ class ContentConverter:
             shortcodes.html,
             tags=ALLOWED_TAGS,
             attributes=ALLOWED_ATTRIBUTES,
-            clean_content_tags={"script", "style", "template", "iframe", "object", "embed", "form"},
+            clean_content_tags={"script", "style", "template", "iframe", "object", "embed"},
             url_schemes={"http", "https", "mailto", "tel"},
             strip_comments=True,
             link_rel="noopener noreferrer",
@@ -241,6 +255,7 @@ class ContentConverter:
             body_format=body_format,
             sanitized_html=sanitized,
             editable_body=editable,
+            blocks=blocks.blocks,
             shortcodes=shortcodes.dispositions,
             rewritten_urls=rewritten_count,
             findings=tuple(findings),

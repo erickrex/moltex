@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import re
 from collections import defaultdict
 from typing import Any, Literal
 from urllib.parse import urljoin
@@ -44,8 +46,13 @@ from ._compiler_support import (
 )
 
 
+_VISUAL_BLOCK_COMMENT = re.compile(
+    r"<!--\s*wp:([a-z0-9_-]+(?:/[a-z0-9_-]+)?)(?:\s+(\{.*?\}))?\s*/?-->",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
 class _OutputCompilerMixin(_CompilerSupport):
-    max_visual_routes = 12
 
     def _navigation(
         self,
@@ -370,6 +377,8 @@ class _OutputCompilerMixin(_CompilerSupport):
         raw: RawSourceEvidence,
         routes: list[RouteContract],
         capabilities: list[CapabilityDisposition],
+        navigation: list[NavigationItem],
+        content: list[ContentRecord],
         origin: str,
     ) -> VisualCapturePlan:
         if not routes:
@@ -380,6 +389,23 @@ class _OutputCompilerMixin(_CompilerSupport):
         home = next((route for route in routes if route.target_url == "/"), None)
         if home:
             chosen[home.contract_id] = (home, "homepage")
+        route_lookup = {route.contract_id: route for route in routes}
+        primary_menu_ids = {
+            item.menu_id
+            for item in navigation
+            if item.menu_id.startswith("menu:primary:")
+        }
+        if not primary_menu_ids and navigation:
+            menu_sizes: dict[str, int] = defaultdict(int)
+            for item in navigation:
+                menu_sizes[item.menu_id] += 1
+            primary_menu_ids = {
+                max(menu_sizes, key=lambda menu_id: (menu_sizes[menu_id], menu_id))
+            }
+        for item in sorted(navigation, key=lambda value: (value.order, value.navigation_id)):
+            route = route_lookup.get(item.route_contract_id or "")
+            if route is not None and item.menu_id in primary_menu_ids:
+                chosen.setdefault(route.contract_id, (route, "primary-navigation"))
         for family in sorted({route.page_family for route in routes}):
             representative = sorted(
                 (route for route in routes if route.page_family == family),
@@ -388,7 +414,24 @@ class _OutputCompilerMixin(_CompilerSupport):
             chosen.setdefault(
                 representative.contract_id, (representative, f"representative:{family}")
             )
-        route_lookup = {route.contract_id: route for route in routes}
+        content_by_id = {record.record_id: record for record in content}
+        covered_signatures: set[str] = set()
+        for route, _ in chosen.values():
+            record = content_by_id.get(route.content_record_id or "")
+            if record is not None:
+                covered_signatures.update(self._visual_block_signatures(record.original_html))
+        for route in sorted(routes, key=lambda value: (value.target_url, value.contract_id)):
+            record = content_by_id.get(route.content_record_id or "")
+            if record is None:
+                continue
+            signatures = self._visual_block_signatures(record.original_html)
+            novel = signatures - covered_signatures
+            if novel:
+                chosen.setdefault(
+                    route.contract_id,
+                    (route, f"block-signatures:{len(novel)}"),
+                )
+                covered_signatures.update(signatures)
         for capability in sorted(capabilities, key=lambda item: item.capability_id):
             if (
                 not capability.business_critical
@@ -412,11 +455,6 @@ class _OutputCompilerMixin(_CompilerSupport):
                     (route, f"capability:{capability.capability_id}"),
                 )
         selected = list(chosen.values())
-        if len(selected) > self.max_visual_routes:
-            raise ContractCompilationError(
-                "visual_plan_limit",
-                "Required representative visual routes exceed the bounded plan limit",
-            )
         viewports = (
             ViewportProfile(name="desktop-1440x1200", width=1440, height=1200),
             ViewportProfile(name="mobile-500x844", width=500, height=844),
@@ -454,10 +492,49 @@ class _OutputCompilerMixin(_CompilerSupport):
         return VisualCapturePlan(
             plan_id=plan_id,
             source_bundle_id=raw.source_manifest.bundle_id,
-            max_routes=self.max_visual_routes,
+            max_routes=len(routes),
             selected_route_ids=tuple(
                 sorted(route.contract_id for route, _ in selected)
             ),
             targets=tuple(targets),
             lineage=_lineage(VisualCapturePlan, plan_evidence, "visual-capture-plan/1"),
         )
+
+    @staticmethod
+    def _visual_block_signatures(source: str) -> set[str]:
+        """Identify distinct block attribute shapes without coupling to values."""
+
+        def shape(value: Any) -> Any:
+            if isinstance(value, dict):
+                return {
+                    str(key): shape(item)
+                    for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+                }
+            if isinstance(value, list):
+                return sorted(
+                    {
+                        json.dumps(shape(item), sort_keys=True, separators=(",", ":"))
+                        for item in value
+                    }
+                )
+            if value is None:
+                return "null"
+            if isinstance(value, bool):
+                return "boolean"
+            if isinstance(value, (int, float)):
+                return "number"
+            return "string"
+
+        signatures: set[str] = set()
+        for match in _VISUAL_BLOCK_COMMENT.finditer(source):
+            name = match.group(1).casefold()
+            name = name if "/" in name else f"core/{name}"
+            attributes: Any = {}
+            if match.group(2):
+                try:
+                    attributes = json.loads(match.group(2))
+                except json.JSONDecodeError:
+                    attributes = {"$malformed": True}
+            payload = json.dumps(shape(attributes), sort_keys=True, separators=(",", ":"))
+            signatures.add(f"{name}:{hashlib.sha256(payload.encode()).hexdigest()[:16]}")
+        return signatures

@@ -6,5 +6,5 @@
   "route_families": ["home", "listing", "page", "post"],
   "routes": 8,
   "seo": 8,
-  "visual_targets": 8
+  "visual_targets": 16
 }

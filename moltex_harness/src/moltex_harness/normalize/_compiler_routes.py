@@ -12,6 +12,7 @@ from moltex_harness.models import (
 )
 
 from .primitives import (
+    normalize_content_title,
     normalize_route_path,
     normalize_slug,
     output_path,
@@ -63,7 +64,9 @@ class _RouteCompilerMixin(_CompilerSupport):
                 if source_id == posts_id
                 else item.content_type
             )
-            marker = item.title.strip() or record_id
+            marker = normalize_content_title(
+                item.title, item.slug, item.content_type
+            )
             ref = item.evidence
             routes.append(
                 RouteContract(

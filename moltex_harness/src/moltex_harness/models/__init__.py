@@ -48,6 +48,7 @@ from .contracts import (
 from .baseline import (
     AssetAcquisitionReceipt,
     BaselineCompilationReport,
+    BlockDisposition,
     ContentConversionReceipt,
     ConversionFinding,
     RouteAvailabilityEvidence,
@@ -116,6 +117,7 @@ __all__ = [
     "VisualCaptureTarget",
     "AssetAcquisitionReceipt",
     "BaselineCompilationReport",
+    "BlockDisposition",
     "ContentConversionReceipt",
     "ConversionFinding",
     "RouteAvailabilityEvidence",

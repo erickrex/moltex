@@ -21,7 +21,7 @@ Only PASS satisfies an E1 exit-gate item.
 | Operating system | PASS | Windows 10 Education, x64 | Local development host |
 | Git | PASS | 2.30.1.windows.1 | `git --version` |
 | uv | PASS | 0.11.28 | Official Astral Windows installer; `uv --version` |
-| GitHub Spec Kit | PASS | 0.12.15, tag commit `7b91c1e` | Installed with `uv tool install ...@v0.12.15`; `specify --version` |
+| GitHub Spec Kit (historical evaluation only) | PASS | 0.12.15, tag commit `7b91c1e` | Briefly tested during E1, but it slowed development and was dropped. It is not part of the current toolchain or required to reproduce the verification results. |
 | PHP | PASS | 8.2.31 ZTS, VS16 x64 | Official PHP Windows archive SHA-256 `b0c2883017316528cc927f49fd31750baab3b52523c301644454c2f89c4b3de1` |
 | PHP extensions | PASS | curl, fileinfo, intl, mbstring, mysqli, openssl, PDO MySQL, zip | `php -m` |
 | Composer | PASS | 2.10.2 | Official PHAR SHA-256 `5ee7125f8a30a34d246cefdc0bc85b8a783b28f2aec968994118512350d28027` |

@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from moltex_harness.conversion import ContentConverter, ShortcodeConverter, UrlRewriter
+import pytest
+
+from moltex_harness.conversion import (
+    BlockConverterRegistry,
+    BlockConverterSpec,
+    ContentConverter,
+    ShortcodeConverter,
+    UrlRewriter,
+)
 
 
 def test_url_rewriter_handles_media_fragments_srcset_and_is_idempotent() -> None:
@@ -19,6 +27,29 @@ def test_url_rewriter_handles_media_fragments_srcset_and_is_idempotent() -> None
         1,
     )
 
+
+def test_block_converter_registry_has_explicit_unknown_fallbacks() -> None:
+    registry = BlockConverterRegistry(
+        (BlockConverterSpec("vendor/card", "spectra", "converted"),)
+    )
+
+    assert registry.resolve("vendor/card", self_closing=True).disposition == "converted"
+    assert registry.resolve("vendor/unknown", self_closing=False).disposition == "preserved"
+    assert registry.resolve("vendor/unknown", self_closing=True).disposition == "unsupported"
+
+
+def test_block_converter_registry_rejects_duplicate_or_unqualified_names() -> None:
+    with pytest.raises(ValueError, match="duplicate"):
+        BlockConverterRegistry(
+            (
+                BlockConverterSpec("vendor/card", "spectra", "converted"),
+                BlockConverterSpec("vendor/card", "spectra", "converted"),
+            )
+        )
+    with pytest.raises(ValueError, match="namespaced"):
+        BlockConverterRegistry(
+            (BlockConverterSpec("card", "spectra", "converted"),)
+        )
 
 def test_shortcode_parser_preserves_nested_and_unknown_content_visibly() -> None:
     result = ShortcodeConverter().convert(
@@ -97,6 +128,19 @@ def test_html_forms_are_replaced_and_escaped_shortcodes_remain_literal() -> None
     assert "[gallery]" in result.html
     assert not any(item.name == "gallery" for item in result.dispositions)
     assert any(item.code == "form_placeholder" for item in result.findings)
+
+
+def test_sureforms_shortcode_renders_a_safe_native_form() -> None:
+    result = ShortcodeConverter().convert(
+        "[sureforms id='2026']", "content:contact"
+    )
+
+    assert 'data-shortcode="form"' in result.html
+    assert '<input type="email"' in result.html
+    assert "Comment or Message" in result.html
+    assert result.dispositions[0].name == "sureforms"
+    assert result.dispositions[0].disposition == "converted"
+    assert result.findings == ()
 
 
 def test_complex_content_fallback_is_explicitly_reported(golden_contracts) -> None:
@@ -286,7 +330,208 @@ def test_converter_preserves_semantic_spectra_icon_glyphs(golden_contracts) -> N
         UrlRewriter(golden_contracts.site_spec.source_origin, {}, {})
     ).convert(record)
 
-    assert ">↓</span>" in receipt.sanitized_html
+    assert ">\u2193</span>" in receipt.sanitized_html
+
+
+def test_shortcode_parser_leaves_punctuation_brackets_as_text() -> None:
+    result = ShortcodeConverter().convert(
+        '<a href="#">[+]</a><p>Price range: [$]</p>',
+        "content:teachers",
+    )
+
+    assert '<a href="#">[+]</a>' in result.html
+    assert "[$]" in result.html
+    assert result.dispositions == ()
+    assert result.findings == ()
+
+
+def test_converter_renders_spectra_separator_without_placeholder(
+    golden_contracts,
+) -> None:
+    record = golden_contracts.content_records[0].model_copy(
+        update={
+            "original_html": (
+                '<!-- wp:spectra/separator {"style":{"border":{"width":"3px",'
+                '"style":"solid","color":"#123456"}},"width":"60%"} /-->'
+            )
+        }
+    )
+
+    receipt = ContentConverter(
+        UrlRewriter(golden_contracts.site_spec.source_origin, {}, {})
+    ).convert(record)
+
+    assert '<hr class="moltex-block moltex-separator"' in receipt.sanitized_html
+    assert "WordPress block requires replacement" not in receipt.sanitized_html
+    assert "--moltex-border-width:3px" in receipt.sanitized_html
+    assert receipt.blocks[0].name == "spectra/separator"
+    assert receipt.blocks[0].disposition == "converted"
+
+
+def test_converter_renders_spectra_accordion_as_native_details(
+    golden_contracts,
+) -> None:
+    record = golden_contracts.content_records[0].model_copy(
+        update={
+            "original_html": (
+                '<!-- wp:spectra/accordion -->'
+                '<!-- wp:spectra/accordion-child-item -->'
+                '<!-- wp:spectra/accordion-child-header -->'
+                '<!-- wp:spectra/accordion-child-header-icon /-->'
+                '<!-- wp:spectra/accordion-child-header-content '
+                '{"text":"<strong>Emergency service</strong>"} /-->'
+                '<!-- /wp:spectra/accordion-child-header -->'
+                '<!-- wp:spectra/accordion-child-details -->'
+                '<p>Available now.</p>'
+                '<!-- /wp:spectra/accordion-child-details -->'
+                '<!-- /wp:spectra/accordion-child-item -->'
+                '<!-- /wp:spectra/accordion -->'
+            )
+        }
+    )
+
+    receipt = ContentConverter(
+        UrlRewriter(golden_contracts.site_spec.source_origin, {}, {})
+    ).convert(record)
+
+    assert '<details class="moltex-block moltex-accordion__item">' in receipt.sanitized_html
+    assert "Emergency service" in receipt.sanitized_html
+    assert "WordPress block requires replacement" not in receipt.sanitized_html
+    assert all(item.disposition == "converted" for item in receipt.blocks)
+
+
+def test_converter_renders_spectra_map_as_safe_external_link(
+    golden_contracts,
+) -> None:
+    record = golden_contracts.content_records[0].model_copy(
+        update={
+            "original_html": (
+                '<!-- wp:spectra/google-map {"address":"London Eye, London",'
+                '"height":"500px"} /-->'
+            )
+        }
+    )
+
+    receipt = ContentConverter(
+        UrlRewriter(golden_contracts.site_spec.source_origin, {}, {})
+    ).convert(record)
+
+    assert 'class="moltex-block moltex-map"' in receipt.sanitized_html
+    assert "google.com/maps/search" in receipt.sanitized_html
+    assert "WordPress block requires replacement" not in receipt.sanitized_html
+
+
+def test_constrained_layout_preserves_width_without_becoming_flex(
+    golden_contracts,
+) -> None:
+    record = golden_contracts.content_records[0].model_copy(
+        update={
+            "original_html": (
+                '<!-- wp:spectra/container {"layout":{"type":"constrained",'
+                '"justifyContent":"center","contentSize":"720px",'
+                '"wideSize":"1100px"}} -->'
+                '<!-- wp:spectra/content {"tagName":"h1","text":"Readable hero"} /-->'
+                '<!-- /wp:spectra/container -->'
+            )
+        }
+    )
+
+    receipt = ContentConverter(
+        UrlRewriter(golden_contracts.site_spec.source_origin, {}, {})
+    ).convert(record)
+
+    assert "--moltex-display:flex" not in receipt.sanitized_html
+    assert "--moltex-max-width:720px" in receipt.sanitized_html
+    assert "--moltex-wide-width:1100px" in receipt.sanitized_html
+    assert "--moltex-font-size" not in receipt.sanitized_html
+
+
+def test_unknown_self_closing_block_is_never_silently_dropped(
+    golden_contracts,
+) -> None:
+    record = golden_contracts.content_records[0].model_copy(
+        update={"original_html": '<!-- wp:vendor/interactive-map {"zoom":8} /-->'}
+    )
+
+    receipt = ContentConverter(
+        UrlRewriter(golden_contracts.site_spec.source_origin, {}, {})
+    ).convert(record)
+
+    assert "WordPress block requires replacement: vendor/interactive-map" in receipt.sanitized_html
+    assert receipt.blocks[0].disposition == "unsupported"
+    assert any(item.code == "gutenberg_blocks_unresolved" for item in receipt.findings)
+
+
+def test_shared_style_compiler_accepts_safe_gradients_radii_and_shadows(
+    golden_contracts,
+) -> None:
+    record = golden_contracts.content_records[0].model_copy(
+        update={
+            "original_html": (
+                '<!-- wp:spectra/container {"advBgGradient":"linear-gradient(90deg,#123456 0%,#abcdef 100%)","dimRatio":35,'
+                '"boxShadow":"0px 8px 20px rgba(0,0,0,0.25)","style":{"border":{"radius":'
+                '{"topLeft":"4px","topRight":"8px","bottomRight":"12px","bottomLeft":"16px"}}}} /-->'
+            )
+        }
+    )
+
+    receipt = ContentConverter(
+        UrlRewriter(golden_contracts.site_spec.source_origin, {}, {})
+    ).convert(record)
+
+    assert "linear-gradient(90deg,#123456 0%,#abcdef 100%)" in receipt.sanitized_html
+    assert "--moltex-background-gradient:" in receipt.sanitized_html
+    assert "--moltex-box-shadow:0px 8px 20px rgba(0,0,0,0.25)" in receipt.sanitized_html
+    assert "--moltex-border-top-left-radius:4px" in receipt.sanitized_html
+    assert "--moltex-overlay-opacity:0.35" in receipt.sanitized_html
+    assert "--moltex-background-color:rgba(0,0,0,0.35)" not in receipt.sanitized_html
+
+
+def test_shared_style_compiler_maps_wordpress_color_variables_inside_gradients(
+    golden_contracts,
+) -> None:
+    record = golden_contracts.content_records[0].model_copy(
+        update={
+            "original_html": (
+                '<!-- wp:spectra/container {"advBgGradient":"linear-gradient(90deg,var(--ast-global-color-0) 0%,var(--ast-global-color-5) 100%)"} -->'
+                "<p>Gradient content</p>"
+                "<!-- /wp:spectra/container -->"
+            )
+        }
+    )
+    receipt = ContentConverter(
+        UrlRewriter(golden_contracts.site_spec.source_origin, {}, {})
+    ).convert(
+        record
+    )
+
+    assert "linear-gradient(90deg,var(--moltex-color-0) 0%,var(--moltex-color-5) 100%)" in receipt.sanitized_html
+
+
+def test_shared_style_compiler_preserves_gradient_and_image_overlay(
+    golden_contracts,
+) -> None:
+    record = golden_contracts.content_records[0].model_copy(
+        update={
+            "original_html": (
+                '<!-- wp:spectra/container {"advBgGradient":"linear-gradient(0deg,#4a4f5d 0%,#2b2e37 100%)",'
+                '"dimRatio":100,"overlayType":"image","overlayImage":{"url":"https://source.example.test/wp-content/quote.png"},'
+                '"overlayOpacity":19,"overlaySize":"auto","overlayPosition":{"x":1,"y":0}} /-->'
+            )
+        }
+    )
+    receipt = ContentConverter(
+        UrlRewriter(
+            golden_contracts.site_spec.source_origin,
+            {},
+            {"https://source.example.test/wp-content/quote.png": "/media/quote.png"},
+        )
+    ).convert(record)
+
+    assert "--moltex-background-gradient:linear-gradient" in receipt.sanitized_html
+    assert '--moltex-background-image:url(&quot;/media/quote.png&quot;)' in receipt.sanitized_html
+    assert "--moltex-overlay-opacity:0.19" in receipt.sanitized_html
+    assert "--moltex-background-position:100% 0%" in receipt.sanitized_html
 
 
 def test_generated_gutenberg_styles_reject_css_injection(golden_contracts) -> None:

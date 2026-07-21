@@ -36,8 +36,6 @@ class ContractCompiler(
     """Compile H1 evidence without generating target files or Astro code."""
 
     compiler_version = "h2-contracts/1"
-    max_visual_routes = 12
-
     def compile(self, raw: RawSourceEvidence) -> ContractSet:
         if not isinstance(raw, RawSourceEvidence):
             raise ContractCompilationError(
@@ -145,7 +143,14 @@ class ContractCompiler(
             decisions,
         )
         parity = self._parity(routes, capabilities)
-        visual_plan = self._visual_plan(raw, routes, capabilities, origin)
+        visual_plan = self._visual_plan(
+            raw,
+            routes,
+            capabilities,
+            navigation,
+            content_records,
+            origin,
+        )
 
         contracts = ContractSet(
             source_manifest=source_manifest,

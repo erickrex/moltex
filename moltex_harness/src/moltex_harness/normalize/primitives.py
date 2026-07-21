@@ -117,6 +117,20 @@ def normalize_slug(value: str) -> str:
     return normalized
 
 
+def normalize_content_title(title: str, slug: str, content_type: str) -> str:
+    """Provide a stable visible title when a published record has no source title."""
+    source_title = unicodedata.normalize("NFC", title).strip()
+    if source_title:
+        return source_title
+    normalized_slug = normalize_slug(slug)
+    slug_title = " ".join(
+        part for part in re.split(r"[-_\s]+", normalized_slug) if part
+    ).strip()
+    if slug_title:
+        return slug_title.title()
+    return f"Untitled {stable_token(content_type).replace('-', ' ').title()}"
+
+
 def normalize_gmt_datetime(value: str) -> str:
     candidate = value.strip()
     if not candidate:

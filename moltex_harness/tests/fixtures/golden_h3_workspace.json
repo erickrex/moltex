@@ -7,6 +7,10 @@
   ],
   "src": [
     "src/components/NavigationList.astro",
+    "src/components/routes/FormRoute.astro",
+    "src/components/routes/ListingRoute.astro",
+    "src/components/routes/PageRoute.astro",
+    "src/components/routes/PostRoute.astro",
     "src/content.config.ts",
     "src/content/records/content-page-201.json",
     "src/content/records/content-page-202.json",
