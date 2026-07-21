@@ -111,3 +111,46 @@ def test_legacy_relevance_filters_dormant_and_localizes_public_orphans(
     capability_ids = {item.capability_id for item in contracts.capabilities}
     assert orphan.capability_id in capability_ids
     assert deferred.capability_id in capability_ids
+
+
+def test_supported_presentation_blocks_are_converted_without_operator_decisions(
+    golden_raw_evidence,
+) -> None:
+    entries = (
+        _entry(
+            golden_raw_evidence,
+            suffix="5",
+            artifact_type="block",
+            plugin_status="active",
+            relationship_status="referenced",
+            identity={"name": "spectra/container"},
+        ),
+        _entry(
+            golden_raw_evidence,
+            suffix="6",
+            artifact_type="block",
+            plugin_status="active",
+            relationship_status="referenced",
+            identity={"name": "atomic-wind/text"},
+        ),
+        _entry(
+            golden_raw_evidence,
+            suffix="7",
+            artifact_type="block",
+            plugin_status="active",
+            relationship_status="referenced",
+            identity={"name": "vendor/interactive-widget"},
+        ),
+    )
+    raw = golden_raw_evidence.model_copy(update={"legacy_evidence": list(entries)})
+    contracts = ContractCompiler().compile(raw)
+    by_name = {
+        item.source_identity["name"]: item for item in contracts.legacy_evidence
+    }
+
+    for name in ("spectra/container", "atomic-wind/text"):
+        assert by_name[name].disposition == "convert"
+        assert by_name[name].capability_id is None
+        assert by_name[name].decision_id is None
+    assert by_name["vendor/interactive-widget"].disposition == "decide"
+    assert by_name["vendor/interactive-widget"].capability_id

@@ -34,6 +34,194 @@ if TYPE_CHECKING:
 TEMPLATES = Path(__file__).parent / "templates"
 FailureClassification = Literal["permanent", "blocked", "transient", "harness"]
 
+BASELINE_STYLES = """
+:root {
+  --moltex-color-0: #0f57fb;
+  --moltex-color-1: #21252f;
+  --moltex-color-2: #313c4d;
+  --moltex-color-3: #484c50;
+  --moltex-color-4: #f3f7ff;
+  --moltex-color-5: #ffffff;
+  --moltex-color-6: #243673;
+  --moltex-color-7: #fbfcff;
+  --moltex-color-8: #bfd1ff;
+  --nv-dark-bg: #172235;
+  --nv-site-bg: #f7f5f0;
+  --nv-text-dark-bg: #ffffff;
+  --nv-text-color: #172235;
+  --nv-primary-accent: #a16d42;
+  --nv-secondary-accent: #6d7b61;
+  --nv-c-1: #d9b995;
+  --nv-c-2: #57606d;
+  color: var(--moltex-color-3);
+  font-family: "Work Sans", Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 17px;
+  line-height: 1.6;
+}
+* { box-sizing: border-box; }
+html { background: var(--moltex-color-4); scroll-behavior: smooth; }
+body { margin: 0; min-width: 320px; background: var(--moltex-color-4); color: var(--moltex-color-3); }
+a { color: inherit; }
+img { display: block; max-width: 100%; height: auto; }
+figure { margin: 0; }
+h1, h2, h3, h4, h5, h6 { color: var(--moltex-color-1); font-family: Poppins, "Trebuchet MS", ui-sans-serif, sans-serif; line-height: 1.2; }
+.skip { position: fixed; left: -10000px; top: 1rem; z-index: 100; }
+.skip:focus { left: 1rem; background: white; padding: .75rem 1rem; color: #111; }
+.visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; white-space: nowrap !important; }
+.site-header { position: absolute; inset: 0 0 auto; z-index: 20; color: white; }
+.site-header__inner { width: min(1200px, calc(100% - 3rem)); min-height: 88px; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 2rem; }
+.site-brand { color: inherit; font-family: Poppins, "Trebuchet MS", sans-serif; font-size: 1.25rem; font-weight: 700; text-decoration: none; }
+.site-header nav > ul { display: flex; align-items: center; gap: 1.75rem; margin: 0; padding: 0; list-style: none; }
+.site-header nav ul ul { position: absolute; margin: 0; padding: .75rem; list-style: none; background: var(--moltex-color-5); color: var(--moltex-color-1); box-shadow: 0 12px 30px rgb(33 37 47 / 18%); }
+.site-header nav a { color: inherit; font-weight: 600; text-decoration: none; }
+.site-header nav a:hover, .site-header nav a:focus-visible { text-decoration: underline; text-underline-offset: .35em; }
+main { width: 100%; min-height: 70vh; }
+.route-content { width: 100%; margin: 0; }
+.route-title { width: min(1200px, calc(100% - 3rem)); margin: 0 auto; padding: 9rem 0 3rem; font-size: clamp(2.25rem, 5vw, 4rem); }
+.content { width: 100%; overflow: clip; }
+.content > .moltex-block-root { width: 100%; }
+.moltex-block-root > .moltex-container { margin-right: auto; margin-left: auto; }
+.moltex-block {
+  --moltex-display: block; --moltex-lg-display: var(--moltex-display); --moltex-md-display: var(--moltex-lg-display); --moltex-sm-display: var(--moltex-md-display);
+  --moltex-grid-columns: none; --moltex-lg-grid-columns: var(--moltex-grid-columns); --moltex-md-grid-columns: var(--moltex-lg-grid-columns); --moltex-sm-grid-columns: var(--moltex-md-grid-columns);
+  --moltex-flex-direction: row; --moltex-lg-flex-direction: var(--moltex-flex-direction); --moltex-md-flex-direction: var(--moltex-lg-flex-direction); --moltex-sm-flex-direction: var(--moltex-md-flex-direction);
+  --moltex-flex-wrap: nowrap; --moltex-lg-flex-wrap: var(--moltex-flex-wrap); --moltex-md-flex-wrap: var(--moltex-lg-flex-wrap); --moltex-sm-flex-wrap: var(--moltex-md-flex-wrap);
+  --moltex-justify: normal; --moltex-lg-justify: var(--moltex-justify); --moltex-md-justify: var(--moltex-lg-justify); --moltex-sm-justify: var(--moltex-md-justify);
+  --moltex-align: normal; --moltex-lg-align: var(--moltex-align); --moltex-md-align: var(--moltex-lg-align); --moltex-sm-align: var(--moltex-md-align);
+  --moltex-gap: 0; --moltex-lg-gap: var(--moltex-gap); --moltex-md-gap: var(--moltex-lg-gap); --moltex-sm-gap: var(--moltex-md-gap);
+  --moltex-width: auto; --moltex-lg-width: var(--moltex-width); --moltex-md-width: var(--moltex-lg-width); --moltex-sm-width: var(--moltex-md-width);
+  --moltex-max-width: none; --moltex-lg-max-width: var(--moltex-max-width); --moltex-md-max-width: var(--moltex-lg-max-width); --moltex-sm-max-width: var(--moltex-md-max-width);
+  --moltex-min-height: 0; --moltex-lg-min-height: var(--moltex-min-height); --moltex-md-min-height: var(--moltex-lg-min-height); --moltex-sm-min-height: var(--moltex-md-min-height);
+  --moltex-height: auto; --moltex-lg-height: var(--moltex-height); --moltex-md-height: var(--moltex-lg-height); --moltex-sm-height: var(--moltex-md-height);
+  --moltex-padding-top: 0; --moltex-lg-padding-top: var(--moltex-padding-top); --moltex-md-padding-top: var(--moltex-lg-padding-top); --moltex-sm-padding-top: var(--moltex-md-padding-top);
+  --moltex-padding-right: 0; --moltex-lg-padding-right: var(--moltex-padding-right); --moltex-md-padding-right: var(--moltex-lg-padding-right); --moltex-sm-padding-right: var(--moltex-md-padding-right);
+  --moltex-padding-bottom: 0; --moltex-lg-padding-bottom: var(--moltex-padding-bottom); --moltex-md-padding-bottom: var(--moltex-lg-padding-bottom); --moltex-sm-padding-bottom: var(--moltex-md-padding-bottom);
+  --moltex-padding-left: 0; --moltex-lg-padding-left: var(--moltex-padding-left); --moltex-md-padding-left: var(--moltex-lg-padding-left); --moltex-sm-padding-left: var(--moltex-md-padding-left);
+  --moltex-margin-top: 0; --moltex-lg-margin-top: var(--moltex-margin-top); --moltex-md-margin-top: var(--moltex-lg-margin-top); --moltex-sm-margin-top: var(--moltex-md-margin-top);
+  --moltex-margin-right: 0; --moltex-lg-margin-right: var(--moltex-margin-right); --moltex-md-margin-right: var(--moltex-lg-margin-right); --moltex-sm-margin-right: var(--moltex-md-margin-right);
+  --moltex-margin-bottom: 0; --moltex-lg-margin-bottom: var(--moltex-margin-bottom); --moltex-md-margin-bottom: var(--moltex-lg-margin-bottom); --moltex-sm-margin-bottom: var(--moltex-md-margin-bottom);
+  --moltex-margin-left: 0; --moltex-lg-margin-left: var(--moltex-margin-left); --moltex-md-margin-left: var(--moltex-lg-margin-left); --moltex-sm-margin-left: var(--moltex-md-margin-left);
+  --moltex-background-color: transparent; --moltex-lg-background-color: var(--moltex-background-color); --moltex-md-background-color: var(--moltex-lg-background-color); --moltex-sm-background-color: var(--moltex-md-background-color);
+  --moltex-background-image: none; --moltex-lg-background-image: var(--moltex-background-image); --moltex-md-background-image: var(--moltex-lg-background-image); --moltex-sm-background-image: var(--moltex-md-background-image);
+  --moltex-background-position: center; --moltex-lg-background-position: var(--moltex-background-position); --moltex-md-background-position: var(--moltex-lg-background-position); --moltex-sm-background-position: var(--moltex-md-background-position);
+  --moltex-background-size: cover; --moltex-lg-background-size: var(--moltex-background-size); --moltex-md-background-size: var(--moltex-lg-background-size); --moltex-sm-background-size: var(--moltex-md-background-size);
+  --moltex-border-width: 0; --moltex-lg-border-width: var(--moltex-border-width); --moltex-md-border-width: var(--moltex-lg-border-width); --moltex-sm-border-width: var(--moltex-md-border-width);
+  --moltex-border-style: solid; --moltex-lg-border-style: var(--moltex-border-style); --moltex-md-border-style: var(--moltex-lg-border-style); --moltex-sm-border-style: var(--moltex-md-border-style);
+  --moltex-border-color: transparent; --moltex-lg-border-color: var(--moltex-border-color); --moltex-md-border-color: var(--moltex-lg-border-color); --moltex-sm-border-color: var(--moltex-md-border-color);
+  --moltex-border-radius: 0; --moltex-lg-border-radius: var(--moltex-border-radius); --moltex-md-border-radius: var(--moltex-lg-border-radius); --moltex-sm-border-radius: var(--moltex-md-border-radius);
+  --moltex-color: inherit; --moltex-lg-color: var(--moltex-color); --moltex-md-color: var(--moltex-lg-color); --moltex-sm-color: var(--moltex-md-color);
+  --moltex-font-size: inherit; --moltex-lg-font-size: var(--moltex-font-size); --moltex-md-font-size: var(--moltex-lg-font-size); --moltex-sm-font-size: var(--moltex-md-font-size);
+  --moltex-font-family: inherit; --moltex-lg-font-family: var(--moltex-font-family); --moltex-md-font-family: var(--moltex-lg-font-family); --moltex-sm-font-family: var(--moltex-md-font-family);
+  --moltex-font-weight: inherit; --moltex-lg-font-weight: var(--moltex-font-weight); --moltex-md-font-weight: var(--moltex-lg-font-weight); --moltex-sm-font-weight: var(--moltex-md-font-weight);
+  --moltex-line-height: inherit; --moltex-lg-line-height: var(--moltex-line-height); --moltex-md-line-height: var(--moltex-lg-line-height); --moltex-sm-line-height: var(--moltex-md-line-height);
+  box-sizing: border-box;
+  display: var(--moltex-lg-display, var(--moltex-display, block));
+  grid-template-columns: var(--moltex-lg-grid-columns, var(--moltex-grid-columns, none));
+  flex-direction: var(--moltex-lg-flex-direction, var(--moltex-flex-direction, row));
+  flex-wrap: var(--moltex-lg-flex-wrap, var(--moltex-flex-wrap, nowrap));
+  justify-content: var(--moltex-lg-justify, var(--moltex-justify, normal));
+  align-items: var(--moltex-lg-align, var(--moltex-align, normal));
+  gap: var(--moltex-lg-gap, var(--moltex-gap, 0));
+  width: var(--moltex-lg-width, var(--moltex-width, auto));
+  max-width: var(--moltex-lg-max-width, var(--moltex-max-width, none));
+  min-height: var(--moltex-lg-min-height, var(--moltex-min-height, 0));
+  height: var(--moltex-lg-height, var(--moltex-height, auto));
+  padding-top: var(--moltex-lg-padding-top, var(--moltex-padding-top, 0));
+  padding-right: var(--moltex-lg-padding-right, var(--moltex-padding-right, 0));
+  padding-bottom: var(--moltex-lg-padding-bottom, var(--moltex-padding-bottom, 0));
+  padding-left: var(--moltex-lg-padding-left, var(--moltex-padding-left, 0));
+  margin-top: var(--moltex-lg-margin-top, var(--moltex-margin-top, 0));
+  margin-right: var(--moltex-lg-margin-right, var(--moltex-margin-right, 0));
+  margin-bottom: var(--moltex-lg-margin-bottom, var(--moltex-margin-bottom, 0));
+  margin-left: var(--moltex-lg-margin-left, var(--moltex-margin-left, 0));
+  border-width: var(--moltex-lg-border-width, var(--moltex-border-width, 0));
+  border-style: var(--moltex-lg-border-style, var(--moltex-border-style, solid));
+  border-color: var(--moltex-lg-border-color, var(--moltex-border-color, transparent));
+  border-radius: var(--moltex-lg-border-radius, var(--moltex-border-radius, 0));
+  background-color: var(--moltex-lg-background-color, var(--moltex-background-color, transparent));
+  background-image: var(--moltex-lg-background-image, var(--moltex-background-image, none));
+  background-position: var(--moltex-lg-background-position, var(--moltex-background-position, center));
+  background-size: var(--moltex-lg-background-size, var(--moltex-background-size, cover));
+  background-repeat: no-repeat;
+  color: var(--moltex-lg-color, var(--moltex-color, inherit));
+  font-family: var(--moltex-lg-font-family, var(--moltex-font-family, inherit));
+  font-size: var(--moltex-lg-font-size, var(--moltex-font-size, inherit));
+  font-weight: var(--moltex-lg-font-weight, var(--moltex-font-weight, inherit));
+  line-height: var(--moltex-lg-line-height, var(--moltex-line-height, inherit));
+}
+.moltex-buttons { align-items: center; }
+.moltex-button { display: inline-flex; align-items: center; justify-content: center; width: auto; min-height: 48px; padding: .75em 2em; border-radius: 3px; background: var(--moltex-lg-background-color, var(--moltex-background-color, var(--moltex-color-0))); color: var(--moltex-lg-color, var(--moltex-color, white)); font-weight: 600; text-decoration: none; transition: transform .2s ease, opacity .2s ease; }
+.moltex-button:hover, .moltex-button:focus-visible { opacity: .9; transform: translateY(-1px); }
+.moltex-icon { display: inline-grid; width: 1.75em; height: 1.75em; place-items: center; color: var(--moltex-color-0); }
+.moltex-placeholder, .moltex-dynamic-block { width: min(1200px, calc(100% - 3rem)); margin: 1rem auto; border: 2px dashed #9b6b00; padding: 1rem; background: #fff8dc; color: #4d3500; }
+.moltex-media-placeholder { display: block; min-height: 16rem; background: linear-gradient(135deg, #dbe3f3, #eef3fb 45%, #cbd7e9); }
+.listing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1.5rem; width: min(1200px, calc(100% - 3rem)); margin: 4rem auto; }
+.listing-card { border: 1px solid #dbe3f3; border-radius: .5rem; padding: 1.5rem; background: white; }
+.typed-fields { width: min(1200px, calc(100% - 3rem)); margin: 3rem auto; }
+.site-footer { padding: 3rem max(1.5rem, calc((100% - 1200px) / 2)); background: var(--moltex-color-1); color: white; }
+
+/* Safe utility treatment for paired Gutenberg blocks that ship rendered HTML. */
+.relative { position: relative; } .absolute { position: absolute; } .inset-0 { inset: 0; }
+.flex { display: flex; } .grid { display: grid; } .flex-col { flex-direction: column; } .flex-row { flex-direction: row; } .flex-wrap { flex-wrap: wrap; }
+.items-center { align-items: center; } .items-start { align-items: flex-start; } .items-stretch { align-items: stretch; }
+.justify-center { justify-content: center; } .justify-between { justify-content: space-between; }
+.w-full { width: 100%; } .h-full { height: 100%; } .object-cover { object-fit: cover; }
+.mx-auto { margin-inline: auto; } .text-center { text-align: center; } .uppercase { text-transform: uppercase; }
+.font-semibold { font-weight: 600; } .font-bold { font-weight: 700; } .opacity-30 { opacity: .3; } .opacity-80 { opacity: .8; } .opacity-90 { opacity: .9; }
+.max-w-2xl { max-width: 42rem; } .max-w-3xl { max-width: 48rem; } .max-w-5xl { max-width: 64rem; } .max-w-6xl { max-width: 72rem; }
+.gap-2 { gap: .5rem; } .gap-3 { gap: .75rem; } .gap-4 { gap: 1rem; } .gap-5 { gap: 1.25rem; } .gap-6 { gap: 1.5rem; } .gap-10 { gap: 2.5rem; } .gap-12 { gap: 3rem; } .gap-16 { gap: 4rem; }
+.p-8 { padding: 2rem; } .px-6 { padding-inline: 1.5rem; } .px-8 { padding-inline: 2rem; } .py-4 { padding-block: 1rem; } .py-12 { padding-block: 3rem; } .py-20 { padding-block: 5rem; } .py-24 { padding-block: 6rem; } .py-32 { padding-block: 8rem; } .py-40 { padding-block: 10rem; }
+.mb-12 { margin-bottom: 3rem; } .mt-1 { margin-top: .25rem; } .mt-2 { margin-top: .5rem; } .mt-4 { margin-top: 1rem; }
+.text-xs { font-size: .75rem; } .text-sm { font-size: .875rem; } .text-lg { font-size: 1.125rem; } .text-xl { font-size: 1.25rem; } .text-5xl { font-size: 3rem; }
+[class*="bg-[var(--nv-dark-bg)]"] { background: var(--nv-dark-bg); }
+[class*="bg-[var(--nv-site-bg)]"] { background: var(--nv-site-bg); }
+[class*="text-[var(--nv-text-dark-bg)]"] { color: var(--nv-text-dark-bg); }
+[class*="text-[var(--nv-text-color)]"] { color: var(--nv-text-color); }
+[class*="text-[var(--nv-primary-accent)]"] { color: var(--nv-primary-accent); }
+.wp-block-columns { display: flex; gap: 2rem; } .wp-block-column { flex: 1 1 0; }
+.wp-block-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; }
+.wp-block-media-text { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 2rem; }
+
+@media (max-width: 976px) {
+  .site-header__inner { min-height: 76px; }
+  .site-header nav > ul { gap: 1rem; }
+  .moltex-block {
+    display: var(--moltex-md-display, var(--moltex-lg-display, var(--moltex-display, block)));
+    grid-template-columns: var(--moltex-md-grid-columns, var(--moltex-lg-grid-columns, var(--moltex-grid-columns, none)));
+    flex-direction: var(--moltex-md-flex-direction, var(--moltex-lg-flex-direction, var(--moltex-flex-direction, row)));
+    flex-wrap: var(--moltex-md-flex-wrap, var(--moltex-lg-flex-wrap, var(--moltex-flex-wrap, nowrap)));
+    justify-content: var(--moltex-md-justify, var(--moltex-lg-justify, var(--moltex-justify, normal)));
+    align-items: var(--moltex-md-align, var(--moltex-lg-align, var(--moltex-align, normal)));
+    gap: var(--moltex-md-gap, var(--moltex-lg-gap, var(--moltex-gap, 0)));
+    width: var(--moltex-md-width, var(--moltex-lg-width, var(--moltex-width, auto)));
+    max-width: var(--moltex-md-max-width, var(--moltex-lg-max-width, var(--moltex-max-width, none)));
+    padding: var(--moltex-md-padding-top, var(--moltex-lg-padding-top, var(--moltex-padding-top, 0))) var(--moltex-md-padding-right, var(--moltex-lg-padding-right, var(--moltex-padding-right, 0))) var(--moltex-md-padding-bottom, var(--moltex-lg-padding-bottom, var(--moltex-padding-bottom, 0))) var(--moltex-md-padding-left, var(--moltex-lg-padding-left, var(--moltex-padding-left, 0)));
+    margin: var(--moltex-md-margin-top, var(--moltex-lg-margin-top, var(--moltex-margin-top, 0))) var(--moltex-md-margin-right, var(--moltex-lg-margin-right, var(--moltex-margin-right, 0))) var(--moltex-md-margin-bottom, var(--moltex-lg-margin-bottom, var(--moltex-margin-bottom, 0))) var(--moltex-md-margin-left, var(--moltex-lg-margin-left, var(--moltex-margin-left, 0)));
+    font-size: var(--moltex-md-font-size, var(--moltex-lg-font-size, var(--moltex-font-size, inherit)));
+  }
+  .md\\:flex-row { flex-direction: row; } .md\\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+  .site-header__inner { width: calc(100% - 2rem); align-items: flex-start; flex-direction: column; justify-content: center; gap: .35rem; }
+  .site-header nav > ul { flex-wrap: wrap; gap: .35rem 1rem; font-size: .85rem; }
+  .moltex-block {
+    display: var(--moltex-sm-display, var(--moltex-md-display, var(--moltex-display, block)));
+    grid-template-columns: var(--moltex-sm-grid-columns, var(--moltex-md-grid-columns, var(--moltex-grid-columns, none)));
+    flex-direction: var(--moltex-sm-flex-direction, var(--moltex-md-flex-direction, var(--moltex-flex-direction, row)));
+    flex-wrap: var(--moltex-sm-flex-wrap, var(--moltex-md-flex-wrap, var(--moltex-flex-wrap, nowrap)));
+    justify-content: var(--moltex-sm-justify, var(--moltex-md-justify, var(--moltex-justify, normal)));
+    align-items: var(--moltex-sm-align, var(--moltex-md-align, var(--moltex-align, normal)));
+    gap: var(--moltex-sm-gap, var(--moltex-md-gap, var(--moltex-gap, 0)));
+    width: var(--moltex-sm-width, var(--moltex-md-width, var(--moltex-width, auto)));
+    max-width: var(--moltex-sm-max-width, var(--moltex-md-max-width, var(--moltex-max-width, none)));
+    padding: var(--moltex-sm-padding-top, var(--moltex-md-padding-top, var(--moltex-padding-top, 0))) var(--moltex-sm-padding-right, var(--moltex-md-padding-right, var(--moltex-padding-right, 0))) var(--moltex-sm-padding-bottom, var(--moltex-md-padding-bottom, var(--moltex-padding-bottom, 0))) var(--moltex-sm-padding-left, var(--moltex-md-padding-left, var(--moltex-padding-left, 0)));
+    margin: var(--moltex-sm-margin-top, var(--moltex-md-margin-top, var(--moltex-margin-top, 0))) var(--moltex-sm-margin-right, var(--moltex-md-margin-right, var(--moltex-margin-right, 0))) var(--moltex-sm-margin-bottom, var(--moltex-md-margin-bottom, var(--moltex-margin-bottom, 0))) var(--moltex-sm-margin-left, var(--moltex-md-margin-left, var(--moltex-margin-left, 0)));
+    font-size: var(--moltex-sm-font-size, var(--moltex-md-font-size, var(--moltex-font-size, inherit)));
+  }
+  .wp-block-columns, .wp-block-media-text { grid-template-columns: 1fr; flex-direction: column; }
+}
+""".strip() + "\n"
+
 
 @dataclass(frozen=True, slots=True)
 class BaselineOutcome:
@@ -384,6 +572,9 @@ class BaselineService:
     @staticmethod
     def _write_shell(workspace: Path, site_name: str) -> None:
         write_json(workspace / "src" / "data" / "site.json", {"siteName": site_name})
+        styles = workspace / "src" / "styles" / "moltex.css"
+        styles.parent.mkdir(parents=True, exist_ok=True)
+        styles.write_text(BASELINE_STYLES, encoding="utf-8")
         component = workspace / "src" / "components" / "NavigationList.astro"
         component.parent.mkdir(parents=True, exist_ok=True)
         component.write_text(
@@ -395,7 +586,7 @@ class BaselineService:
         layout = workspace / "src" / "layouts" / "BaseLayout.astro"
         layout.parent.mkdir(parents=True, exist_ok=True)
         layout.write_text(
-            "---\nimport nav from '../data/navigation.json';\nimport site from '../data/site.json';\nimport NavigationList from '../components/NavigationList.astro';\n"
+            "---\nimport nav from '../data/navigation.json';\nimport site from '../data/site.json';\nimport NavigationList from '../components/NavigationList.astro';\nimport '../styles/moltex.css';\n"
             "const { title, description = '', canonical = '', robots = 'index,follow', openGraph = {}, structuredDataHints = [] } = Astro.props;\n"
             "const ogItems = Array.isArray(openGraph.items) ? openGraph.items : [openGraph];\n"
             "const ogEntries = ogItems.flatMap((item) => item && (item.property || item.name || item.key) ? [[item.property || item.name || item.key, item.content ?? item.value ?? '']] : Object.entries(item ?? {}).filter(([key]) => key !== 'items'));\n---\n"
@@ -403,9 +594,8 @@ class BaselineService:
             '<meta name="description" content={description}><meta name="robots" content={robots}><link rel="canonical" href={canonical}>'
             "{ogEntries.map(([property, content]) => <meta property={String(property).startsWith('og:') ? String(property) : `og:${property}`} content={String(content)} />)}"
             '{structuredDataHints.map((hint) => <meta name="moltex:structured-data-hint" content={hint} />)}<title>{title}</title></head>'
-            '<body><a class="skip" href="#content">Skip to content</a><header><a href="/">{site.siteName}</a><nav aria-label="Primary"><NavigationList items={nav} /></nav></header>'
-            '<main id="content"><slot /></main><footer>Generated by Moltex</footer></body></html>'
-            "<style is:global>:root{font-family:system-ui,sans-serif;color:#17202a}body{margin:0}header,main,footer{max-width:72rem;margin:auto;padding:1rem}nav>ul{display:flex;gap:1rem}nav ul{list-style:none;padding:0}.skip{position:absolute;left:-10000px}.skip:focus{left:1rem;background:white;padding:.5rem}img{max-width:100%;height:auto}.moltex-placeholder{border:2px dashed #8a6500;padding:1rem}.listing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(16rem,1fr));gap:1rem}.listing-card{border:1px solid #ccd1d1;padding:1rem}</style>\n",
+            '<body><a class="skip" href="#content">Skip to content</a><header class="site-header"><div class="site-header__inner"><a class="site-brand" href="/">{site.siteName}</a><nav aria-label="Primary"><NavigationList items={nav} /></nav></div></header>'
+            '<main id="content"><slot /></main><footer class="site-footer">{site.siteName}</footer></body></html>\n',
             encoding="utf-8",
         )
 
@@ -416,6 +606,20 @@ class BaselineService:
         routes: dict[str, Any],
         omitted_route_ids: set[str],
     ) -> None:
+        navigation_sources = list(contracts.site_spec.global_navigation)
+        if navigation_sources:
+            menu_sizes: dict[str, int] = {}
+            for source in navigation_sources:
+                menu_sizes[source.menu_id] = menu_sizes.get(source.menu_id, 0) + 1
+            primary_menu_id = max(
+                menu_sizes,
+                key=lambda menu_id: (menu_sizes[menu_id], menu_id),
+            )
+            navigation_sources = [
+                source
+                for source in navigation_sources
+                if source.menu_id == primary_menu_id
+            ]
         items = {
             item.navigation_id: {
                 "id": item.navigation_id,
@@ -428,11 +632,11 @@ class BaselineService:
                 "order": item.order,
                 "children": [],
             }
-            for item in contracts.site_spec.global_navigation
+            for item in navigation_sources
             if item.route_contract_id not in omitted_route_ids
         }
         navigation = []
-        for source in contracts.site_spec.global_navigation:
+        for source in navigation_sources:
             if source.navigation_id not in items:
                 continue
             target = items[source.navigation_id]
@@ -455,8 +659,7 @@ class BaselineService:
         pages.mkdir(parents=True, exist_ok=True)
         shared_render = (
             "<BaseLayout title={seo.title ?? record.title} description={seo.description ?? ''} canonical={seo.canonical_url ?? ''} robots={seo.robots ?? 'index,follow'} openGraph={seo.open_graph ?? {}} structuredDataHints={seo.structured_data_hints ?? []}>"
-            "<article data-record-id={record.recordId}><h1>{record.title}</h1>"
-            "{record.media?.map((media) => <img src={media.src} alt={media.alt} data-asset-id={media.assetId} />)}"
+            "<article class=\"route-content\" data-record-id={record.recordId}>{hasRenderedH1 ? <span class=\"visually-hidden\">{record.title}</span> : <h1 class=\"route-title\">{record.title}</h1>}"
             '<div class="content" set:html={record.renderedHtml} />'
             "{typedFields.length ? <dl class=\"typed-fields\">{typedFields.map(([key, value]) => <><dt>{key.replace('geodirectory.', '')}</dt><dd>{typeof value === 'object' ? JSON.stringify(value) : String(value ?? '')}</dd></>)}</dl> : null}"
             '{listingItems.length ? <section class="listing-grid" aria-label="Listings">{listingItems.map((item) => <article class="listing-card" data-record-id={item.recordId}><h2>{item.targetUrl ? <a href={item.targetUrl}>{item.title}</a> : item.title}</h2>{item.excerpt ? <p>{item.excerpt}</p> : null}</article>)}</section> : null}'
@@ -470,13 +673,14 @@ class BaselineService:
             "const route = Astro.props;\nconst record = records.find((item) => item.recordId === route.recordId);\n"
             "if (!record) throw new Error(`Missing route record: ${route.recordId}`);\n"
             "const listingItems = route.listingRecordIds.map((id) => records.find((item) => item.recordId === id)).filter(Boolean);\n"
-            "const seo = record.seo ?? {};\nconst typedFields = Object.entries(record.customFields ?? {}).filter(([key]) => key.startsWith('geodirectory.'));\n---\n"
+            "const seo = record.seo ?? {};\nconst typedFields = Object.entries(record.customFields ?? {}).filter(([key]) => key.startsWith('geodirectory.'));\n"
+            "const hasRenderedH1 = /<h1\\b/i.test(record.renderedHtml ?? '');\n---\n"
             + shared_render,
             encoding="utf-8",
         )
         (pages / "404.astro").write_text(
             "---\nimport BaseLayout from '../layouts/BaseLayout.astro';\nimport record from '../content/records/system-404.json';\n"
-            "const listingItems = [];\nconst seo = record.seo ?? {};\nconst typedFields = [];\n---\n"
+            "const listingItems = [];\nconst seo = record.seo ?? {};\nconst typedFields = [];\nconst hasRenderedH1 = false;\n---\n"
             + shared_render,
             encoding="utf-8",
         )

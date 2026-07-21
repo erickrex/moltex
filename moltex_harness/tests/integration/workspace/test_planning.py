@@ -182,7 +182,7 @@ def test_real_task_evidence_is_scope_and_command_checked(
         session_sha256=hashlib.sha256(session.read_bytes()).hexdigest(),
         command_results=(
             TaskCommandResult(command="npm run build", exit_code=0),
-            TaskCommandResult(command="npm run verify", exit_code=0),
+            TaskCommandResult(command="npm run verify:baseline", exit_code=0),
         ),
         protected_paths_unchanged=True,
     )

@@ -14,6 +14,7 @@ from moltex_harness.models import (
     RawSourceEvidence,
     RouteContract,
 )
+from moltex_harness.conversion.gutenberg import SUPPORTED_PRESENTATION_BLOCKS
 
 from ._compiler_support import _CompilerSupport, _lineage
 from .primitives import stable_hash, stable_token
@@ -190,6 +191,12 @@ class _LegacyEvidenceCompilerMixin(_CompilerSupport):
             return "acquire"
         if classification == "unknown" and item.relationship_status != "referenced":
             return "audit"
+        if (
+            item.artifact_type == "block"
+            and item.source_identity.get("name", "").casefold()
+            in SUPPORTED_PRESENTATION_BLOCKS
+        ):
+            return "convert"
         if item.artifact_type == "postmeta_field":
             return "convert"
         return "decide"

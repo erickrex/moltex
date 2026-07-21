@@ -45,6 +45,7 @@ def test_h5_verifier_is_packaged_and_self_contained() -> None:
         "build": "node scripts/build.mjs",
         "verify": "node scripts/verify.mjs",
         "verify:baseline": "node scripts/verify-baseline.mjs",
+        "verify:parity": "node scripts/verify.mjs --level parity",
         "verify:task": "node scripts/verify-task.mjs",
     }
     verifier_files = [

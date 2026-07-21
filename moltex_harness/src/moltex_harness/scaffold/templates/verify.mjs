@@ -15,7 +15,7 @@ const argument = (name, fallback = null) => {
   const index = process.argv.indexOf(name);
   return index >= 0 ? process.argv[index + 1] : fallback;
 };
-const level = argument("--level", "baseline");
+const level = argument("--level", "migration");
 if (!["baseline", "migration", "parity"].includes(level)) {
   console.error(`Unknown verification level: ${level}`);
   process.exit(64);
@@ -51,6 +51,7 @@ try {
   );
 
   if (level !== "baseline") {
+    checks.push(...filter(taskChecks(contracts)));
     checks.push(...filter(linkChecks(contracts)));
     checks.push(...filter(navigationChecks(contracts)));
     checks.push(...filter(seoChecks(contracts)));
@@ -69,7 +70,6 @@ try {
   }
 
   if (level === "parity") {
-    checks.push(...filter(taskChecks(contracts)));
     checks.push(...filter(parityChecks(contracts)));
     if (selected.size === 0 || [...selected].some((item) => item.startsWith("browser.") || item.startsWith("a11y."))) {
       try {

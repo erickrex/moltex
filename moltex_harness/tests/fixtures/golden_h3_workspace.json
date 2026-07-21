@@ -23,6 +23,7 @@
     "src/data/sitemap.json",
     "src/layouts/BaseLayout.astro",
     "src/pages/404.astro",
-    "src/pages/[...path].astro"
+    "src/pages/[...path].astro",
+    "src/styles/moltex.css"
   ]
 }

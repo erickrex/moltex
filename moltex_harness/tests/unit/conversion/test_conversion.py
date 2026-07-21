@@ -134,6 +134,8 @@ def test_unmapped_remote_media_is_removed_from_local_only_baseline(
     assert "https://old.example" not in receipt.sanitized_html
     assert "placeholder-image.jpg" not in receipt.sanitized_html
     assert "/media/local.png 2x" in receipt.sanitized_html
+    assert 'class="moltex-media-placeholder"' in receipt.sanitized_html
+    assert 'aria-label="Template placeholder"' in receipt.sanitized_html
     assert any(item.code == "unmapped_media_removed" for item in receipt.findings)
 
 
@@ -151,3 +153,96 @@ def test_large_content_fallback_is_explicitly_reported(golden_contracts) -> None
         and item.context["reason"] == "large_content"
         for item in receipt.findings
     )
+
+
+def test_converter_preserves_native_gutenberg_layout_and_spectra_content(
+    golden_contracts,
+) -> None:
+    source = """
+<!-- wp:group {"layout":{"type":"constrained"},"style":{"spacing":{"padding":{"top":"2rem"}}}} -->
+<div class="wp-block-group">
+<!-- wp:columns {"style":{"spacing":{"blockGap":"2rem"}}} -->
+<div class="wp-block-columns"><div class="wp-block-column">
+<!-- wp:spectra/content {"tagName":"h1","text":"A preserved &amp; safe heading","textColor":"#ffffff","style":{"typography":{"fontSize":"2.5rem"}}} /-->
+<!-- wp:paragraph --><p>Native paragraph copy.</p><!-- /wp:paragraph -->
+</div></div><!-- /wp:columns -->
+</div><!-- /wp:group -->
+"""
+    record = golden_contracts.content_records[0].model_copy(
+        update={"original_html": source}
+    )
+    receipt = ContentConverter(
+        UrlRewriter(golden_contracts.site_spec.source_origin, {}, {}),
+        {"block:spectra/content": {"decision_id": "old-decision"}},
+    ).convert(record)
+
+    assert "A preserved &amp; safe heading" in receipt.sanitized_html
+    assert "&amp;amp;" not in receipt.sanitized_html
+    assert "Native paragraph copy." in receipt.sanitized_html
+    assert "moltex-core-group" in receipt.sanitized_html
+    assert "moltex-core-columns" in receipt.sanitized_html
+    assert "--moltex-font-size:2.5rem" in receipt.sanitized_html
+    assert "moltex-placeholder" not in receipt.sanitized_html
+    assert any(item.code == "gutenberg_blocks_converted" for item in receipt.findings)
+
+
+def test_converter_localizes_spectra_layout_background_and_button(
+    golden_contracts,
+) -> None:
+    origin = golden_contracts.site_spec.source_origin
+    source_image = f"{origin}/wp-content/hero.png"
+    source = f'''<!-- wp:spectra/container {{"layout":{{"type":"grid","columnCount":2}},"overlayType":"image","overlayImage":{{"url":"{source_image}"}},"responsiveControls":{{"sm":{{"layout":{{"type":"grid","columnCount":1}}}}}}}} -->
+<!-- wp:spectra/button {{"text":"Contact us","linkURL":"{origin}/contact/"}} /-->
+<!-- /wp:spectra/container -->'''
+    record = golden_contracts.content_records[0].model_copy(
+        update={"original_html": source}
+    )
+    receipt = ContentConverter(
+        UrlRewriter(
+            origin,
+            {f"{origin}/contact/": "/contact/"},
+            {source_image: "/media/hero.png"},
+        ),
+        {
+            "block:spectra/container": {"decision_id": "obsolete"},
+            "block:spectra/button": {"decision_id": "obsolete"},
+        },
+    ).convert(record)
+
+    assert "--moltex-grid-columns:repeat(2,minmax(0,1fr))" in receipt.sanitized_html
+    assert "--moltex-sm-grid-columns:repeat(1,minmax(0,1fr))" in receipt.sanitized_html
+    assert "/media/hero.png" in receipt.sanitized_html
+    assert 'href="/contact/"' in receipt.sanitized_html
+    assert receipt.rewritten_urls == 2
+
+
+def test_converter_keeps_dynamic_core_blocks_explicit(golden_contracts) -> None:
+    record = golden_contracts.content_records[0].model_copy(
+        update={"original_html": '<!-- wp:latest-posts {"postsToShow":3} /-->'}
+    )
+    receipt = ContentConverter(
+        UrlRewriter(golden_contracts.site_spec.source_origin, {}, {})
+    ).convert(record)
+
+    assert 'data-moltex-dynamic-block="core/latest-posts"' in receipt.sanitized_html
+    assert "Latest Posts" in receipt.sanitized_html
+    assert any(item.code == "gutenberg_blocks_unresolved" for item in receipt.findings)
+
+
+def test_generated_gutenberg_styles_reject_css_injection(golden_contracts) -> None:
+    record = golden_contracts.content_records[0].model_copy(
+        update={
+            "original_html": (
+                '<!-- wp:spectra/content {"tagName":"h2","text":"Safe",'
+                '"textColor":"red;position:fixed","style":{"spacing":{"padding":'
+                '{"top":"1rem;background:url(javascript:alert(1))"}}}} /-->'
+            )
+        }
+    )
+    receipt = ContentConverter(
+        UrlRewriter(golden_contracts.site_spec.source_origin, {}, {})
+    ).convert(record)
+
+    assert "Safe" in receipt.sanitized_html
+    assert "javascript" not in receipt.sanitized_html
+    assert "position:fixed" not in receipt.sanitized_html

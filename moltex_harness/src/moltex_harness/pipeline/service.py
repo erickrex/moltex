@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import tempfile
@@ -264,11 +265,26 @@ class SitePipelineService:
                 **baseline.report.counts,
                 "tasks": planning.report.counts.get("tasks", 0),
             }
+            task_counts = self._task_state_counts(workspace)
+            if not task_counts and counts["tasks"]:
+                task_counts = {"pending": counts["tasks"]}
+            counts.update({f"tasks_{key}": value for key, value in task_counts.items()})
+            unfinished = sum(
+                value for key, value in task_counts.items() if key != "complete"
+            )
             report = SitePipelineReport(
-                status="workspace_ready",
-                phase="workspace_ready",
-                code="workspace_ready_for_migration",
-                message="Generated site workspace is built, baseline-verified, and planned",
+                status="migration_planned" if unfinished else "workspace_ready",
+                phase="planning" if unfinished else "workspace_ready",
+                code=(
+                    "workspace_planned_with_unfinished_tasks"
+                    if unfinished
+                    else "workspace_migration_complete"
+                ),
+                message=(
+                    f"Generated baseline is built and planned; {unfinished} migration tasks remain"
+                    if unfinished
+                    else "Generated site workspace is fully migrated and verified"
+                ),
                 output=".",
                 site_identity=identity,
                 counts=counts,
@@ -316,6 +332,18 @@ class SitePipelineService:
                     5,
                 )
         return SitePipelineOutcome(report, 0, destination)
+
+    @staticmethod
+    def _task_state_counts(workspace: Path) -> dict[str, int]:
+        graph_path = workspace / ".moltex" / "tasks" / "task-graph.json"
+        if not graph_path.is_file():
+            return {}
+        graph = json.loads(graph_path.read_text(encoding="utf-8"))
+        counts: dict[str, int] = {}
+        for task in graph.get("tasks", []):
+            state = str(task.get("state", "pending"))
+            counts[state] = counts.get(state, 0) + 1
+        return counts
 
     @staticmethod
     def _stage_metric(stage: str, started: int, path: Path) -> PipelineStageReport:

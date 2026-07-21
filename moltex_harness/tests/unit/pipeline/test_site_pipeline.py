@@ -163,16 +163,16 @@ def test_pipeline_publishes_one_migration_ready_workspace(tmp_path: Path) -> Non
             encoding="utf-8"
         )
     )
-    assert report["status"] == "workspace_ready"
-    assert report["phase"] == "workspace_ready"
-    assert report["code"] == "workspace_ready_for_migration"
+    assert report["status"] == "migration_planned"
+    assert report["phase"] == "planning"
+    assert report["code"] == "workspace_planned_with_unfinished_tasks"
     assert report["output"] == "."
     assert report["site_identity"] == {
         "site_name": "Example Site",
         "domain": "example.com",
         "workspace_slug": "example-com",
     }
-    assert report["counts"] == {"routes": 3, "tasks": 4}
+    assert report["counts"] == {"routes": 3, "tasks": 4, "tasks_pending": 4}
     assert [stage["stage"] for stage in report["stages"]] == [
         "baseline",
         "build",

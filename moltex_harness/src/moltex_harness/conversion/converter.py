@@ -14,20 +14,24 @@ from markdownify import markdownify
 
 from moltex_harness.models import ContentConversionReceipt, ContentRecord, ConversionFinding
 
+from .gutenberg import GutenbergRenderer
 from .shortcodes import ShortcodeConverter
 from .urls import UrlRewriter
 
 
 ALLOWED_TAGS = {
-    "a", "abbr", "blockquote", "br", "caption", "code", "col", "colgroup",
+    "a", "abbr", "article", "aside", "blockquote", "br", "caption", "code", "col", "colgroup",
     "dd", "del", "details", "div", "dl", "dt", "em", "figcaption", "figure",
     "h1", "h2", "h3", "h4", "h5", "h6", "hr", "img", "li", "mark", "ol",
-    "p", "picture", "pre", "q", "s", "small", "source", "span", "strong",
+    "footer", "header", "main", "nav", "p", "picture", "pre", "q", "s", "section", "small", "source", "span", "strong",
     "sub", "summary", "sup", "table", "tbody", "td", "tfoot", "th", "thead",
     "time", "tr", "u", "ul",
 }
 ALLOWED_ATTRIBUTES = {
-    "*": {"class", "id", "title", "role", "aria-label", "aria-hidden"},
+    "*": {
+        "class", "id", "title", "role", "aria-label", "aria-hidden", "style",
+        "data-moltex-block", "data-moltex-dynamic-block",
+    },
     "a": {"href", "target"},
     "img": {"src", "srcset", "sizes", "alt", "width", "height", "loading"},
     "source": {"src", "srcset", "sizes", "type", "media"},
@@ -38,6 +42,28 @@ ALLOWED_ATTRIBUTES = {
 }
 COMPLEX_TAG = re.compile(r"<(?:table|picture|details)\b", re.I)
 DYNAMIC_MEDIA_PLACEHOLDERS = {"placeholder-image.jpg"}
+IMAGE_TAG = re.compile(r"<img\b(?P<attributes>[^>]*)>", re.IGNORECASE)
+HTML_ATTRIBUTE = re.compile(
+    r'\b(?P<name>class|alt|src|srcset)="(?P<value>[^"]*)"', re.IGNORECASE
+)
+SAFE_INLINE_STYLE = re.compile(
+    r"^(?:"
+    r"--moltex(?:-(?:lg|md|sm))?-[a-z-]+|"
+    r"border-radius|height|object-fit|width"
+    r")$"
+)
+SAFE_INLINE_VALUE = re.compile(
+    r"^(?:"
+    r"-?(?:\d+(?:\.\d+)?|\.\d+)(?:px|rem|em|%|vh|vw|ch)?|"
+    r"#[0-9a-f]{3,8}|(?:rgb|rgba|hsl|hsla)\([0-9.%\s,/-]+\)|"
+    r"(?:block|grid|flex|none|auto|cover|contain|fill|solid|dashed|dotted|double|nowrap|wrap|row|column|center|stretch|flex-start|flex-end|space-between|space-around|normal|bold|transparent|currentColor)|"
+    r"repeat\([1-9][0-9]?,minmax\(0,1fr\)\)|"
+    r"var\(--moltex-color-[0-8]\)|"
+    r"-?(?:\d+(?:\.\d+)?|\.\d+)(?:px|rem|em|%|vh|vw|ch)?\s+-?(?:\d+(?:\.\d+)?|\.\d+)(?:px|rem|em|%|vh|vw|ch)?|"
+    r"url\(\&quot;/[a-z0-9_./%-]+\&quot;\)|url\(\"/[a-z0-9_./%-]+\"\)"
+    r")$",
+    re.IGNORECASE,
+)
 
 
 class _Text(HTMLParser):
@@ -60,7 +86,10 @@ class ContentConverter:
 
     def convert(self, record: ContentRecord) -> ContentConversionReceipt:
         original_source = record.original_html
-        source = self._block_placeholders(original_source)
+        blocks = GutenbergRenderer(
+            self.rewriter.rewrite, self.legacy_bindings
+        ).render(original_source)
+        source = blocks.html
         shortcodes = ShortcodeConverter(
             {
                 key.removeprefix("shortcode:"): value
@@ -69,7 +98,29 @@ class ContentConverter:
             }
         ).convert(source, record.record_id)
         findings = list(shortcodes.findings)
-        rewritten_count = 0
+        if blocks.converted_blocks:
+            findings.append(
+                ConversionFinding(
+                    severity="info",
+                    code="gutenberg_blocks_converted",
+                    classification="permanent",
+                    subject_id=record.record_id,
+                    message="Serialized Gutenberg presentation blocks were converted to safe semantic HTML",
+                    context={"blocks": blocks.converted_blocks},
+                )
+            )
+        if blocks.unresolved_blocks:
+            findings.append(
+                ConversionFinding(
+                    severity="warning",
+                    code="gutenberg_blocks_unresolved",
+                    classification="blocked",
+                    subject_id=record.record_id,
+                    message="Dynamic or unsupported Gutenberg blocks still require target behavior",
+                    context={"blocks": blocks.unresolved_blocks},
+                )
+            )
+        rewritten_count = blocks.rewritten_urls
         removed_media = 0
 
         def filter_attribute(tag: str, name: str, value: str) -> str | None:
@@ -101,6 +152,19 @@ class ContentConverter:
                 value = ", ".join(candidates)
                 if not value:
                     return None
+            elif name == "style":
+                declarations = []
+                for declaration in value.split(";"):
+                    property_name, separator, property_value = declaration.partition(":")
+                    property_name = property_name.strip()
+                    property_value = property_value.strip()
+                    if (
+                        separator
+                        and SAFE_INLINE_STYLE.fullmatch(property_name)
+                        and SAFE_INLINE_VALUE.fullmatch(property_value)
+                    ):
+                        declarations.append(f"{property_name}:{property_value}")
+                return ";".join(declarations) or None
             return value
 
         sanitized = nh3.clean(
@@ -113,6 +177,7 @@ class ContentConverter:
             link_rel="noopener noreferrer",
             attribute_filter=filter_attribute,
         ).strip()
+        sanitized = self._replace_src_less_images(sanitized)
         if removed_media:
             findings.append(
                 ConversionFinding(
@@ -181,36 +246,35 @@ class ContentConverter:
             findings=tuple(findings),
         )
 
-    def _block_placeholders(self, source: str) -> str:
-        pattern = re.compile(
-            r"<!--\s+wp:([a-z0-9_-]+/[a-z0-9_-]+)(?:\s+.*?)?\s*/-->",
-            re.I | re.S,
-        )
-
-        def replace(match: re.Match[str]) -> str:
-            name = match.group(1).lower()
-            binding = self.legacy_bindings.get(f"block:{name}")
-            if binding is None:
-                return match.group(0)
-            attributes = [
-                'class="moltex-placeholder"',
-                f'data-shortcode="block:{name}"',
-                'role="status"',
-                'aria-label="Unresolved WordPress block"',
-            ]
-            for key, attribute in (
-                ("evidence_id", "data-moltex-evidence"),
-                ("capability_id", "data-moltex-capability"),
-                ("decision_id", "data-moltex-decision"),
-            ):
-                if binding.get(key):
-                    attributes.append(f'{attribute}="{html.escape(str(binding[key]), quote=True)}"')
-            return f"<div {' '.join(attributes)}>WordPress block requires replacement: {html.escape(name)}</div>"
-
-        return pattern.sub(replace, source)
-
     @staticmethod
     def _text(value: str) -> str:
         parser = _Text()
         parser.feed(value)
         return " ".join("".join(parser.parts).split())
+
+    @staticmethod
+    def _replace_src_less_images(value: str) -> str:
+        """Render unavailable media intentionally instead of a broken image icon."""
+
+        def replace(match: re.Match[str]) -> str:
+            attributes = {
+                item.group("name").casefold(): html.unescape(item.group("value"))
+                for item in HTML_ATTRIBUTE.finditer(match.group("attributes"))
+            }
+            if attributes.get("src") or attributes.get("srcset"):
+                return match.group(0)
+            classes = " ".join(
+                part
+                for part in attributes.get("class", "").split()
+                if re.fullmatch(r"[a-zA-Z0-9_:\[\]()./%-]+", part)
+            )
+            class_value = "moltex-media-placeholder"
+            if classes:
+                class_value = f"{class_value} {classes}"
+            label = attributes.get("alt") or "Media is not available in this export"
+            return (
+                f'<div class="{html.escape(class_value, quote=True)}" role="img" '
+                f'aria-label="{html.escape(label, quote=True)}"></div>'
+            )
+
+        return IMAGE_TAG.sub(replace, value)

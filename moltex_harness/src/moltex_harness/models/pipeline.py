@@ -35,7 +35,7 @@ class SitePipelineReport(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     schema_version: Literal[1] = 1
-    status: Literal["workspace_ready", "blocked", "failed"]
+    status: Literal["migration_planned", "workspace_ready", "blocked", "failed"]
     phase: PipelinePhase
     code: str
     message: str

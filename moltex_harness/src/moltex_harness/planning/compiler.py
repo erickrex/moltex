@@ -296,6 +296,7 @@ class TaskGraphCompiler:
                 "Accessible responsive global navigation and shell.",
             ),
             TaskState.PENDING,
+            verification_command="npm run verify",
         )
 
     def _route_family_task(
@@ -575,6 +576,7 @@ class TaskGraphCompiler:
         *,
         blocking_decision_ids: tuple[str, ...] = (),
         require_screenshot: bool = False,
+        verification_command: str = "npm run verify:baseline",
     ) -> MigrationTask:
         evidence_root = f".moltex/task-evidence/{task_id}"
         completion = [
@@ -602,7 +604,7 @@ class TaskGraphCompiler:
                     description="Post-change screenshot at one declared viewport.",
                 )
             )
-        commands = ("npm run build", "npm run verify")
+        commands = ("npm run build", verification_command)
         checks = (
             AcceptanceCheck(
                 check_id="production-build",
@@ -612,7 +614,11 @@ class TaskGraphCompiler:
             AcceptanceCheck(
                 check_id="baseline-contracts",
                 command=commands[1],
-                expected="The generated baseline verifier exits 0 without changed expectations.",
+                expected=(
+                    "Migration verification exits 0 with complete task evidence."
+                    if verification_command == "npm run verify"
+                    else "The generated baseline verifier exits 0 without changed expectations."
+                ),
             ),
         )
         return MigrationTask(
