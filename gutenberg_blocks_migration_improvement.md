@@ -9,9 +9,9 @@ remain explicit blocking dispositions by design; they are not silently approxima
 
 This plan is subordinate to [`moltex.md`](./moltex.md) for product scope and Golden Path
 acceptance, and to [`moltex_harness.md`](./moltex_harness.md) for canonical models,
-conversion, generated-workspace, verifier, and eval architecture. It turns the findings in
-the [`dev.wptelescope.com visual audit`](./visual-comparisons/full-site-audit-2026-07-21/audit-summary.md)
-into a general migration improvement program.
+conversion, generated-workspace, verifier, and eval architecture. It turns the findings
+from the 2026-07-21 `dev.wptelescope.com` visual audit into a general migration
+improvement program. Raw visual-comparison artifacts are intentionally local-only.
 
 ## Objective
 
