@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import re
 from html.parser import HTMLParser
 from typing import Literal
@@ -33,7 +34,7 @@ ALLOWED_ATTRIBUTES = {
     "time": {"datetime"},
     "td": {"colspan", "rowspan"},
     "th": {"colspan", "rowspan", "scope"},
-    "div": {"data-shortcode"},
+    "div": {"data-shortcode", "data-moltex-evidence", "data-moltex-capability", "data-moltex-decision"},
 }
 COMPLEX_TAG = re.compile(r"<(?:table|picture|details)\b", re.I)
 DYNAMIC_MEDIA_PLACEHOLDERS = {"placeholder-image.jpg"}
@@ -49,12 +50,24 @@ class _Text(HTMLParser):
 
 
 class ContentConverter:
-    def __init__(self, rewriter: UrlRewriter) -> None:
+    def __init__(
+        self,
+        rewriter: UrlRewriter,
+        legacy_bindings: dict[str, dict[str, str | None]] | None = None,
+    ) -> None:
         self.rewriter = rewriter
+        self.legacy_bindings = legacy_bindings or {}
 
     def convert(self, record: ContentRecord) -> ContentConversionReceipt:
-        source = record.original_html
-        shortcodes = ShortcodeConverter().convert(source, record.record_id)
+        original_source = record.original_html
+        source = self._block_placeholders(original_source)
+        shortcodes = ShortcodeConverter(
+            {
+                key.removeprefix("shortcode:"): value
+                for key, value in self.legacy_bindings.items()
+                if key.startswith("shortcode:")
+            }
+        ).convert(source, record.record_id)
         findings = list(shortcodes.findings)
         rewritten_count = 0
         removed_media = 0
@@ -158,7 +171,7 @@ class ContentConverter:
             )
         return ContentConversionReceipt(
             record_id=record.record_id,
-            source_sha256=hashlib.sha256(source.encode()).hexdigest(),
+            source_sha256=hashlib.sha256(original_source.encode()).hexdigest(),
             output_sha256=hashlib.sha256(sanitized.encode()).hexdigest(),
             body_format=body_format,
             sanitized_html=sanitized,
@@ -167,6 +180,34 @@ class ContentConverter:
             rewritten_urls=rewritten_count,
             findings=tuple(findings),
         )
+
+    def _block_placeholders(self, source: str) -> str:
+        pattern = re.compile(
+            r"<!--\s+wp:([a-z0-9_-]+/[a-z0-9_-]+)(?:\s+.*?)?\s*/-->",
+            re.I | re.S,
+        )
+
+        def replace(match: re.Match[str]) -> str:
+            name = match.group(1).lower()
+            binding = self.legacy_bindings.get(f"block:{name}")
+            if binding is None:
+                return match.group(0)
+            attributes = [
+                'class="moltex-placeholder"',
+                f'data-shortcode="block:{name}"',
+                'role="status"',
+                'aria-label="Unresolved WordPress block"',
+            ]
+            for key, attribute in (
+                ("evidence_id", "data-moltex-evidence"),
+                ("capability_id", "data-moltex-capability"),
+                ("decision_id", "data-moltex-decision"),
+            ):
+                if binding.get(key):
+                    attributes.append(f'{attribute}="{html.escape(str(binding[key]), quote=True)}"')
+            return f"<div {' '.join(attributes)}>WordPress block requires replacement: {html.escape(name)}</div>"
+
+        return pattern.sub(replace, source)
 
     @staticmethod
     def _text(value: str) -> str:

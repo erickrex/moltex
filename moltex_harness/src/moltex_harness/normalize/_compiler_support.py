@@ -176,6 +176,8 @@ class _CompilerSupport:
             )
             for item in collection
         }
+        if raw.legacy_index is not None:
+            documents[raw.legacy_index.artifact] = raw.legacy_index.data
         for content_item in raw.content:
             document = content_item.model_dump(mode="json", exclude={"evidence"})
             document["raw_html"] = document.pop("original_html")

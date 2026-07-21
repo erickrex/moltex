@@ -19,6 +19,7 @@ class TaskFamily(StrEnum):
     ROUTE_FAMILY = "route-family"
     VISUAL_RECONSTRUCTION = "visual-reconstruction"
     CAPABILITY_DISPOSITION = "capability-disposition"
+    LEGACY_ACQUISITION = "legacy-acquisition"
     PRODUCTION = "production"
     FINAL_PARITY = "final-parity"
 

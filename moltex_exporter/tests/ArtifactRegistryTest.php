@@ -15,6 +15,7 @@ class ArtifactRegistryTest extends TestCase {
 		$this->assertContains( 'bundle.json', $paths );
 		$this->assertContains( 'site_blueprint.json', $paths );
 		$this->assertContains( 'media/media_map.json', $paths );
+		$this->assertContains( 'legacy_evidence_index.json', $paths );
 		$this->assertContains( 'schemas/bundle.schema.json', $paths );
 	}
 

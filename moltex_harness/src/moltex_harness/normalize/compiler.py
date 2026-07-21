@@ -16,6 +16,7 @@ from moltex_harness.models import (
 from ._compiler_assets import _AssetCompilerMixin
 from ._compiler_capabilities import _CapabilityCompilerMixin
 from ._compiler_content import _ContentCompilerMixin
+from ._compiler_legacy import _LegacyEvidenceCompilerMixin
 from ._compiler_outputs import _OutputCompilerMixin
 from ._compiler_routes import _RouteCompilerMixin
 from ._compiler_seo import _SeoCompilerMixin
@@ -29,6 +30,7 @@ class ContractCompiler(
     _ContentCompilerMixin,
     _SeoCompilerMixin,
     _CapabilityCompilerMixin,
+    _LegacyEvidenceCompilerMixin,
     _OutputCompilerMixin,
 ):
     """Compile H1 evidence without generating target files or Astro code."""
@@ -109,6 +111,16 @@ class ContractCompiler(
             raw, routes, origin, trailing_policy, findings, decisions
         )
         capabilities = self._capabilities(raw, routes, findings, decisions)
+        legacy_evidence, legacy_capabilities = self._legacy_evidence_contracts(
+            raw, routes, findings, decisions
+        )
+        capabilities.extend(legacy_capabilities)
+        capability_ids = [item.capability_id for item in capabilities]
+        if len(capability_ids) != len(set(capability_ids)):
+            raise ContractCompilationError(
+                "legacy_capability_collision",
+                "Legacy evidence produced a duplicate capability identity",
+            )
         navigation = self._navigation(
             raw,
             route_by_source,
@@ -147,6 +159,9 @@ class ContractCompiler(
             redirects=tuple(sorted(redirects, key=lambda item: item.contract_id)),
             capabilities=tuple(
                 sorted(capabilities, key=lambda item: item.capability_id)
+            ),
+            legacy_evidence=tuple(
+                sorted(legacy_evidence, key=lambda item: item.contract_id)
             ),
             url_map=tuple(
                 sorted(url_map, key=lambda item: (item.source_url, item.target_url))

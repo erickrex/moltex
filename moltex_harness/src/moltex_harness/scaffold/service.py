@@ -242,8 +242,24 @@ class BaselineService:
             entry.source_url: entry.target_url for entry in contracts.media_map
         }
         assets_by_id = {asset.asset_id: asset for asset in contracts.assets}
+        legacy_bindings: dict[str, dict[str, str | None]] = {}
+        for item in contracts.legacy_evidence:
+            if item.disposition not in {"decide", "acquire"}:
+                continue
+            identity_key = "tag" if item.artifact_type == "shortcode" else "name"
+            if item.artifact_type not in {"shortcode", "block"}:
+                continue
+            identity = item.source_identity.get(identity_key)
+            if not isinstance(identity, str) or not identity:
+                continue
+            legacy_bindings[f"{item.artifact_type}:{identity.lower()}"] = {
+                "evidence_id": item.source_evidence_id,
+                "capability_id": item.capability_id,
+                "decision_id": item.decision_id,
+            }
         converter = ContentConverter(
-            UrlRewriter(contracts.site_spec.source_origin, url_map, media_map)
+            UrlRewriter(contracts.site_spec.source_origin, url_map, media_map),
+            legacy_bindings,
         )
         frontmatter = FrontmatterNormalizer()
         content_by_id: dict[str, dict[str, Any]] = {}

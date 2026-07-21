@@ -23,6 +23,7 @@ export const contractChecks = (contracts) => {
     contracts.routes.map((item) => item.contract_id), contracts.assets.map((item) => item.asset_id),
     contracts.seo.map((item) => item.contract_id), contracts.redirects.map((item) => item.contract_id),
     contracts.capabilities.map((item) => item.capability_id), contracts.parity.map((item) => item.row_id),
+    contracts.legacyEvidence.map((item) => item.contract_id),
   ];
   if (idGroups.some((ids) => new Set(ids).size !== ids.length)) errors.push("duplicate contract ID");
   const expectedParity = new Set([
@@ -40,13 +41,35 @@ export const contractChecks = (contracts) => {
     }
     return found;
   };
-  const unresolved = collectEvidence([contracts.sourceManifest, contracts.siteSpec, contracts.routes, contracts.assets, contracts.seo, contracts.redirects, contracts.capabilities, contracts.parity]).filter((id) => !resolutionIds.has(id));
+  const unresolved = collectEvidence([contracts.sourceManifest, contracts.siteSpec, contracts.routes, contracts.assets, contracts.seo, contracts.redirects, contracts.capabilities, contracts.legacyEvidence, contracts.parity]).filter((id) => !resolutionIds.has(id));
   if (unresolved.length) errors.push(`unresolved evidence lineage ${[...new Set(unresolved)].slice(0, 3).join(",")}`);
   return [result("contract.integrity", contracts.sourceManifest.bundle_id, errors.length === 0, {
     contractIds: [contracts.sourceManifest.manifest_id], evidenceRefs: [".moltex/contracts/contract-index.json"],
     expected: { checksum_errors: 0 }, actual: { checksum_errors: errors.length },
     message: `Contract integrity failed: ${errors.join(", ")}`, passMessage: "All indexed contracts match their committed receipts",
   })];
+};
+
+export const legacyEvidenceChecks = (contracts) => {
+  const capabilityIds = new Set(contracts.capabilities.map((item) => item.capability_id));
+  const decisionIds = new Set(contracts.decisions.map((item) => item.decision_id));
+  const html = walk("dist").filter((file) => file.endsWith(".html")).map((file) => fs.readFileSync(file, "utf8")).join("\n");
+  return contracts.legacyEvidence.flatMap((item) => {
+    const acquisitionValid = item.disposition !== "acquire" || (item.payload_status === "deferred" && !item.payload_artifact && capabilityIds.has(item.capability_id));
+    const dormantValid = item.classification !== "dormant" || (item.disposition === "audit" && !["included", "sampled"].includes(item.payload_status) && !item.capability_id && !item.decision_id);
+    const decisionValid = item.disposition !== "decide" || (capabilityIds.has(item.capability_id) && decisionIds.has(item.decision_id));
+    const disposition = result("legacy.evidence-disposition", item.contract_id, acquisitionValid && dormantValid && decisionValid, {
+      contractIds: [item.contract_id, item.capability_id].filter(Boolean), evidenceRefs: [`.moltex/contracts/contracts/legacy-evidence.json#${item.contract_id}`],
+      expected: "an auditable relevance and acquisition disposition", actual: { classification: item.classification, disposition: item.disposition, payload: item.payload_status },
+      message: `Legacy evidence disposition is inconsistent: ${item.contract_id}`,
+    });
+    if (item.disposition !== "decide" || !["shortcode", "block"].includes(item.artifact_type)) return [disposition];
+    const placeholder = html.includes(`data-moltex-evidence="${item.source_evidence_id}"`);
+    return [disposition, result("legacy.placeholder", item.contract_id, placeholder, {
+      contractIds: [item.contract_id, item.capability_id].filter(Boolean), evidenceRefs: [`.moltex/contracts/contracts/legacy-evidence.json#${item.contract_id}`],
+      expected: item.source_evidence_id, actual: placeholder, message: `Referenced orphan has no localized generated placeholder: ${item.contract_id}`,
+    })];
+  });
 };
 
 export const buildChecks = (contracts) => {

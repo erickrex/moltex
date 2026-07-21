@@ -61,6 +61,17 @@ trait Moltex_Exporter_Contract_Fixture_Trait {
 		);
 		$writer->write_json( 'integration_manifest.json', array( 'schema_version' => '1.0.0', 'integrations' => array() ), 'integration_manifest' );
 		$writer->write_json(
+			'legacy_evidence_index.json',
+			array(
+				'schema_version' => 1,
+				'limits' => array( 'max_entries' => 5000, 'max_references_per_entry' => 100, 'max_reachable_rows_per_table' => 500 ),
+				'plugin_inventory' => array(),
+				'summary' => array( 'total' => 0 ),
+				'entries' => array(),
+			),
+			'legacy_evidence'
+		);
+		$writer->write_json(
 			'content/post/fixture-post.json',
 			array(
 				'id'     => 101,

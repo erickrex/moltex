@@ -4,7 +4,7 @@ Tags: migration, export, astro, static-site
 Requires at least: 5.9
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.2.10
+Stable tag: 1.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -45,6 +45,12 @@ No. Transactional, account-heavy, multisite, and unknown custom behavior can pro
 blockers or manual-review items.
 
 == Changelog ==
+
+= 1.3.0 =
+* Added a bounded legacy evidence index for inactive, removed, and unknown plugin data that still affects public content.
+* Added declarative plugin signatures and public-reachability analysis without loading inactive plugin code.
+* Bundled only allowlisted, publicly reachable custom-table rows; dormant table evidence remains manifest-only.
+* Added stable evidence IDs and explicit bundled, deferred, unavailable, and operator-decision acquisition states for the migration harness.
 
 = 1.2.10 =
 * Add a verified site name, domain, and workspace slug to bundle.json.

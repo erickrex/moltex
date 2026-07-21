@@ -26,7 +26,7 @@ authoritative; the harness implementation must be updated to consume that bounda
 - Product name: **Moltex**
 - Exporter project: `moltex_exporter`
 - Harness project: `moltex_harness`
-- Current exporter release candidate: **1.2.10**
+- Current exporter release candidate: **1.3.0**
 - Current export contract: **`moltex-export/1`**
 - Target output: Git-managed Astro 5 static site
 - Primary implementation surface: Codex Desktop working on a generated repository
@@ -290,13 +290,13 @@ archive before download, and has an installable release artifact.
 
 | Evidence | Current result |
 |---|---|
-| Local PHPUnit suite | PASS on July 21, 2026: 151 tests, 1,959 assertions |
+| Local PHPUnit suite | PASS on July 21, 2026: 155 tests, 1,999 assertions |
 | Standalone exporter regressions | PASS: content, scope, directory isolation, download, scanner inventory, callback paths, identity, and Golden privacy |
 | Synthetic `moltex-export/1` fixture | PASS: 24 artifacts, no validator errors or warnings, complete-migration eligible |
 | Immutable Golden Export | PASS: 401 artifacts, no validator errors or warnings, complete-migration eligible |
 | Golden identity | `sha256:1700381e5023e1ee456439f62ba00e17bd5af18917169c76679fd17fe5aba03f` |
-| Current release ZIP | `dist/moltex-exporter-1.2.10.zip`, 193,607 bytes, 73 runtime files; byte-reproducible |
-| Current release SHA-256 | `7edc933d4c7c3017f1b4a7a5e1b6c583f020ba25954c28ec46d7036d4819f212` |
+| Last committed release ZIP | `dist/moltex-exporter-1.2.10.zip`, 193,607 bytes, 73 runtime files; byte-reproducible |
+| Last committed release SHA-256 | `7edc933d4c7c3017f1b4a7a5e1b6c583f020ba25954c28ec46d7036d4819f212` |
 | Recorded compatibility smoke | PASS on the exact 1.2.10 ZIP for WordPress 5.9.10/PHP 7.4.29 and WordPress 7.0.1/PHP 8.2.32 |
 
 The current local checks do not replace a staging-clone pilot. The latest checked-in live
@@ -349,6 +349,9 @@ moltex-export.zip
 └── additional optional evidence declared by bundle.json
 ```
 
+Exporter 1.3.0 also adds required `legacy_evidence_index.json` and optional bounded
+payloads below `legacy/`.
+
 ### `bundle.json` minimum fields
 
 ```json
@@ -357,7 +360,7 @@ moltex-export.zip
   "manifest_version": 1,
   "bundle_id": "sha256:...",
   "created_at": "2026-07-18T11:00:00Z",
-  "exporter_version": "1.2.10",
+  "exporter_version": "1.3.0",
   "mode": "complete",
   "site_origin": "https://example.test",
   "site_identity": {
@@ -430,6 +433,20 @@ Regardless of filename, the bundle must provide:
 - Export completeness, omissions, errors, and migration-readiness findings
 - Representative bounded HTML and sufficient public route evidence for downstream
   automated visual capture
+- Stable legacy evidence IDs, plugin ownership/status observations, public reachability,
+  payload acquisition state, and bounded retained payloads for inactive, removed, or
+  unknown plugin data that still affects public content
+
+### Inactive and removed plugin evidence
+
+Exporter 1.3.0 and newer require `legacy_evidence_index.json`. The exporter uses
+declarative plugin signatures and stored public relationships; it never activates or loads
+inactive plugin PHP. Referenced public values are preserved, dormant custom-table evidence
+is manifest-only, and only allowlisted bounded rows reachable from exported public objects
+may be packaged under `legacy/`. Every payload declares one consistent acquisition state,
+artifact reference, checksum, and byte count. Target conversion and replacement decisions
+remain harness-owned. The design, limits, and staged acquisition boundary are recorded in
+[`filter_out_inactive_plugins.md`](filter_out_inactive_plugins.md).
 
 ### Compatibility policy
 
@@ -438,6 +455,8 @@ Regardless of filename, the bundle must provide:
 - `moltex-export/1` bundles include `bundle.json`; legacy fixtures are immutable regression
   inputs, not a format the exporter continues to emit.
 - Additive optional artifacts are allowed within a major schema version.
+- Bundles produced before exporter 1.3.0 may omit the legacy index; the harness compatibility
+  adapter must preserve uncertainty and must not invent plugin ownership or reachability.
 - Removing or changing required fields requires a new major schema and a new adapter.
 - The exporter and harness each verify the same accepted Golden fixture ZIP and expected
   bundle ID.
@@ -831,7 +850,7 @@ adapter for breaking changes.
 
 ### Release behavior drifts beyond the last live WordPress receipt
 
-Mitigation: keep the 1.2.10 unit/regression and reproducible-release gates green, then run the
+Mitigation: keep the 1.3.0 unit/regression and reproducible-release gates green, then run the
 install-from-ZIP smoke and staging-clone pilot before making production claims for a newer
 release.
 
@@ -886,8 +905,9 @@ Moltex is ready for submission only when:
 ## Current Next Actions
 
 1. Treat exporter phases E1-E3 as accepted maintenance gates, not open implementation work.
-2. Pilot `dist/moltex-exporter-1.2.10.zip` on a supported staging clone using the checked-in runbook;
-   validate the downloaded bundle and review privacy/readiness evidence before production.
+2. After committing and reproducibly building 1.3.0, pilot its release ZIP on a supported
+   staging clone using the checked-in runbook; validate the downloaded bundle and review
+   privacy/readiness evidence before production.
 3. Keep the PHPUnit suite, standalone regressions, synthetic bundle, legacy fixture, and
    immutable Golden fixture green for every exporter change.
 4. Exercise current release behavior through the minimum/reference install-from-ZIP smoke

@@ -216,6 +216,32 @@ class CapabilityDisposition(LineagedModel):
     observed_route_ids: tuple[str, ...]
 
 
+class LegacyEvidenceContract(LineagedModel):
+    contract_id: str
+    source_evidence_id: str
+    artifact_type: str
+    source_plugin: str
+    plugin_status: Literal["active", "inactive", "missing", "unknown"]
+    classification: Literal[
+        "required", "referenced_orphan", "dormant", "unknown", "deferred"
+    ]
+    disposition: Literal["convert", "audit", "acquire", "decide"]
+    source_identity: dict[str, Any]
+    relationship_status: Literal["referenced", "unreferenced", "unknown"]
+    public_reference_count: int
+    reference_evidence: tuple[str, ...]
+    payload_status: Literal[
+        "included", "sampled", "deferred", "unavailable", "omitted"
+    ]
+    payload_method: str
+    payload_artifact: str | None
+    payload_sha256: str | None
+    payload_bytes: int | None
+    capability_id: str | None
+    decision_id: str | None
+    reason: str
+
+
 class UrlMapEntry(LineagedModel):
     source_url: str
     target_url: str
@@ -319,6 +345,7 @@ class ContractSet(ContractModel):
     seo: tuple[SeoContract, ...]
     redirects: tuple[RedirectContract, ...]
     capabilities: tuple[CapabilityDisposition, ...]
+    legacy_evidence: tuple[LegacyEvidenceContract, ...]
     url_map: tuple[UrlMapEntry, ...]
     media_map: tuple[MediaMapEntry, ...]
     visual_capture_plan: VisualCapturePlan

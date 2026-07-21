@@ -10,10 +10,13 @@ from typing import Any, Literal, cast
 from moltex_harness.models import (
     ArtifactInventoryItem,
     EvidenceReference,
+    Finding,
     MediaAcquisition,
+    LegacyPayloadEvidence,
     RawArtifactEvidence,
     RawContentEvidence,
     RawMediaEvidence,
+    RawLegacyEvidence,
     RawSourceEvidence,
     RawSourceManifest,
 )
@@ -303,6 +306,256 @@ def _inventory(
     return output
 
 
+def _legacy_evidence(
+    bundle: SafeArchive,
+    validation: AdapterValidation,
+    content: list[RawContentEvidence],
+) -> tuple[list[RawLegacyEvidence], list[Finding]]:
+    """Validate the bounded legacy index or conservatively adapt older bundles."""
+
+    path = "legacy_evidence_index.json"
+    if not bundle.has(path):
+        return _adapt_legacy_evidence(bundle, validation, content)
+    value = bundle.read_json(path)
+    if not isinstance(value, dict) or not isinstance(value.get("entries"), list):
+        raise IntakeError(
+            "invalid_legacy_evidence",
+            "Legacy evidence index must contain an entries array",
+            artifact=path,
+        )
+    entries = value["entries"]
+    if len(entries) > 5000:
+        raise IntakeError(
+            "legacy_evidence_limit",
+            "Legacy evidence index exceeds the supported entry limit",
+            artifact=path,
+            pointer="/entries",
+        )
+    seen: set[str] = set()
+    total_payload_bytes = 0
+    result: list[RawLegacyEvidence] = []
+    for index, entry in enumerate(entries):
+        pointer = f"/entries/{index}"
+        if not isinstance(entry, dict):
+            raise IntakeError(
+                "invalid_legacy_evidence",
+                "Legacy evidence entry must be an object",
+                artifact=path,
+                pointer=pointer,
+            )
+        evidence_id = entry.get("evidence_id")
+        if not isinstance(evidence_id, str) or evidence_id in seen:
+            raise IntakeError(
+                "duplicate_legacy_evidence",
+                "Legacy evidence IDs must be non-empty and unique",
+                artifact=path,
+                pointer=f"{pointer}/evidence_id",
+            )
+        seen.add(evidence_id)
+        references = entry.get("reference_evidence")
+        if not isinstance(references, list) or len(references) > 100:
+            raise IntakeError(
+                "legacy_reference_limit",
+                "Legacy evidence references must be a bounded array",
+                artifact=path,
+                pointer=f"{pointer}/reference_evidence",
+            )
+        for reference in references:
+            if not isinstance(reference, str):
+                raise IntakeError(
+                    "invalid_legacy_reference",
+                    "Legacy evidence reference must be a string",
+                    artifact=path,
+                    pointer=f"{pointer}/reference_evidence",
+                )
+            artifact = reference.split("#", 1)[0]
+            if not artifact or not bundle.has(artifact):
+                raise IntakeError(
+                    "broken_legacy_reference",
+                    "Legacy evidence references a missing artifact",
+                    artifact=path,
+                    pointer=f"{pointer}/reference_evidence",
+                    context={"reference": reference},
+                )
+        payload_value = entry.get("payload")
+        try:
+            payload = LegacyPayloadEvidence.model_validate(payload_value)
+        except ValueError as error:
+            raise IntakeError(
+                "invalid_legacy_payload",
+                "Legacy payload declaration is invalid",
+                artifact=path,
+                pointer=f"{pointer}/payload",
+                context={"error": str(error)},
+            ) from error
+        _validate_legacy_payload(bundle, path, pointer, payload)
+        total_payload_bytes += payload.bytes or 0
+        if total_payload_bytes > 104_857_600:
+            raise IntakeError(
+                "legacy_payload_limit",
+                "Legacy payload bytes exceed the intake limit",
+                artifact=path,
+            )
+        try:
+            result.append(
+                RawLegacyEvidence.model_validate(
+                    {
+                        **entry,
+                        "evidence": evidence_ref(
+                            bundle, validation.bundle_id, path, pointer
+                        ).model_dump(mode="json"),
+                    }
+                )
+            )
+        except ValueError as error:
+            raise IntakeError(
+                "invalid_legacy_evidence",
+                "Legacy evidence entry is invalid",
+                artifact=path,
+                pointer=pointer,
+                context={"error": str(error)},
+            ) from error
+    return sorted(result, key=lambda item: item.evidence_id), []
+
+
+def _validate_legacy_payload(
+    bundle: SafeArchive,
+    index_path: str,
+    pointer: str,
+    payload: LegacyPayloadEvidence,
+) -> None:
+    if payload.status in {"included", "sampled"}:
+        if (
+            payload.method != "bundle"
+            or payload.artifact is None
+            or payload.bytes is None
+            or payload.sha256 is None
+            or not bundle.has(payload.artifact)
+        ):
+            raise IntakeError(
+                "invalid_legacy_acquisition",
+                "Included or sampled legacy payload must reference a bundled artifact",
+                artifact=index_path,
+                pointer=f"{pointer}/payload",
+            )
+        item = bundle.item(payload.artifact)
+        if item.bytes != payload.bytes or item.sha256 != payload.sha256:
+            raise IntakeError(
+                "legacy_payload_integrity",
+                "Legacy payload receipt does not match its artifact",
+                artifact=index_path,
+                pointer=f"{pointer}/payload",
+            )
+    elif payload.status == "deferred":
+        if payload.artifact is not None or payload.method not in {
+            "source-fetch",
+            "targeted-export",
+            "operator-decision",
+        }:
+            raise IntakeError(
+                "invalid_legacy_acquisition",
+                "Deferred legacy payload has an inconsistent acquisition declaration",
+                artifact=index_path,
+                pointer=f"{pointer}/payload",
+            )
+    elif payload.artifact is not None:
+        raise IntakeError(
+            "invalid_legacy_acquisition",
+            "Unavailable or omitted legacy payload cannot name an artifact",
+            artifact=index_path,
+            pointer=f"{pointer}/payload",
+        )
+
+
+def _adapt_legacy_evidence(
+    bundle: SafeArchive,
+    validation: AdapterValidation,
+    content: list[RawContentEvidence],
+) -> tuple[list[RawLegacyEvidence], list[Finding]]:
+    """Preserve old observations as unknown without inventing ownership or reachability."""
+
+    groups: dict[tuple[str, str], list[RawContentEvidence]] = {}
+    for record in content:
+        if isinstance(record.postmeta, dict):
+            for key in record.postmeta:
+                groups.setdefault((record.content_type, str(key)), []).append(record)
+    result: list[RawLegacyEvidence] = []
+    for (content_type, field_name), records in sorted(groups.items()):
+        identity = hashlib.sha256(
+            f"postmeta_field\x00{content_type}\x00{field_name}".encode()
+        ).hexdigest()
+        first = records[0]
+        result.append(
+            RawLegacyEvidence(
+                evidence_id=f"legacy:postmeta_field:{identity}",
+                artifact_type="postmeta_field",
+                source_plugin="unknown",
+                ownership_confidence="unknown",
+                plugin_status="unknown",
+                source_identity={"post_type": content_type, "field_name": field_name},
+                relationship_status="unknown",
+                public_reference_count=0,
+                reference_evidence=tuple(
+                    f"{record.evidence.artifact}#/postmeta/{_pointer_token(field_name)}"
+                    for record in records[:100]
+                ),
+                payload=LegacyPayloadEvidence(
+                    status="omitted",
+                    method="none",
+                    artifact=None,
+                    row_count=len(records),
+                    reason="Compatibility adapter preserves the original content artifacts.",
+                ),
+                source_lineage=("compatibility-adapter:postmeta",),
+                evidence=first.evidence,
+            )
+        )
+    table_path = "plugins/database_tables.json"
+    if bundle.has(table_path):
+        table_data = bundle.read_json(table_path)
+        by_plugin = table_data.get("by_plugin", {}) if isinstance(table_data, dict) else {}
+        if isinstance(by_plugin, dict):
+            for plugin, tables in sorted(by_plugin.items()):
+                if not isinstance(tables, list):
+                    continue
+                for index, table in enumerate(tables):
+                    if not isinstance(table, dict) or not table.get("table_name"):
+                        continue
+                    name = str(table["table_name"])
+                    identity = hashlib.sha256(f"custom_table\x00{name}".encode()).hexdigest()
+                    result.append(
+                        RawLegacyEvidence(
+                            evidence_id=f"legacy:custom_table:{identity}",
+                            artifact_type="custom_table",
+                            source_plugin="unknown",
+                            ownership_confidence="unknown",
+                            plugin_status="unknown",
+                            source_identity={"table_name": name},
+                            relationship_status="unknown",
+                            public_reference_count=0,
+                            reference_evidence=(),
+                            payload=LegacyPayloadEvidence(
+                                status="omitted",
+                                method="none",
+                                artifact=None,
+                                row_count=int(table.get("row_count", 0)),
+                                reason="Compatibility adapter retains compact table inventory only.",
+                            ),
+                            source_lineage=("compatibility-adapter:database-table",),
+                            evidence=evidence_ref(bundle, validation.bundle_id, table_path),
+                        )
+                    )
+    finding = Finding(
+        severity="warning",
+        code="legacy_evidence_compatibility_adapter",
+        classification="observation",
+        message="Bundle predates the legacy evidence index; ownership and reachability remain conservative unknowns",
+        artifact="legacy_evidence_index.json",
+        context={"entries": len(result)},
+    )
+    return sorted(result, key=lambda item: item.evidence_id), [finding]
+
+
 def compile_raw_evidence(
     bundle: SafeArchive, validation: AdapterValidation
 ) -> RawSourceEvidence:
@@ -338,6 +591,10 @@ def compile_raw_evidence(
         if path.endswith(".html")
         and (path.startswith("html_snapshots/") or path.startswith("snapshots/"))
     ]
+    content = _content(bundle, validation)
+    legacy_evidence, legacy_findings = _legacy_evidence(
+        bundle, validation, content
+    )
     source_manifest = RawSourceManifest(
         source_schema=cast(
             Literal["legacy-1", "moltex-export/1"], validation.adapter
@@ -387,17 +644,25 @@ def compile_raw_evidence(
     return RawSourceEvidence(
         source_manifest=source_manifest,
         site=site,
-        content=_content(bundle, validation),
+        content=content,
         navigation=navigation,
         media=_media(bundle, validation),
         seo=seo,
         redirects=_redirects(bundle, validation),
         capabilities=capabilities,
+        legacy_evidence=legacy_evidence,
+        legacy_index=(
+            artifact_evidence(
+                bundle, validation.bundle_id, "legacy_evidence_index.json"
+            )
+            if bundle.has("legacy_evidence_index.json")
+            else None
+        ),
         html_references=sorted(html, key=lambda item: item.artifact),
         screenshot_references=_screenshots(bundle, validation),
         inventory=_inventory(bundle, validation),
         findings=sorted(
-            validation.findings,
+            [*validation.findings, *legacy_findings],
             key=lambda finding: (
                 finding.severity,
                 finding.code,

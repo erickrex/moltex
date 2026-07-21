@@ -92,6 +92,25 @@ After completing a task in Codex Desktop, pass its versioned
 rejects out-of-scope changes, protected-authority changes, missing checksums, or
 failed/missing verification commands before retaining the execution record.
 
+### Capability decisions in the task graph
+
+A capability's `required_operator_decision` value is a human-readable prompt,
+not a decision identifier. H4 links a capability-disposition task to its blocking
+decision by matching `DecisionItem.subject_id` to the capability's
+`capability_id`, then writes the matched `DecisionItem.decision_id` into the
+task's `blocking_decision_ids`. Capability-specific decisions are excluded from
+the separate production decision list so that the same decision is not assigned
+to two task families.
+
+This distinction matters for exports containing plugin capabilities such as
+Spectra Blocks or SureCart. Treating the prompt as an ID causes task-graph
+verification to report an unknown blocking decision and stops `create-site`
+during H4 planning. The compiler now fails explicitly when a capability declares
+that it requires an operator decision but has no linked decision record. A unit
+regression test keeps the prompt and decision ID deliberately different and
+verifies that the capability task receives the real decision ID without
+duplicating it on the production task.
+
 ## H3 baseline
 
 H3 sanitizes HTML without executing WordPress code, converts known shortcodes,
@@ -134,3 +153,13 @@ lineage. Missing references and ambiguous SEO or capability evidence are retaine
 as findings and `needs_decision` queue entries. URL and media maps are immutable,
 and the visual plan is bounded to the homepage, one representative route per
 family, and routes required for unresolved or business-critical capabilities.
+
+Inactive plugin state is not used as a deletion rule. H1 validates the bounded
+`legacy_evidence_index.json` and adapts older bundles conservatively. H2 classifies each
+entry by observed public reachability: retained typed values can be converted, dormant
+evidence produces no migration work, unresolved public behavior creates localized
+capability/decision contracts, and deferred payloads create acquisition work. H3 emits
+accessible placeholders carrying stable evidence IDs when deterministic conversion is not
+possible; H4 orders any required acquisition before its consuming capability task. The
+generated verifier rejects inconsistent acquisition states and missing or unlocalized
+placeholders. Canonical output includes `contracts/legacy-evidence.json`.

@@ -4,6 +4,7 @@
     "export_completeness.json",
     "forms_config.json",
     "integration_manifest.json",
+    "legacy_evidence_index.json",
     "media/media_map.json",
     "menus.json",
     "migration_readiness.json",
@@ -20,6 +21,7 @@
     "migration_readiness.json": ["blockers", "schema_version"],
     "seo_full.json": ["pages", "schema_version"],
     "forms_config.json": ["detected_plugins", "forms", "forms_in_content", "schema_version", "summary"],
-    "integration_manifest.json": ["integrations", "schema_version"]
+    "integration_manifest.json": ["integrations", "schema_version"],
+    "legacy_evidence_index.json": ["entries", "limits", "plugin_inventory", "schema_version", "summary"]
   }
 }

@@ -64,6 +64,7 @@ class TaskGraphCompiler:
         tasks: list[MigrationTask] = []
         route_task_ids: dict[str, list[str]] = defaultdict(list)
         capability_task_ids: dict[str, str] = {}
+        acquisition_task_ids: dict[str, str] = {}
         next_id = self._task_ids()
 
         foundation_id = next(next_id)
@@ -112,6 +113,18 @@ class TaskGraphCompiler:
             tasks.append(task)
             route_task_ids[route_id].append(task_id)
 
+        for legacy in sorted(
+            (
+                item
+                for item in contracts.legacy_evidence
+                if item.disposition == "acquire" and item.capability_id
+            ),
+            key=lambda item: item.contract_id,
+        ):
+            task_id = next(next_id)
+            tasks.append(self._legacy_acquisition_task(task_id, legacy, shell_id))
+            acquisition_task_ids[str(legacy.capability_id)] = task_id
+
         for capability in sorted(
             contracts.capabilities, key=lambda item: item.capability_id
         ):
@@ -119,6 +132,8 @@ class TaskGraphCompiler:
             dependencies = {shell_id}
             for route_id in capability.observed_route_ids:
                 dependencies.update(route_task_ids.get(route_id, ()))
+            if capability.capability_id in acquisition_task_ids:
+                dependencies.add(acquisition_task_ids[capability.capability_id])
             task = self._capability_task(
                 task_id,
                 capability,
@@ -129,10 +144,13 @@ class TaskGraphCompiler:
             capability_task_ids[capability.capability_id] = task_id
 
         production_id = next(next_id)
+        capability_subjects = {
+            item.capability_id for item in contracts.capabilities
+        }
         capability_decisions = {
-            item.required_operator_decision
-            for item in contracts.capabilities
-            if item.required_operator_decision
+            item.decision_id
+            for item in contracts.decisions
+            if item.subject_id in capability_subjects
         }
         production_decisions = tuple(
             sorted(
@@ -364,11 +382,18 @@ class TaskGraphCompiler:
     def _capability_task(
         self, task_id: str, capability, dependencies: tuple[str, ...], contracts: ContractSet
     ) -> MigrationTask:
-        decision_ids = (
-            (capability.required_operator_decision,)
-            if capability.required_operator_decision
-            else ()
+        decision_ids = tuple(
+            sorted(
+                item.decision_id
+                for item in contracts.decisions
+                if item.subject_id == capability.capability_id
+                and item.severity == "blocking"
+            )
         )
+        if capability.required_operator_decision and not decision_ids:
+            raise ValueError(
+                f"Capability {capability.capability_id} has no linked operator decision"
+            )
         state = TaskState.BLOCKED if decision_ids else TaskState.PENDING
         evidence = [
             TaskEvidence(
@@ -379,11 +404,6 @@ class TaskGraphCompiler:
             )
         ]
         if decision_ids:
-            known = {item.decision_id for item in contracts.decisions}
-            if not set(decision_ids).issubset(known):
-                raise ValueError(
-                    f"Capability {capability.capability_id} has an unknown decision"
-                )
             evidence.append(
                 TaskEvidence(
                     path=".moltex/contracts/decision-queue.json",
@@ -406,6 +426,36 @@ class TaskGraphCompiler:
             (f"Target behavior for {capability.capability_id}.",),
             state,
             blocking_decision_ids=decision_ids,
+        )
+
+    def _legacy_acquisition_task(self, task_id: str, legacy, dependency: str) -> MigrationTask:
+        token = stable_token(legacy.contract_id)
+        return self._task(
+            task_id,
+            TaskFamily.LEGACY_ACQUISITION,
+            f"Acquire deferred {legacy.artifact_type} evidence",
+            "Request only the stable evidence ID declared by the original bundle, validate the returned payload, and record its immutable acquisition receipt before any consumer work begins.",
+            (dependency,),
+            "high",
+            (legacy.contract_id,),
+            (
+                TaskEvidence(
+                    path=".moltex/contracts/contracts/legacy-evidence.json",
+                    kind="contract",
+                    contract_ids=(legacy.contract_id,),
+                    evidence_ids=(legacy.source_evidence_id,),
+                    reason="Bounded acquisition method, source identity, and expected payload lineage.",
+                ),
+            ),
+            (
+                f".moltex/acquisitions/{token}.json",
+                f"src/data/legacy/{token}.json",
+            ),
+            (
+                f"Checksummed acquisition receipt for {legacy.source_evidence_id}.",
+                "Validated bounded payload for the declared consumer.",
+            ),
+            TaskState.PENDING,
         )
 
     def _production_task(

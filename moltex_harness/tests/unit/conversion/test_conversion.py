@@ -28,6 +28,23 @@ def test_shortcode_parser_preserves_nested_and_unknown_content_visibly() -> None
     assert "wp-caption" in result.html
     assert "kept" in result.html
     assert "moltex-placeholder" in result.html
+
+
+def test_referenced_orphan_shortcode_placeholder_carries_stable_contract_ids() -> None:
+    result = ShortcodeConverter(
+        {
+            "legacy_widget": {
+                "evidence_id": "legacy:shortcode:fixture",
+                "capability_id": "capability:legacy:fixture",
+                "decision_id": "decision:legacy:fixture",
+            }
+        }
+    ).convert("[legacy_widget color='blue']", "record:fixture")
+
+    assert 'role="status"' in result.html
+    assert 'data-moltex-evidence="legacy:shortcode:fixture"' in result.html
+    assert 'data-moltex-capability="capability:legacy:fixture"' in result.html
+    assert 'data-moltex-decision="decision:legacy:fixture"' in result.html
     assert any(item.code == "unknown_shortcode_preserved" for item in result.findings)
 
 

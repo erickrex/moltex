@@ -16,7 +16,7 @@ it has its own accepted evidence model, adapter, fixtures, visual checks, and fa
 
 ## Install the release
 
-Build or obtain `moltex-exporter-1.2.10.zip`, then use **Plugins → Add New → Upload Plugin**.
+Build or obtain `moltex-exporter-1.3.0.zip`, then use **Plugins → Add New → Upload Plugin**.
 The release requires WordPress 5.9+, PHP 7.4+, JSON, and `ZipArchive`. After activation,
 open **Moltex Exporter** and resolve every blocking preflight result.
 
@@ -62,6 +62,12 @@ is shared. Forms, shortcodes, hooks, external APIs, authentication, redirects,
 accessibility, SEO, and visual parity can require explicit downstream decisions.
 
 The release captures the exporter-owned evidence needed for supported content-led sites.
+Version 1.3.0 records inactive, removed, and unknown plugin residue in
+`legacy_evidence_index.json`. It uses declarative storage signatures and public-content
+relationships without loading inactive PHP. Referenced post meta and bounded, allowlisted
+custom-table rows are retained; dormant custom tables are manifest-only, and unresolved or
+oversized payloads are declared for downstream acquisition or operator review. Activation
+status is evidence only: public reachability determines whether legacy data matters.
 Repeated media bytes are stored once while every source URL remains in the media map. For
 GeoDirectory galleries, the primary blueprint bundles featured images and records the remaining
 public gallery images as deferred acquisition sources. The migration harness assigns every source

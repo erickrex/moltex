@@ -24,6 +24,9 @@ class ShortcodeResult:
 class ShortcodeConverter:
     """Parse brackets without executing source-site shortcode handlers."""
 
+    def __init__(self, bindings: dict[str, dict[str, str | None]] | None = None) -> None:
+        self.bindings = bindings or {}
+
     def convert(self, source: str, subject_id: str) -> ShortcodeResult:
         counts: Counter[tuple[str, ShortcodeKind]] = Counter()
         findings: list[ConversionFinding] = []
@@ -154,17 +157,16 @@ class ShortcodeConverter:
             cursor = end
         return None
 
-    @staticmethod
     def _replacement(
-        name: str, attributes: str, inner: str
+        self, name: str, attributes: str, inner: str
     ) -> tuple[str, ShortcodeKind]:
         if name == "caption":
             return f'<figure class="wp-caption">{inner}</figure>', "converted"
         if name == "gallery":
             label = html.escape(attributes or "gallery")
-            return f'<div class="moltex-placeholder" data-shortcode="gallery">Gallery: {label}</div>', "placeholder"
+            return f'<div class="moltex-placeholder" data-shortcode="gallery"{self._binding_attributes(name)}>Gallery: {label}</div>', "placeholder"
         if name in {"contact-form-7", "wpforms", "forminator_form"}:
-            return '<div class="moltex-placeholder" data-shortcode="form">Form requires integration</div>', "placeholder"
+            return f'<div class="moltex-placeholder" data-shortcode="form"{self._binding_attributes(name)}>Form requires integration</div>', "placeholder"
         if name in {
             "gd_map",
             "gd_search",
@@ -176,13 +178,26 @@ class ShortcodeConverter:
         }:
             label = html.escape(name)
             return (
-                f'<div class="moltex-placeholder" data-shortcode="{label}">'
+                f'<div class="moltex-placeholder" data-shortcode="{label}"{self._binding_attributes(name)}>'
                 f"GeoDirectory component: {label}</div>",
                 "placeholder",
             )
         label = html.escape(f"[{name}{(' ' + attributes) if attributes else ''}]")
         content = inner or label
-        return f'<div class="moltex-placeholder" data-shortcode="{html.escape(name)}">{content}</div>', "preserved"
+        return f'<div class="moltex-placeholder" data-shortcode="{html.escape(name)}"{self._binding_attributes(name)}>{content}</div>', "preserved"
+
+    def _binding_attributes(self, name: str) -> str:
+        binding = self.bindings.get(name, {})
+        values = {
+            "data-moltex-evidence": binding.get("evidence_id"),
+            "data-moltex-capability": binding.get("capability_id"),
+            "data-moltex-decision": binding.get("decision_id"),
+        }
+        attributes = ' role="status" aria-label="Unresolved WordPress component"'
+        for key, value in values.items():
+            if value:
+                attributes += f' {key}="{html.escape(str(value), quote=True)}"'
+        return attributes
 
 
 class _HtmlShortcodeParser(HTMLParser):

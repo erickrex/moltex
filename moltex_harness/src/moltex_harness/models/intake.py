@@ -127,6 +127,45 @@ class RawArtifactEvidence(StrictModel):
     evidence: EvidenceReference
 
 
+class LegacyPayloadEvidence(StrictModel):
+    status: Literal["included", "sampled", "deferred", "unavailable", "omitted"]
+    method: Literal[
+        "bundle", "source-fetch", "targeted-export", "operator-decision", "none"
+    ]
+    artifact: str | None
+    row_count: int = Field(ge=0)
+    excluded_row_count: int | None = Field(default=None, ge=0)
+    bytes: int | None = Field(default=None, ge=0)
+    sha256: str | None = None
+    reason: str = Field(min_length=1, max_length=1000)
+
+
+class RawLegacyEvidence(StrictModel):
+    evidence_id: str
+    artifact_type: Literal[
+        "postmeta_field",
+        "custom_table",
+        "option",
+        "shortcode",
+        "block",
+        "custom_post_type",
+        "taxonomy",
+        "widget",
+        "integration",
+        "media_reference",
+    ]
+    source_plugin: str
+    ownership_confidence: Literal["high", "medium", "low", "unknown"]
+    plugin_status: Literal["active", "inactive", "missing", "unknown"]
+    source_identity: dict[str, Any]
+    relationship_status: Literal["referenced", "unreferenced", "unknown"]
+    public_reference_count: int = Field(ge=0)
+    reference_evidence: tuple[str, ...] = Field(max_length=100)
+    payload: LegacyPayloadEvidence
+    source_lineage: tuple[str, ...] = Field(max_length=100)
+    evidence: EvidenceReference
+
+
 class RawSourceEvidence(StrictModel):
     schema_version: Literal[1] = 1
     source_manifest: RawSourceManifest
@@ -137,6 +176,8 @@ class RawSourceEvidence(StrictModel):
     seo: list[RawArtifactEvidence] = Field(default_factory=list)
     redirects: list[RawArtifactEvidence] = Field(default_factory=list)
     capabilities: list[RawArtifactEvidence] = Field(default_factory=list)
+    legacy_evidence: list[RawLegacyEvidence] = Field(default_factory=list)
+    legacy_index: RawArtifactEvidence | None = None
     html_references: list[RawArtifactEvidence] = Field(default_factory=list)
     screenshot_references: list[RawArtifactEvidence] = Field(default_factory=list)
     inventory: list[ArtifactInventoryItem] = Field(default_factory=list)

@@ -1581,6 +1581,9 @@ Build:
   apply the acquisition invariants only when the source bundle declares that contract.
 - Parse content, menus, media, SEO, redirects, capabilities, HTML, and screenshot references
   into `RawSourceEvidence` without assigning target behavior.
+- Validate `legacy_evidence_index.json`, its stable evidence IDs, relationship references,
+  payload acquisition combinations, checksums, byte counts, and aggregate limits. Adapt
+  older accepted bundles conservatively without inventing ownership or reachability.
 - Emit a deterministic inventory and contextual findings.
 - Add malformed, traversal, zip-bomb-boundary, duplicate-path, checksum, missing-file,
   unsupported-version, and secret-redaction tests.
@@ -1637,6 +1640,9 @@ Build:
   keeping legacy or unavailable missing binaries in the decision queue.
 - Preserve JSON-pointer/file evidence lineage through every derived value.
 - Classify static eligibility and emit `needs_decision` instead of guessing.
+- Compile legacy evidence as `required`, `referenced_orphan`, `dormant`, `unknown`, or
+  `deferred`, with `convert`, `audit`, `decide`, or `acquire` dispositions. Dormant evidence
+  must not create migration capabilities or operator decisions.
 - Seed one parity row per public content item and discovered capability.
 - Select a bounded visual target set containing the homepage, one representative route per
   public route family, and routes needed to observe business-critical or unresolved
@@ -1765,6 +1771,9 @@ Build:
   source-visual checksums, production media locality, and executable source-payload removal
   without importing or invoking the Python harness.
 - Write conversion receipts and findings for every fallback or unsupported construct.
+- Convert retained typed values where deterministic; otherwise render accessible visible
+  placeholders carrying stable legacy evidence, capability, and decision IDs. Never execute
+  source plugin code or silently drop unresolved public behavior.
 - Add conversion unit/property tests, upstream-inspired regression fixtures, workspace
   snapshots, and clean build integration tests.
 
@@ -1825,6 +1834,8 @@ Build:
 - Derive only required task families and a deterministic dependency DAG. Always bound route-family
   tasks to at most five available routes, create visual tasks only for captured available routes,
   and create capability tasks only for observed capability contracts.
+- Create a bounded legacy-acquisition task for each `acquire` disposition and make its
+  capability consumer depend on that acquisition task. Dormant evidence creates no task.
 - Generate `AGENTS.md`, `EXECPLAN.md`, `MIGRATION.md`, `.moltex/codex-goal.md`, task JSON
   and Markdown, parity matrix, QA plan, and workspace README.
 - Attach minimal relevant evidence, contracts, allowed file scope, constraints, acceptance

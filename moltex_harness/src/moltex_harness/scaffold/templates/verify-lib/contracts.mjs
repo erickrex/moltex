@@ -26,6 +26,8 @@ export const loadContracts = () => {
     publishedSeo: seo.filter((item) => publishedRouteIds.has(item.route_contract_id)),
     redirects: contract("redirects"),
     capabilities: contract("capabilities"),
+    legacyEvidence: contract("legacy-evidence"),
+    decisions: readJson(`${CONTRACT_ROOT}/decision-queue.json`, []),
     parity: readJson(`${CONTRACT_ROOT}/parity-matrix.json`, []),
     expectations,
     taskGraph: readJson(".moltex/tasks/task-graph.json", null),

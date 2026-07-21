@@ -62,6 +62,12 @@ class Moltex_Exporter_Plugin_Scanner extends Moltex_Exporter_Scanner_Base {
 
 		$this->all_plugins = get_plugins();
 		$this->active_plugins = get_option( 'active_plugins', array() );
+		if ( function_exists( 'is_multisite' ) && is_multisite() && function_exists( 'get_site_option' ) ) {
+			$network_active = get_site_option( 'active_sitewide_plugins', array() );
+			if ( is_array( $network_active ) ) {
+				$this->active_plugins = array_values( array_unique( array_merge( $this->active_plugins, array_keys( $network_active ) ) ) );
+			}
+		}
 	}
 
 	/**
@@ -156,6 +162,7 @@ class Moltex_Exporter_Plugin_Scanner extends Moltex_Exporter_Scanner_Base {
 				'text_domain' => $plugin_data['TextDomain'],
 				'network'     => $plugin_data['Network'],
 				'active'      => $is_active,
+				'status'      => $is_active ? 'active' : 'inactive',
 			);
 		}
 

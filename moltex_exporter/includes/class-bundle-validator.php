@@ -241,7 +241,17 @@ class Moltex_Exporter_Bundle_Validator {
 			}
 		}
 
-		foreach ( $this->registry->get_required_paths( false ) as $required_path ) {
+		$required_paths = $this->registry->get_required_paths( false );
+		$exporter_version = isset( $manifest['exporter_version'] ) ? (string) $manifest['exporter_version'] : '0.0.0';
+		if ( version_compare( $exporter_version, '1.3.0', '<' ) ) {
+			$required_paths = array_values(
+				array_diff(
+					$required_paths,
+					array( 'legacy_evidence_index.json', 'schemas/legacy-evidence-index.schema.json' )
+				)
+			);
+		}
+		foreach ( $required_paths as $required_path ) {
 			if ( ! isset( $declared[ strtolower( $required_path ) ] ) ) {
 				$errors[] = 'Required artifact is absent from the manifest: ' . $required_path . '.';
 			}

@@ -167,6 +167,7 @@ class Moltex_Exporter_Scanner {
 			'plugin_table_exports' => array( 'class' => 'Moltex_Exporter_Plugin_Table_Exports_Scanner', 'file' => 'class-plugin-table-exports-scanner.php', 'priority' => 200 ),
 			'search_config' => array( 'class' => 'Moltex_Exporter_Search_Config_Scanner', 'file' => 'class-search-config-scanner.php', 'priority' => 205 ),
 			'integration_manifest' => array( 'class' => 'Moltex_Exporter_Integration_Manifest_Scanner', 'file' => 'class-integration-manifest-scanner.php', 'priority' => 210 ),
+			'legacy_evidence' => array( 'class' => 'Moltex_Exporter_Legacy_Evidence_Scanner', 'file' => 'class-legacy-evidence-scanner.php', 'priority' => 215 ),
 			'migration_readiness' => array( 'class' => 'Moltex_Exporter_Migration_Readiness_Scanner', 'file' => 'class-migration-readiness-scanner.php', 'priority' => 220 ),
 		);
 	}

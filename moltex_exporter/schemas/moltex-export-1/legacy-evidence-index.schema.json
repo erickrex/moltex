@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/moltex-export-1/legacy-evidence-index.schema.json",
+  "title": "Moltex bounded legacy evidence index",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "limits", "plugin_inventory", "summary", "entries"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_entries", "max_references_per_entry", "max_reachable_rows_per_table"],
+      "properties": {
+        "max_entries": {"type": "integer", "minimum": 1, "maximum": 5000},
+        "max_references_per_entry": {"type": "integer", "minimum": 1, "maximum": 100},
+        "max_reachable_rows_per_table": {"type": "integer", "minimum": 1, "maximum": 500}
+      }
+    },
+    "plugin_inventory": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_plugin", "status"],
+        "properties": {
+          "source_plugin": {"type": "string", "minLength": 1, "maxLength": 200},
+          "status": {"type": "string", "enum": ["active", "inactive", "missing", "unknown"]}
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "entries": {
+      "type": "array",
+      "maxItems": 5000,
+      "items": {"$ref": "#/$defs/entry"}
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_id", "artifact_type", "source_plugin", "ownership_confidence", "plugin_status", "source_identity", "relationship_status", "public_reference_count", "reference_evidence", "payload", "source_lineage"],
+      "properties": {
+        "evidence_id": {"type": "string", "pattern": "^legacy:[a-z_]+:[a-f0-9]{64}$"},
+        "artifact_type": {"type": "string", "enum": ["postmeta_field", "custom_table", "option", "shortcode", "block", "custom_post_type", "taxonomy", "widget", "integration", "media_reference"]},
+        "source_plugin": {"type": "string", "minLength": 1, "maxLength": 200},
+        "ownership_confidence": {"type": "string", "enum": ["high", "medium", "low", "unknown"]},
+        "plugin_status": {"type": "string", "enum": ["active", "inactive", "missing", "unknown"]},
+        "source_identity": {"type": "object", "minProperties": 1, "maxProperties": 20},
+        "relationship_status": {"type": "string", "enum": ["referenced", "unreferenced", "unknown"]},
+        "public_reference_count": {"type": "integer", "minimum": 0},
+        "reference_evidence": {"type": "array", "maxItems": 100, "items": {"type": "string", "minLength": 1, "maxLength": 1000}},
+        "payload": {"$ref": "#/$defs/payload"},
+        "source_lineage": {"type": "array", "maxItems": 100, "items": {"type": "string", "minLength": 1, "maxLength": 1000}}
+      }
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "method", "artifact", "row_count", "reason"],
+      "properties": {
+        "status": {"type": "string", "enum": ["included", "sampled", "deferred", "unavailable", "omitted"]},
+        "method": {"type": "string", "enum": ["bundle", "source-fetch", "targeted-export", "operator-decision", "none"]},
+        "artifact": {"type": ["string", "null"], "maxLength": 500},
+        "row_count": {"type": "integer", "minimum": 0},
+        "excluded_row_count": {"type": "integer", "minimum": 0},
+        "bytes": {"type": "integer", "minimum": 0},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "reason": {"type": "string", "minLength": 1, "maxLength": 1000}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"enum": ["included", "sampled"]}}, "required": ["status"]},
+          "then": {"required": ["bytes", "sha256"], "properties": {"method": {"const": "bundle"}, "artifact": {"type": "string", "minLength": 1}}}
+        },
+        {
+          "if": {"properties": {"status": {"const": "deferred"}}, "required": ["status"]},
+          "then": {"properties": {"method": {"enum": ["source-fetch", "targeted-export", "operator-decision"]}, "artifact": {"type": "null"}}}
+        },
+        {
+          "if": {"properties": {"status": {"enum": ["unavailable", "omitted"]}}, "required": ["status"]},
+          "then": {"properties": {"artifact": {"type": "null"}}}
+        }
+      ]
+    }
+  }
+}

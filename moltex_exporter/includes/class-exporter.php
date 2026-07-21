@@ -286,9 +286,11 @@ class Moltex_Exporter_Exporter {
 
 			$plugins_list[] = array(
 				'file'    => isset( $plugin_data['file'] ) ? $plugin_data['file'] : $plugin_file,
+				'slug'    => isset( $plugin_data['slug'] ) ? $plugin_data['slug'] : '',
 				'name'    => isset( $plugin_data['name'] ) ? $plugin_data['name'] : ( isset( $plugin_data['Name'] ) ? $plugin_data['Name'] : '' ),
 				'version' => isset( $plugin_data['version'] ) ? $plugin_data['version'] : ( isset( $plugin_data['Version'] ) ? $plugin_data['Version'] : '' ),
 				'active'  => isset( $plugin_data['active'] ) ? $plugin_data['active'] : false,
+				'status'  => isset( $plugin_data['status'] ) ? $plugin_data['status'] : ( ! empty( $plugin_data['active'] ) ? 'active' : 'inactive' ),
 			);
 		}
 
@@ -568,6 +570,60 @@ class Moltex_Exporter_Exporter {
 			$this->write_json_file( 'media/media_map.json', $this->results['media']['media_map'] );
 		}
 
+		$this->export_legacy_evidence_files();
+
+	}
+
+	/**
+	 * Materialize bounded legacy payloads before writing their required index.
+	 *
+	 * @return void
+	 */
+	private function export_legacy_evidence_files() {
+		$result = isset( $this->results['legacy_evidence'] ) && is_array( $this->results['legacy_evidence'] )
+			? $this->results['legacy_evidence']
+			: array();
+		$index = isset( $result['index'] ) && is_array( $result['index'] ) ? $result['index'] : array(
+			'schema_version' => 1,
+			'limits' => array(
+				'max_entries' => 5000,
+				'max_references_per_entry' => 100,
+				'max_reachable_rows_per_table' => 500,
+			),
+			'plugin_inventory' => array(),
+			'summary' => array(
+				'total' => 0,
+				'referenced' => 0,
+				'unreferenced' => 0,
+				'unknown_relationship' => 0,
+				'included_payloads' => 0,
+				'sampled_payloads' => 0,
+				'deferred_payloads' => 0,
+				'omitted_payloads' => 0,
+			),
+			'entries' => array(),
+		);
+		$payloads = isset( $result['payloads'] ) && is_array( $result['payloads'] ) ? $result['payloads'] : array();
+		$receipts = array();
+		foreach ( $payloads as $payload ) {
+			if ( ! is_array( $payload ) || empty( $payload['evidence_id'] ) || empty( $payload['path'] ) || ! isset( $payload['data'] ) ) {
+				continue;
+			}
+			$receipt = $this->artifact_writer->write_json( $payload['path'], $payload['data'], 'legacy_evidence' );
+			$receipts[ $payload['evidence_id'] ] = $receipt;
+		}
+		if ( isset( $index['entries'] ) && is_array( $index['entries'] ) ) {
+			foreach ( $index['entries'] as &$entry ) {
+				$id = isset( $entry['evidence_id'] ) ? $entry['evidence_id'] : '';
+				if ( isset( $receipts[ $id ] ) ) {
+					$entry['payload']['artifact'] = $receipts[ $id ]['path'];
+					$entry['payload']['bytes'] = $receipts[ $id ]['bytes'];
+					$entry['payload']['sha256'] = $receipts[ $id ]['sha256'];
+				}
+			}
+			unset( $entry );
+		}
+		$this->write_json_file( 'legacy_evidence_index.json', $index );
 	}
 
 	/**
@@ -753,7 +809,7 @@ class Moltex_Exporter_Exporter {
 
 		return array(
 			'created_at'       => gmdate( 'c' ),
-			'exporter_version' => defined( 'MOLTEX_EXPORTER_VERSION' ) ? MOLTEX_EXPORTER_VERSION : '1.2.10',
+			'exporter_version' => defined( 'MOLTEX_EXPORTER_VERSION' ) ? MOLTEX_EXPORTER_VERSION : '1.3.0',
 			'mode'             => isset( $content['export_mode'] ) && 'discovery' === $content['export_mode'] ? 'discovery' : 'complete',
 			'site_origin'      => $site_origin,
 			'site_identity'    => Moltex_Exporter_Site_Identity::from_values( $site_origin, $site_name ),

@@ -5,7 +5,7 @@ import { walk, posix } from "./verify-lib/files.mjs";
 import { checkResult, exitCodeFor, suiteReport, writeJson } from "./verify-lib/results.mjs";
 import { withPreview } from "./verify-lib/http.mjs";
 import {
-  assetChecks, buildChecks, capabilityChecks, contractChecks, linkChecks, navigationChecks,
+  assetChecks, buildChecks, capabilityChecks, contractChecks, legacyEvidenceChecks, linkChecks, navigationChecks,
   parityChecks, redirectChecks, routeAndContentChecks, seoChecks, taskChecks,
 } from "./verify-lib/checks/static.mjs";
 import { browserChecks, httpChecks } from "./verify-lib/checks/runtime.mjs";
@@ -36,6 +36,7 @@ try {
   checks.push(...filter(buildChecks(contracts)));
   checks.push(...filter(routeAndContentChecks(contracts)));
   checks.push(...filter(assetChecks(contracts)));
+  checks.push(...filter(legacyEvidenceChecks(contracts)));
 
   const actualRoutes = walk("dist").filter((file) => file.endsWith(".html")).map((file) => ({ path: posix(path.relative("dist", file)), bytes: fs.statSync(file).size }));
   const actualAssets = contracts.assets.filter((asset) => {

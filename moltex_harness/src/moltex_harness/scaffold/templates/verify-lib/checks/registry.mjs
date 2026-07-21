@@ -17,6 +17,8 @@ export const CHECK_REGISTRY = Object.fromEntries([
   ["redirect.no-loop", "contract", true],
   ["redirect.contract", "build", true],
   ["capability.disposition", "contract", true],
+  ["legacy.evidence-disposition", "contract", true],
+  ["legacy.placeholder", "build", true],
   ["http.route-status", "served", true],
   ["http.content-type", "served", true],
   ["http.not-found", "served", true],
