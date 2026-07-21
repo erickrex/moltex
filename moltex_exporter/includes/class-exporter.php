@@ -536,28 +536,11 @@ class Moltex_Exporter_Exporter {
 			$this->write_json_file( 'site_environment.json', $this->results['environment'] );
 		}
 
-		// Export plugin behaviors and fingerprint details.
+		// Export plugin behavior diagnostics. The canonical plugin fingerprint is
+		// emitted once by the plugin scanner at plugins/plugins_fingerprint.json.
 		if ( isset( $this->results['plugins'] ) && is_array( $this->results['plugins'] ) ) {
 			if ( isset( $this->results['plugins']['behavioral_fingerprints'] ) ) {
 				$this->write_json_file( 'plugin_behaviors.json', $this->results['plugins']['behavioral_fingerprints'] );
-			}
-
-			$fingerprint_data = array();
-
-			if ( isset( $this->results['plugins']['plugin_features'] ) ) {
-				$fingerprint_data['plugin_features'] = $this->results['plugins']['plugin_features'];
-			}
-
-			if ( isset( $this->results['plugins']['enhanced_detection'] ) ) {
-				$fingerprint_data['enhanced_detection'] = $this->results['plugins']['enhanced_detection'];
-			}
-
-			if ( empty( $fingerprint_data ) && isset( $this->results['plugins']['plugin_behaviors'] ) ) {
-				$fingerprint_data = $this->results['plugins']['plugin_behaviors'];
-			}
-
-			if ( ! empty( $fingerprint_data ) ) {
-				$this->write_json_file( 'plugins_fingerprint.json', $fingerprint_data );
 			}
 		}
 

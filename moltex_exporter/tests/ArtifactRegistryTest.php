@@ -44,6 +44,42 @@ class ArtifactRegistryTest extends TestCase {
 		);
 	}
 
+	public function test_every_artifact_has_a_consumer_or_diagnostic_disposition() {
+		$definitions = ( new Moltex_Exporter_Artifact_Registry() )->get_definitions();
+		foreach ( $definitions as $definition ) {
+			$this->assertArrayHasKey( 'consumer', $definition );
+			$this->assertContains( $definition['disposition'], array( 'contract', 'capability', 'diagnostic' ) );
+			if ( 'diagnostic' === $definition['disposition'] ) {
+				$this->assertNull( $definition['consumer'] );
+			} else {
+				$this->assertNotEmpty( $definition['consumer'] );
+			}
+		}
+	}
+
+	public function test_capability_paths_match_the_harness_compiler_boundary() {
+		$definitions = ( new Moltex_Exporter_Artifact_Registry() )->get_definitions();
+		$actual = array();
+		foreach ( $definitions as $definition ) {
+			if ( 'capability' === $definition['disposition'] ) {
+				$actual[] = $definition['path'];
+			}
+		}
+		sort( $actual, SORT_STRING );
+
+		$this->assertSame(
+			array(
+				'forms_config.json',
+				'geodirectory.json',
+				'integration_manifest.json',
+				'plugins/plugins_fingerprint.json',
+				'shortcodes_inventory.json',
+				'widgets.json',
+			),
+			$actual
+		);
+	}
+
 	/**
 	 * @dataProvider unsafe_path_provider
 	 */

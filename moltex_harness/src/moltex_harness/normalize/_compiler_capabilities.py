@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-
+from moltex_harness.intake.artifacts import CAPABILITY_CONSUMERS
 from moltex_harness.models import (
     CapabilityDisposition,
     CapabilityDispositionKind,
@@ -49,6 +49,11 @@ class _CapabilityCompilerMixin(_CompilerSupport):
             for route in routes
         }
         for artifact in raw.capabilities:
+            if artifact.artifact not in CAPABILITY_CONSUMERS:
+                raise ContractCompilationError(
+                    "unsupported_capability_artifact",
+                    f"No canonical capability consumer exists for {artifact.artifact}",
+                )
             data = artifact.data if isinstance(artifact.data, dict) else {}
             if artifact.artifact == "integration_manifest.json":
                 entries = data.get("integrations", [])

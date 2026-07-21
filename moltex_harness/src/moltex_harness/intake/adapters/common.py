@@ -19,31 +19,9 @@ from moltex_harness.models import (
 )
 
 from ..archive import SafeArchive
+from ..artifacts import CAPABILITY_ARTIFACTS
 from ..errors import IntakeError
 from .base import AdapterValidation
-
-
-CAPABILITY_ARTIFACTS = (
-    "acf_field_groups.json",
-    "block_patterns.json",
-    "block_usage.json",
-    "custom_post_types.json",
-    "customizer_settings.json",
-    "database_schema.json",
-    "elementor_data.json",
-    "external_assets.json",
-    "forms_config.json",
-    "geodirectory.json",
-    "hooks_registry.json",
-    "integration_manifest.json",
-    "kadence_blocks.json",
-    "plugin_behaviors.json",
-    "plugins/plugins_fingerprint.json",
-    "shortcodes_inventory.json",
-    "taxonomies.json",
-    "theme_mods.json",
-    "widgets.json",
-)
 
 
 def _pointer_token(value: str) -> str:

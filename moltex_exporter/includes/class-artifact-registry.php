@@ -63,6 +63,7 @@ class Moltex_Exporter_Artifact_Registry {
 			$this->definition( 'geodirectory.json', 'json', 'content', false, 'schemas/geodirectory.schema.json', 'public typed directory configuration' ),
 			$this->definition( 'integration_manifest.json', 'json', 'integration_manifest', true, 'schemas/integration-manifest.schema.json', 'sensitive-filtered capability evidence' ),
 			$this->definition( 'privacy-scan.json', 'json', 'privacy', false, 'schemas/privacy-scan.schema.json', 'checksums and scan status only', 5242880, false ),
+			$this->definition( 'plugins_fingerprint.json', 'json', 'compatibility', false, null, 'legacy filtered evidence' ),
 			$this->pattern_definition( 'content/*/*.json', 'json', 'content', true, 'schemas/content-item.schema.json', 'public content with filtered metadata', self::DEFAULT_MAX_BYTES ),
 			$this->pattern_definition( 'snapshots/*.html', 'html', 'content', false, null, 'sanitized public HTML', 5242880, false ),
 			$this->definition( 'screenshots/manifest.json', 'json', 'media', false, 'schemas/generic-object.schema.json', 'reviewed public visual evidence' ),
@@ -70,6 +71,7 @@ class Moltex_Exporter_Artifact_Registry {
 			$this->pattern_definition( 'media/*', 'binary', 'media', false, null, 'public media', 52428800, false ),
 			$this->pattern_definition( 'theme/*', 'evidence', 'theme', false, null, 'presentation evidence', 52428800, false ),
 			$this->pattern_definition( 'assets/*', 'evidence', 'assets', false, null, 'public assets', 52428800, false ),
+			$this->definition( 'plugins/plugins_fingerprint.json', 'json', 'plugins', false, null, 'filtered capability evidence' ),
 			$this->pattern_definition( 'plugins/*', 'evidence', 'plugins', false, null, 'structured plugin configuration and capability evidence', 52428800, false ),
 			$this->definition( 'redirects_candidates.csv', 'csv', 'redirects', false, null, 'public URLs', 10485760, false ),
 			$this->definition( 'schema_mysql.sql', 'sql', 'database', false, null, 'sensitive structural evidence', 10485760, false ),
@@ -83,7 +85,6 @@ class Moltex_Exporter_Artifact_Registry {
 			'hooks_registry.json'        => 'hooks',
 			'page_templates.json'        => 'page_templates',
 			'plugin_behaviors.json'      => 'plugins',
-			'plugins_fingerprint.json'   => 'plugins',
 			'rest_api_endpoints.json'    => 'rest_api',
 			'shortcodes_inventory.json'  => 'shortcodes',
 			'site_environment.json'      => 'environment',
@@ -216,6 +217,7 @@ class Moltex_Exporter_Artifact_Registry {
 	}
 
 	private function definition( $path, $kind, $producer, $required, $schema, $privacy, $max_bytes = self::DEFAULT_MAX_BYTES, $schema_versioned = true ) {
+		$handshake = $this->handshake( $path, $required );
 		return array(
 			'path'               => $path,
 			'kind'               => $kind,
@@ -225,6 +227,8 @@ class Moltex_Exporter_Artifact_Registry {
 			'privacy'            => $privacy,
 			'max_bytes'          => (int) $max_bytes,
 			'schema_versioned'   => (bool) $schema_versioned,
+			'consumer'           => $handshake['consumer'],
+			'disposition'        => $handshake['disposition'],
 		);
 	}
 
@@ -232,7 +236,38 @@ class Moltex_Exporter_Artifact_Registry {
 		$definition = $this->definition( '', $kind, $producer, $required, $schema, $privacy, $max_bytes, $schema_versioned );
 		unset( $definition['path'] );
 		$definition['pattern'] = $pattern;
+		$handshake = $this->handshake( $pattern, $required );
+		$definition['consumer'] = $handshake['consumer'];
+		$definition['disposition'] = $handshake['disposition'];
 		return $definition;
+	}
+
+	/**
+	 * Declare the downstream owner or an explicit diagnostic-only disposition.
+	 *
+	 * @param string $path_or_pattern Artifact path or pattern.
+	 * @param bool   $required        Required contract artifact.
+	 * @return array
+	 */
+	private function handshake( $path_or_pattern, $required ) {
+		$capabilities = array(
+			'forms_config.json',
+			'geodirectory.json',
+			'integration_manifest.json',
+			'plugins/plugins_fingerprint.json',
+			'shortcodes_inventory.json',
+			'widgets.json',
+		);
+		if ( in_array( $path_or_pattern, $capabilities, true ) ) {
+			return array( 'consumer' => 'moltex_harness.capability_compiler', 'disposition' => 'capability' );
+		}
+		if ( 0 === strpos( $path_or_pattern, 'schemas/' ) || 'bundle.json' === $path_or_pattern ) {
+			return array( 'consumer' => 'moltex_harness.intake', 'disposition' => 'contract' );
+		}
+		if ( $required || in_array( $path_or_pattern, array( 'content/*/*.json', 'media/*', 'snapshots/*.html' ), true ) ) {
+			return array( 'consumer' => 'moltex_harness.normalization', 'disposition' => 'contract' );
+		}
+		return array( 'consumer' => null, 'disposition' => 'diagnostic' );
 	}
 
 	private function matches_pattern( $pattern, $path ) {

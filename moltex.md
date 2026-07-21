@@ -649,6 +649,12 @@ immutable fixture ZIP, but production code may not import across project directo
 
 ### Producer/consumer responsibility
 
+The exporter artifact registry carries a `consumer` and `disposition` for every exact path
+or bounded pattern. Capability evidence is loaded only when the canonical capability
+compiler names it; all other retained optional evidence is explicitly diagnostic. Producer,
+registry, adapter, and compiler tests pin the six current capability paths, and the plugin
+fingerprint has one canonical location: `plugins/plugins_fingerprint.json`.
+
 - If the source fact is wrong or absent, fix `moltex_exporter` and issue a new bundle.
 - If a correct fact is parsed or normalized incorrectly, fix `moltex_harness`.
 - If a migration decision is ambiguous, create a decision item; neither side guesses.

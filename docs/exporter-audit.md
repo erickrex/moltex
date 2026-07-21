@@ -82,8 +82,8 @@ where the writer injects it; there is no bundle-level schema or manifest until E
 | `translations.json` | translations → exporter | public configuration | content-scaled | translation result | route/content contract |
 | `site_environment.json` | environment → exporter | diagnostic; path review | bounded | environment result | diagnostics |
 | `plugin_behaviors.json` | plugin scanner → exporter | configuration | plugin-scaled | behavior fingerprints exist | capability contract |
-| `plugins_fingerprint.json` | plugin scanner → exporter | configuration | plugin-scaled | feature data exists | capability contract |
-| `blocks_usage.json` | content → exporter | aggregate public data | bounded | block usage exists | conversion planning |
+| `blocks_usage.json` | content → exporter | aggregate public data | bounded | block usage exists | diagnostic only |
+| `plugins_fingerprint.json` | pre-1.2.11 compatibility only | configuration | plugin-scaled | historical bundle only | diagnostic only; current producer uses `plugins/plugins_fingerprint.json` |
 | `export_completeness.json` | content → exporter | counts/status | bounded | completeness exists | verification contract |
 | `migration_readiness.json` | readiness → exporter | aggregate diagnostic | bounded | readiness result | diagnostics |
 | `content/{post_type}/{slug[-id]}.json` | content → exporter | public content; meta filtered | content-scaled | eligible content by mode | conversion/routes |
@@ -96,7 +96,7 @@ where the writer injects it; there is no bundle-level schema or manifest until E
 | `theme/parts/{relative}.html` | theme scanner | source templates | theme-scaled | template parts exist | scaffold evidence |
 | `theme/parent/{style.css,theme.json,functions.php}` | theme scanner | source code | theme-scaled | child theme has parent files | presentation evidence |
 | `theme/template_hierarchy.json` | theme scanner | configuration | bounded | theme scan | scaffold evidence |
-| `theme/theme_mods.json` | theme scanner | sensitive-filtered settings | option-scaled | mods encode/write | presentation evidence |
+| `theme/theme_mods.json` | theme scanner | sensitive-filtered settings | option-scaled | mods encode/write | diagnostic only |
 | `theme/custom_css.css`, `theme/global_styles.json` | theme scanner | public presentation | content-scaled | configured | presentation evidence |
 | `theme/css/{source}.css`, `theme/css_sources.json` | theme scanner | public presentation | asset-scaled | CSS sources discovered | presentation evidence |
 | `theme/editor_settings.json` | theme scanner | public configuration | bounded | editor settings available | presentation evidence |
@@ -105,7 +105,7 @@ where the writer injects it; there is no bundle-level schema or manifest until E
 | `assets/{js,css}/{sanitized filename}` | assets scanner | third-party/public assets | potentially unbounded | registered local assets | visual evidence |
 | `plugins/readmes/{plugin}_readme.{txt,md}` | plugin scanner | public documentation | plugin-scaled | readable README exists | capability evidence |
 | `plugins/plugins_fingerprint.json` | plugin scanner | configuration | plugin-scaled | write succeeds | capability contract |
-| `plugins/{custom_post_types,taxonomies,shortcodes,blocks,database_tables}.json` | plugin scanner | configuration; table names reviewed | plugin/database-scaled | write succeeds | capability evidence |
+| `plugins/{custom_post_types,taxonomies,shortcodes,blocks,database_tables}.json` | plugin scanner | configuration; table names reviewed | plugin/database-scaled | write succeeds | diagnostic only |
 | `plugins/feature_maps/{plugin}.json` | plugin scanner | configuration | plugin-scaled | supported feature map | capability evidence |
 | `plugins/templates/{plugin}/{relative template}` | plugin scanner | plugin source template | potentially unbounded | bounded extension/template allowlist | presentation evidence |
 | `plugins/plugins_templates_manifest.json` | plugin scanner | logical inventory | plugin-scaled | template scan | capability evidence |

@@ -47,7 +47,6 @@ $required_artifacts = array(
 	'translations.json',
 	'site_environment.json',
 	'plugin_behaviors.json',
-	'plugins_fingerprint.json',
 	'blocks_usage.json',
 	'export_completeness.json',
 	'migration_readiness.json',
