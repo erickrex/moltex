@@ -261,6 +261,7 @@ def test_golden_export_compiles_complete_astro_baseline(
     assert characteristics["output_files"] >= len(golden_contracts.routes)
     assert characteristics["output_bytes"] > 0
 
+    expected_statuses = {"baseline": "pass", "migration": "fail", "parity": "fail"}
     for level in ("baseline", "migration", "parity"):
         self_verification = subprocess.run(
             [node, npm_cli, "run", "verify", "--", "--level", level],
@@ -269,7 +270,7 @@ def test_golden_export_compiles_complete_astro_baseline(
             capture_output=True,
             env=toolchain_environment,
         )
-        assert self_verification.returncode == 0, (
+        assert self_verification.returncode == (0 if level == "baseline" else 1), (
             self_verification.stdout + self_verification.stderr
         )
         suite = json.loads(
@@ -277,13 +278,27 @@ def test_golden_export_compiles_complete_astro_baseline(
                 encoding="utf-8"
             )
         )
-        assert suite["status"] == ("review" if level == "parity" else "pass")
+        assert suite["status"] == expected_statuses[level]
         assert suite["bundle_id"] == golden_contracts.source_manifest.bundle_id
         assert all(
             item["contract_ids"] and item["evidence_refs"]
             for item in suite["checks"]
             if item["status"] != "pass"
         )
+    migration_placeholders = [
+        item
+        for item in json.loads(
+            (output / ".moltex/reports/verification-migration.json").read_text(
+                encoding="utf-8"
+            )
+        )["checks"]
+        if item["check_id"] == "content.no-unresolved-placeholder"
+        and item["status"] == "fail"
+    ]
+    assert {item["subject"] for item in migration_placeholders} == {
+        "/visit/",
+        "/contact/",
+    }
     migration = json.loads(
         (output / ".moltex/reports/verification-migration.json").read_text(
             encoding="utf-8"

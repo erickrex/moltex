@@ -17,6 +17,7 @@ PipelinePhase = Literal[
     "planning",
     "publish",
     "workspace_ready",
+    "verification",
 ]
 
 
@@ -35,7 +36,15 @@ class SitePipelineReport(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     schema_version: Literal[1] = 1
-    status: Literal["migration_planned", "workspace_ready", "blocked", "failed"]
+    status: Literal[
+        "baseline_generated_non_deployable",
+        "migration_in_progress",
+        "migration_complete",
+        "migration_planned",
+        "workspace_ready",
+        "blocked",
+        "failed",
+    ]
     phase: PipelinePhase
     code: str
     message: str

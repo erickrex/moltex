@@ -79,6 +79,16 @@ class FakeProbe:
         return self.results.get(url, RouteProbeResult(200, url))
 
 
+def test_same_origin_path_redirect_is_an_omitted_route_disposition() -> None:
+    disposition, reason = SourceVisualService._availability_disposition(
+        RouteProbeResult(200, "https://example.test/"),
+        "https://example.test/form/2026/",
+    )
+
+    assert disposition == "omitted"
+    assert reason == "same_origin_redirect"
+
+
 class SlowProbe:
     def probe(self, url):
         time.sleep(0.05)

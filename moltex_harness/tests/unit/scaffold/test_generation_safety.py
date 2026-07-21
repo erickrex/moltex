@@ -19,11 +19,19 @@ def test_hostile_site_name_is_data_not_astro_source(tmp_path) -> None:
     )
     site = json.loads((tmp_path / "src/data/site.json").read_text(encoding="utf-8"))
     assert hostile not in layout
-    assert "{site.siteName}" in layout
-    assert site == {"siteName": hostile, "siteLogo": None, "headerCta": None}
+    assert "site.siteName" in layout
+    assert site == {
+        "siteName": hostile,
+            "siteLogo": None,
+            "headerCta": None,
+            "headerNotice": None,
+        "footer": {"text": hostile, "links": []},
+    }
     styles = (tmp_path / "src/styles/moltex.css").read_text(encoding="utf-8")
     assert "--moltex-color-0: #0f57fb" in styles
     assert ".moltex-block" in styles
+    assert ".moltex-block::before" in styles
+    assert "--moltex-background-gradient" in styles
     assert ".site-menu__toggle" in styles
     assert 'aria-label="Main menu toggle"' in layout
     assert 'type="checkbox"' in layout
@@ -38,6 +46,11 @@ def test_shell_renders_evidence_linked_logo_and_header_cta(tmp_path) -> None:
         {
             "siteLogo": {"src": "/media/logo.png", "alt": "Example logo"},
             "headerCta": {"href": "/tutors/", "label": "Find A Tutor"},
+            "themeTokens": {"--ast-global-color-0": "#123456"},
+            "footer": {
+                "text": "Example footer",
+                "links": [{"url": "/privacy/", "label": "Privacy"}],
+            },
         },
     )
 
@@ -51,6 +64,42 @@ def test_shell_renders_evidence_linked_logo_and_header_cta(tmp_path) -> None:
     assert "site-brand__logo" in layout
     assert "site-header__cta" in layout
     assert ".site-header__cta" in styles
+    assert site["footer"]["links"][0]["label"] == "Privacy"
+    assert "site-footer__inner" in layout
+    assert "--moltex-color-0: #123456" in styles
+
+
+def test_shell_rebuilds_only_safe_font_faces_from_theme_evidence(tmp_path) -> None:
+    rendered = tmp_path / "bundle/theme/rendered"
+    rendered.mkdir(parents=True)
+    (rendered / "fonts.css").write_text(
+        """
+        @font-face {
+          font-family: 'Staatliches';
+          font-style: normal;
+          font-weight: 400;
+          src: url(https://fonts.gstatic.com/font.ttf) format('truetype');
+        }
+        @font-face {
+          font-family: 'Bad';
+          src: url(javascript:alert(1)) format('truetype');
+        }
+        body { background: url(https://tracker.example/pixel); }
+        """,
+        encoding="utf-8",
+    )
+
+    BaselineService._write_shell(
+        tmp_path / "site",
+        "Example",
+        source_bundle=tmp_path / "bundle",
+    )
+
+    styles = (tmp_path / "site/src/styles/moltex.css").read_text(encoding="utf-8")
+    assert 'font-family: "Staatliches"' in styles
+    assert "https://fonts.gstatic.com/font.ttf" in styles
+    assert "javascript:" not in styles
+    assert "tracker.example" not in styles
 
 
 def test_route_template_does_not_dump_media_outside_converted_content(tmp_path) -> None:
@@ -59,8 +108,17 @@ def test_route_template_does_not_dump_media_outside_converted_content(tmp_path) 
     template = (tmp_path / "src/pages/[...path].astro").read_text(
         encoding="utf-8"
     )
+    page = (tmp_path / "src/components/routes/PageRoute.astro").read_text(
+        encoding="utf-8"
+    )
+    post = (tmp_path / "src/components/routes/PostRoute.astro").read_text(
+        encoding="utf-8"
+    )
     assert "record.media?.map" not in template
-    assert "hasRenderedH1" in template
+    assert "hasRenderedHeading" in page
+    assert "const featured = record.media?.[0]" in post
+    assert "post-meta" in post
+    assert "post-navigation" in post
 
 
 def test_navigation_uses_assigned_primary_menu_over_larger_stale_menu(tmp_path) -> None:
@@ -143,6 +201,46 @@ def test_route_template_count_is_constant_for_large_route_tables(tmp_path) -> No
 
     assert len(list((tmp_path / "src/pages").glob("*.astro"))) == 2
     assert len(json.loads((tmp_path / "src/data/routes.json").read_text())) == 10_000
+
+
+def test_block_support_inventory_reports_unsupported_shapes(tmp_path) -> None:
+    receipts = [
+        SimpleNamespace(
+            record_id="content:page:1",
+            blocks=(
+                SimpleNamespace(
+                    name="core/paragraph",
+                    namespace="core",
+                    attribute_signature="shape-a",
+                    disposition="converted",
+                    count=2,
+                ),
+                SimpleNamespace(
+                    name="vendor/map",
+                    namespace="vendor",
+                    attribute_signature="shape-b",
+                    disposition="unsupported",
+                    count=1,
+                ),
+            ),
+        )
+    ]
+    routes = [
+        SimpleNamespace(
+            content_record_id="content:page:1", contract_id="route:page:1"
+        )
+    ]
+
+    BaselineService._write_block_inventory(tmp_path, receipts, routes)
+
+    report = json.loads(
+        (tmp_path / ".moltex/reports/block-support-inventory.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert report["status"] == "blocked"
+    assert report["counts"] == {"converted": 2, "unsupported": 1}
+    assert report["entries"][1]["routeId"] == "route:page:1"
 
 
 def test_body_marker_normalizes_entity_encoded_gutenberg_formatting() -> None:

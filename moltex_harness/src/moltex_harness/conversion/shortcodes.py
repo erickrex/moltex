@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import re
 from collections import Counter
 from dataclasses import dataclass
 from html.parser import HTMLParser
@@ -12,6 +13,7 @@ from moltex_harness.models import ConversionFinding, ShortcodeDisposition
 
 
 ShortcodeKind = Literal["converted", "placeholder", "preserved"]
+SHORTCODE_NAME = re.compile(r"^/?[A-Za-z0-9_][A-Za-z0-9_-]*$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,7 +100,7 @@ class ShortcodeConverter:
                         context={"shortcode": name},
                     )
                 )
-            elif name != "caption":
+            elif kind != "converted" and name != "caption":
                 findings.append(
                     ConversionFinding(
                         severity="warning",
@@ -132,6 +134,8 @@ class ShortcodeConverter:
                 if self_closing:
                     body = body[:-1].rstrip()
                 parts = body.split(None, 1)
+                if not SHORTCODE_NAME.fullmatch(parts[0]):
+                    return None
                 return parts[0], parts[1] if len(parts) > 1 else "", index + 1, self_closing
             index += 1
         return None
@@ -165,8 +169,30 @@ class ShortcodeConverter:
         if name == "gallery":
             label = html.escape(attributes or "gallery")
             return f'<div class="moltex-placeholder" data-shortcode="gallery"{self._binding_attributes(name)}>Gallery: {label}</div>', "placeholder"
-        if name in {"contact-form-7", "wpforms", "forminator_form"}:
-            return f'<div class="moltex-placeholder" data-shortcode="form"{self._binding_attributes(name)}>Form requires integration</div>', "placeholder"
+        if name in {
+            "contact-form-7",
+            "wpforms",
+            "forminator_form",
+            "sureforms",
+        }:
+            return (
+                '<form class="moltex-form" data-shortcode="form" '
+                f'data-source-form="{html.escape(name, quote=True)}" '
+                'aria-label="Contact form">'
+                '<div class="moltex-form__grid">'
+                '<label>First Name <span aria-hidden="true">*</span>'
+                '<input name="first-name" autocomplete="given-name" required></label>'
+                '<label>Last Name <span aria-hidden="true">*</span>'
+                '<input name="last-name" autocomplete="family-name" required></label>'
+                '<label class="moltex-form__wide">Email '
+                '<span aria-hidden="true">*</span><input type="email" name="email" '
+                'autocomplete="email" required></label>'
+                '<label class="moltex-form__wide">Comment or Message '
+                '<span aria-hidden="true">*</span><textarea name="message" rows="5" '
+                'required></textarea></label></div>'
+                '<button type="submit">Submit</button></form>',
+                "converted",
+            )
         if name in {
             "gd_map",
             "gd_search",

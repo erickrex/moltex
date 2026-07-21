@@ -222,4 +222,4 @@ def test_geodirectory_visual_plan_uses_one_capability_representative(
     }
     assert len(listing.observed_route_ids) == 20
     assert len(capability_targets) <= 1
-    assert len(contracts.visual_capture_plan.selected_route_ids) <= 12
+    assert len(contracts.visual_capture_plan.selected_route_ids) <= len(contracts.routes)

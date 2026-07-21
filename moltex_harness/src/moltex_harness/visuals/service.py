@@ -471,6 +471,10 @@ class SourceVisualService:
             return "omitted", "authentication_redirect"
         if source_url and cls._origin(result.final_url) != cls._origin(source_url):
             return "omitted", "off_origin_redirect"
+        if source_url and (
+            urlsplit(result.final_url).path.rstrip("/") or "/"
+        ) != (urlsplit(source_url).path.rstrip("/") or "/"):
+            return "omitted", "same_origin_redirect"
         if 200 <= result.status_code < 300:
             return "available", None
         raise ValueError(

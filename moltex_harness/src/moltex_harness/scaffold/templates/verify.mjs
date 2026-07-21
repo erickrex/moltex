@@ -5,7 +5,7 @@ import { walk, posix } from "./verify-lib/files.mjs";
 import { checkResult, exitCodeFor, suiteReport, writeJson } from "./verify-lib/results.mjs";
 import { withPreview } from "./verify-lib/http.mjs";
 import {
-  assetChecks, buildChecks, capabilityChecks, contractChecks, legacyEvidenceChecks, linkChecks, navigationChecks,
+  assetChecks, buildChecks, capabilityChecks, completionChecks, contractChecks, legacyEvidenceChecks, linkChecks, navigationChecks,
   parityChecks, redirectChecks, routeAndContentChecks, seoChecks, taskChecks,
 } from "./verify-lib/checks/static.mjs";
 import { browserChecks, httpChecks } from "./verify-lib/checks/runtime.mjs";
@@ -51,6 +51,7 @@ try {
   );
 
   if (level !== "baseline") {
+    checks.push(...filter(completionChecks(contracts)));
     checks.push(...filter(taskChecks(contracts)));
     checks.push(...filter(linkChecks(contracts)));
     checks.push(...filter(navigationChecks(contracts)));

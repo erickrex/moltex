@@ -41,6 +41,31 @@ def test_golden_counts_and_contract_coverage(golden_contracts) -> None:
     }
 
 
+def test_titleless_published_content_uses_one_visible_slug_fallback(
+    golden_raw_evidence,
+) -> None:
+    first = golden_raw_evidence.content[0]
+    raw = golden_raw_evidence.model_copy(
+        update={
+            "content": [
+                first.model_copy(update={"title": "", "slug": "contact-form-2026"}),
+                *golden_raw_evidence.content[1:],
+            ]
+        }
+    )
+
+    contracts = ContractCompiler().compile(raw)
+    record = next(
+        item for item in contracts.content_records if item.source_id == str(first.source_id)
+    )
+    route = next(
+        item for item in contracts.routes if item.source_content_id == str(first.source_id)
+    )
+
+    assert record.title == "Contact Form 2026"
+    assert route.required_content_markers == ("Contact Form 2026",)
+
+
 def test_menu_hierarchy_references_route_contracts(golden_contracts) -> None:
     routes = {route.contract_id for route in golden_contracts.routes}
     navigation = golden_contracts.site_spec.global_navigation
@@ -94,7 +119,9 @@ def test_capabilities_have_explicit_dispositions(golden_contracts) -> None:
     )
 
 
-def test_visual_plan_is_bounded_and_covers_families(golden_contracts) -> None:
+def test_visual_plan_covers_primary_navigation_families_and_signatures(
+    golden_contracts,
+) -> None:
     plan = golden_contracts.visual_capture_plan
     routes = {route.contract_id: route for route in golden_contracts.routes}
     assert len(plan.selected_route_ids) <= plan.max_routes
@@ -104,6 +131,12 @@ def test_visual_plan_is_bounded_and_covers_families(golden_contracts) -> None:
     assert {
         routes[route_id].page_family for route_id in plan.selected_route_ids
     } == set(golden_contracts.site_spec.route_families)
+    primary_routes = {
+        item.route_contract_id
+        for item in golden_contracts.site_spec.global_navigation
+        if item.menu_id.startswith("menu:primary:") and item.route_contract_id
+    }
+    assert primary_routes <= set(plan.selected_route_ids)
     for route_id in plan.selected_route_ids:
         targets = [
             target for target in plan.targets if target.route_contract_id == route_id

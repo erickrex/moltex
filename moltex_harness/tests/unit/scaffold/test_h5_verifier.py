@@ -61,6 +61,54 @@ def test_h5_verifier_is_packaged_and_self_contained() -> None:
     assert "127.0.0.1" in source
 
 
+def test_browser_coverage_is_driven_by_the_explicit_visual_plan() -> None:
+    source = (TEMPLATES / "verify-lib/checks/runtime.mjs").read_text(
+        encoding="utf-8"
+    )
+
+    assert "publishedRoutes.slice" not in source
+    assert "plannedEvidence" in source
+    assert ".map((item) => item.routeId)" in source
+
+
+def test_completion_check_rejects_visible_unresolved_components(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "dist").mkdir()
+    (tmp_path / "dist/index.html").write_text(
+        '<main><div class="moltex-placeholder">'
+        "WordPress block requires replacement: vendor/map</div></main>",
+        encoding="utf-8",
+    )
+    checks_module = (TEMPLATES / "verify-lib/checks/static.mjs").as_uri()
+    script = (
+        f'import {{ completionChecks }} from "{checks_module}";'
+        "const checks=completionChecks({publishedRoutes:[{contract_id:'route:home',"
+        "target_url:'/',output_path:'index.html'}],decisions:[]});"
+        "console.log(JSON.stringify(checks));"
+    )
+
+    completed = subprocess.run(
+        [_node_runtime(), "--input-type=module", "--eval", script],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    checks = json.loads(completed.stdout)
+
+    placeholder = next(
+        item
+        for item in checks
+        if item["check_id"] == "content.no-unresolved-placeholder"
+    )
+    assert placeholder["status"] == "fail"
+    assert placeholder["subject"] == "/"
+    assert next(item for item in checks if item["check_id"] == "decision.resolved")[
+        "status"
+    ] == "pass"
+
+
 def test_h5_report_schemas_are_valid_draft_2020_12() -> None:
     schemas = sorted((TEMPLATES / "verifier-schemas").glob("*.json"))
 

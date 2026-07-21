@@ -111,6 +111,38 @@ export const routeAndContentChecks = (contracts) => contracts.publishedRoutes.fl
   ];
 });
 
+export const completionChecks = (contracts) => {
+  const routeChecks = contracts.publishedRoutes.map((route) => {
+    const file = path.join("dist", ...route.output_path.split("/"));
+    const html = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+    const markers = [
+      ...html.matchAll(/class=["'][^"']*\bmoltex-placeholder\b[^"']*["']/gi),
+      ...html.matchAll(/data-moltex-dynamic-block=["'][^"']+["']/gi),
+      ...html.matchAll(/block requires replacement|Form requires integration/gi),
+    ].map((match) => match[0]);
+    return result("content.no-unresolved-placeholder", route.target_url, markers.length === 0, {
+      contractIds: [route.contract_id],
+      evidenceRefs: [`.moltex/contracts/contracts/routes.json#${route.contract_id}`, file],
+      expected: [], actual: markers,
+      message: `Published route contains unresolved migration markers: ${markers.join(", ")}`,
+      passMessage: "Published route contains no unresolved migration markers",
+    });
+  });
+  const blocking = contracts.decisions.filter((item) => item.severity === "blocking");
+  routeChecks.push(checkResult({
+    checkId: "decision.resolved",
+    status: blocking.length ? "needs_decision" : "pass",
+    severity: blocking.length ? "critical" : "info",
+    subject: "decision-queue",
+    contractIds: blocking.map((item) => item.decision_id),
+    evidenceRefs: [".moltex/contracts/decision-queue.json"],
+    expected: [],
+    actual: blocking.map((item) => item.decision_id),
+    message: blocking.length ? "Blocking migration decisions remain unresolved" : "No blocking migration decisions remain",
+  }));
+  return routeChecks;
+};
+
 export const assetChecks = (contracts) => {
   const required = contracts.publishedAssets;
   const checks = required.flatMap((asset) => {
@@ -280,7 +312,13 @@ export const redirectChecks = (contracts) => {
     });
   });
   const built = fs.existsSync("dist/_redirects") ? fs.readFileSync("dist/_redirects", "utf8").trim().split(/\r?\n/).filter(Boolean) : [];
-  const expected = active.map((item) => `${item.source_url} ${item.target_url} ${item.status_code}`).sort();
+  const observed = (contracts.expectations.observedRedirects ?? []).map((item) => {
+    const source = new URL(item.sourceUrl).pathname;
+    const targetUrl = new URL(item.targetUrl);
+    const target = `${targetUrl.pathname}${targetUrl.search}`;
+    return `${source} ${target} ${item.statusCode}`;
+  });
+  const expected = [...active.map((item) => `${item.source_url} ${item.target_url} ${item.status_code}`), ...observed].sort();
   const routeTargets = new Set(contracts.publishedRoutes.map((item) => new URL(item.target_url, "https://moltex.invalid").pathname));
   const missingTargets = active.filter((item) => {
     const target = new URL(item.target_url, "https://moltex.invalid");
@@ -319,7 +357,7 @@ export const taskChecks = (contracts) => {
     const evidence = readJson(file, null);
     if (!evidence) {
       const claimed = task.state === "complete" || (fs.existsSync("EXECPLAN.md") && fs.readFileSync("EXECPLAN.md", "utf8").includes(`- [x] \`${task.task_id}\``));
-      return checkResult({ checkId: "task.completion-evidence", status: claimed ? "fail" : "review", severity: claimed ? "critical" : "warning", subject: task.task_id, contractIds: task.contract_ids, evidenceRefs: [`.moltex/tasks/${task.task_id}.json`, file], expected: "checksummed completion evidence for a completion claim", actual: null, message: claimed ? `Task ${task.task_id} is claimed complete without execution evidence` : "Task has no completion claim yet" });
+      return checkResult({ checkId: "task.completion-evidence", status: claimed ? "fail" : "blocked", severity: claimed ? "critical" : "warning", subject: task.task_id, contractIds: task.contract_ids, evidenceRefs: [`.moltex/tasks/${task.task_id}.json`, file], expected: "checksummed completion evidence for every required task", actual: null, message: claimed ? `Task ${task.task_id} is claimed complete without execution evidence` : "Required migration task has no completion evidence" });
     }
     const artifactsValid = [[evidence.diff_artifact, evidence.diff_sha256], [evidence.session_artifact, evidence.session_sha256]].every(([artifact, digest]) => artifact && fs.existsSync(artifact) && sha256(fs.readFileSync(artifact)) === digest);
     const ok = evidence.task_id === task.task_id && evidence.protected_paths_unchanged && evidence.command_results.every((item) => item.exit_code === 0) && artifactsValid;

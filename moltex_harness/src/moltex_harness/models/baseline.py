@@ -26,6 +26,16 @@ class ShortcodeDisposition(BaselineModel):
     count: int = Field(ge=1)
 
 
+class BlockDisposition(BaselineModel):
+    """One normalized Gutenberg block shape observed during conversion."""
+
+    name: str
+    namespace: str
+    attribute_signature: str
+    disposition: Literal["converted", "preserved", "dynamic", "unsupported"]
+    count: int = Field(ge=1)
+
+
 class ContentConversionReceipt(BaselineModel):
     schema_version: Literal[1] = 1
     record_id: str
@@ -34,6 +44,7 @@ class ContentConversionReceipt(BaselineModel):
     body_format: Literal["markdown", "sanitized_html"]
     sanitized_html: str
     editable_body: str
+    blocks: tuple[BlockDisposition, ...] = ()
     shortcodes: tuple[ShortcodeDisposition, ...] = ()
     rewritten_urls: int = Field(ge=0)
     findings: tuple[ConversionFinding, ...] = ()

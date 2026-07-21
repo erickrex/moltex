@@ -142,6 +142,21 @@ class FakePlanner:
         )
 
 
+class FakeEmptyPlanner:
+    def compile_workspace(self, workspace: Path) -> PlanningOutcome:
+        (workspace / ".moltex" / "tasks").mkdir(parents=True)
+        return PlanningOutcome(
+            PlanningCompilationReport(
+                status="compiled",
+                bundle_id="bundle-1",
+                code="workspace_planned",
+                message="planned",
+                counts={"tasks": 0},
+            ),
+            0,
+        )
+
+
 def test_pipeline_publishes_one_migration_ready_workspace(tmp_path: Path) -> None:
     output_root = tmp_path / "output"
     destination = output_root / "example-com-2026-07-21_17-51-13"
@@ -171,7 +186,7 @@ def test_pipeline_publishes_one_migration_ready_workspace(tmp_path: Path) -> Non
             encoding="utf-8"
         )
     )
-    assert report["status"] == "migration_planned"
+    assert report["status"] == "baseline_generated_non_deployable"
     assert report["phase"] == "planning"
     assert report["code"] == "workspace_planned_with_unfinished_tasks"
     assert report["output"] == "."
@@ -216,6 +231,25 @@ def test_pipeline_does_not_publish_partial_site_after_failure(tmp_path: Path) ->
     assert "secret-value" not in log
     assert "another-secret" not in log
     assert log.count("<redacted>") == 2
+
+
+def test_pipeline_never_claims_completion_without_migration_verification(
+    tmp_path: Path,
+) -> None:
+    service = SitePipelineService(
+        baseline=FakeBaseline(),
+        builder=FakeBuilder(),
+        planner=FakeEmptyPlanner(),
+        preparer=FakePreparer(),
+    )
+
+    outcome = service.create(
+        tmp_path / "export.zip", tmp_path / "output", timeout_seconds=30
+    )
+
+    assert outcome.exit_code == 0
+    assert outcome.report.status == "migration_in_progress"
+    assert outcome.report.code == "workspace_requires_migration_verification"
 
 
 def test_pipeline_blocks_ineligible_contracts_before_build(tmp_path: Path) -> None:

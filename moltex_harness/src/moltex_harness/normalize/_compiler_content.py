@@ -18,6 +18,7 @@ from moltex_harness.models import (
 )
 
 from .primitives import (
+    normalize_content_title,
     normalize_gmt_datetime,
     normalize_internal_url,
     normalize_slug,
@@ -103,7 +104,9 @@ class _ContentCompilerMixin(_CompilerSupport):
                     legacy_url=item.legacy_permalink,
                     slug=normalize_slug(item.slug),
                     status=item.status,
-                    title=item.title.strip(),
+                    title=normalize_content_title(
+                        item.title, item.slug, item.content_type
+                    ),
                     published_at=normalize_gmt_datetime(item.date_gmt),
                     modified_at=normalize_gmt_datetime(item.modified_gmt),
                     author_ids=author_ids,

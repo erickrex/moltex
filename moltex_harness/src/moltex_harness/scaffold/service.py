@@ -8,6 +8,7 @@ import re
 import shutil
 import tempfile
 import xml.etree.ElementTree as ET
+from urllib.parse import urlsplit
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -55,9 +56,11 @@ BASELINE_STYLES = r"""
   --nv-c-1: #d9b995;
   --nv-c-2: #57606d;
   color: var(--moltex-color-3);
-  font-family: Roboto, Arial, ui-sans-serif, system-ui, sans-serif;
-  font-size: 17px;
-  line-height: 1.6;
+  --moltex-body-font: Montserrat, Arial, ui-sans-serif, system-ui, sans-serif;
+  --moltex-heading-font: Staatliches, "Arial Narrow", Impact, ui-sans-serif, sans-serif;
+  font-family: var(--moltex-body-font);
+  font-size: 16px;
+  line-height: 1.65;
 }
 * { box-sizing: border-box; }
 html { background: var(--moltex-color-4); scroll-behavior: smooth; }
@@ -65,12 +68,15 @@ body { margin: 0; min-width: 320px; background: var(--moltex-color-4); color: va
 a { color: inherit; }
 img { display: block; max-width: 100%; height: auto; }
 figure { margin: 0; }
-h1, h2, h3, h4, h5, h6 { color: var(--moltex-color-1); font-family: Roboto, Arial, ui-sans-serif, sans-serif; font-weight: 300; line-height: 1.2; }
+h1, h2, h3, h4, h5, h6 { color: var(--moltex-color-1); font-family: var(--moltex-heading-font); font-weight: 400; line-height: 1.3; }
 .skip { position: fixed; left: -10000px; top: 1rem; z-index: 100; }
 .skip:focus { left: 1rem; background: white; padding: .75rem 1rem; color: #111; }
 .visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; white-space: nowrap !important; }
 .site-header { position: absolute; inset: 0 0 auto; z-index: 20; color: white; }
-.site-header__inner { width: min(1200px, calc(100% - 3rem)); min-height: 88px; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 2rem; }
+.site-header--normal { position: relative; inset: auto; border-bottom: 1px solid rgb(33 37 47 / 10%); background: white; color: var(--moltex-color-1); }
+.site-topbar { min-height: 40px; padding: .6rem max(1.5rem, calc((100% - 1140px) / 2)); display: flex; align-items: center; justify-content: space-between; gap: 2rem; background: var(--moltex-color-0); color: white; font-size: .75rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.site-topbar a { text-decoration: none; }
+.site-header__inner { width: min(1140px, calc(100% - 3rem)); min-height: 148px; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 4rem; }
 .site-brand { color: inherit; font-family: Poppins, "Trebuchet MS", sans-serif; font-size: 1.25rem; font-weight: 700; text-decoration: none; }
 .site-brand__logo { width: auto; max-width: 160px; max-height: 62px; }
 .site-header__cta { flex: 0 0 auto; border-radius: 999px; padding: .9rem 2rem; background: #ff006e; color: white; font-weight: 600; text-decoration: none; }
@@ -80,7 +86,8 @@ h1, h2, h3, h4, h5, h6 { color: var(--moltex-color-1); font-family: Roboto, Aria
 .site-menu__state:checked + .site-menu__toggle span:nth-child(1) { transform: translateY(8px) rotate(45deg); }
 .site-menu__state:checked + .site-menu__toggle span:nth-child(2) { opacity: 0; }
 .site-menu__state:checked + .site-menu__toggle span:nth-child(3) { transform: translateY(-8px) rotate(-45deg); }
-.site-header nav > ul { display: flex; align-items: center; gap: 1.75rem; margin: 0; padding: 0; list-style: none; }
+.site-header nav { flex: 1 1 auto; }
+.site-header nav > ul { display: flex; align-items: center; flex-wrap: wrap; gap: 1.5rem 2.25rem; margin: 0; padding: 0; list-style: none; }
 .site-header nav ul ul { position: absolute; margin: 0; padding: .75rem; list-style: none; background: var(--moltex-color-5); color: var(--moltex-color-1); box-shadow: 0 12px 30px rgb(33 37 47 / 18%); }
 .site-header nav a { color: inherit; font-size: .94rem; font-weight: 400; text-decoration: none; }
 .site-header nav a:hover, .site-header nav a:focus-visible { text-decoration: underline; text-underline-offset: .35em; }
@@ -88,8 +95,8 @@ main { width: 100%; min-height: 70vh; }
 .route-content { width: 100%; margin: 0; }
 .route-title { width: min(1200px, calc(100% - 3rem)); margin: 0 auto; padding: 9rem 0 3rem; font-size: clamp(2.25rem, 5vw, 4rem); }
 .content { width: 100%; overflow: clip; }
-.content > .moltex-block-root { width: 100%; }
-.moltex-block-root > .moltex-container { margin-right: auto; margin-left: auto; }
+.content > .moltex-block-root { width: 100%; max-width: none; }
+.moltex-block-root > .moltex-container { max-width: var(--moltex-lg-content-width, var(--moltex-content-width, none)); margin-right: auto; margin-left: auto; }
 .moltex-block {
   --moltex-display: block; --moltex-lg-display: var(--moltex-display); --moltex-md-display: var(--moltex-lg-display); --moltex-sm-display: var(--moltex-md-display);
   --moltex-grid-columns: none; --moltex-lg-grid-columns: var(--moltex-grid-columns); --moltex-md-grid-columns: var(--moltex-lg-grid-columns); --moltex-sm-grid-columns: var(--moltex-md-grid-columns);
@@ -100,6 +107,7 @@ main { width: 100%; min-height: 70vh; }
   --moltex-gap: 0; --moltex-lg-gap: var(--moltex-gap); --moltex-md-gap: var(--moltex-lg-gap); --moltex-sm-gap: var(--moltex-md-gap);
   --moltex-width: auto; --moltex-lg-width: var(--moltex-width); --moltex-md-width: var(--moltex-lg-width); --moltex-sm-width: var(--moltex-md-width);
   --moltex-max-width: none; --moltex-lg-max-width: var(--moltex-max-width); --moltex-md-max-width: var(--moltex-lg-max-width); --moltex-sm-max-width: var(--moltex-md-max-width);
+  --moltex-content-width: none; --moltex-lg-content-width: var(--moltex-content-width); --moltex-md-content-width: var(--moltex-lg-content-width); --moltex-sm-content-width: var(--moltex-md-content-width);
   --moltex-min-height: 0; --moltex-lg-min-height: var(--moltex-min-height); --moltex-md-min-height: var(--moltex-lg-min-height); --moltex-sm-min-height: var(--moltex-md-min-height);
   --moltex-height: auto; --moltex-lg-height: var(--moltex-height); --moltex-md-height: var(--moltex-lg-height); --moltex-sm-height: var(--moltex-md-height);
   --moltex-padding-top: 0; --moltex-lg-padding-top: var(--moltex-padding-top); --moltex-md-padding-top: var(--moltex-lg-padding-top); --moltex-sm-padding-top: var(--moltex-md-padding-top);
@@ -111,14 +119,18 @@ main { width: 100%; min-height: 70vh; }
   --moltex-margin-bottom: 0; --moltex-lg-margin-bottom: var(--moltex-margin-bottom); --moltex-md-margin-bottom: var(--moltex-lg-margin-bottom); --moltex-sm-margin-bottom: var(--moltex-md-margin-bottom);
   --moltex-margin-left: 0; --moltex-lg-margin-left: var(--moltex-margin-left); --moltex-md-margin-left: var(--moltex-lg-margin-left); --moltex-sm-margin-left: var(--moltex-md-margin-left);
   --moltex-background-color: transparent; --moltex-lg-background-color: var(--moltex-background-color); --moltex-md-background-color: var(--moltex-lg-background-color); --moltex-sm-background-color: var(--moltex-md-background-color);
+  --moltex-background-gradient: none; --moltex-lg-background-gradient: var(--moltex-background-gradient); --moltex-md-background-gradient: var(--moltex-lg-background-gradient); --moltex-sm-background-gradient: var(--moltex-md-background-gradient);
   --moltex-background-image: none; --moltex-lg-background-image: var(--moltex-background-image); --moltex-md-background-image: var(--moltex-lg-background-image); --moltex-sm-background-image: var(--moltex-md-background-image);
   --moltex-background-position: center; --moltex-lg-background-position: var(--moltex-background-position); --moltex-md-background-position: var(--moltex-lg-background-position); --moltex-sm-background-position: var(--moltex-md-background-position);
   --moltex-background-size: cover; --moltex-lg-background-size: var(--moltex-background-size); --moltex-md-background-size: var(--moltex-lg-background-size); --moltex-sm-background-size: var(--moltex-md-background-size);
+  --moltex-background-repeat: no-repeat; --moltex-background-attachment: scroll;
   --moltex-background-blend-mode: normal;
   --moltex-border-width: 0; --moltex-lg-border-width: var(--moltex-border-width); --moltex-md-border-width: var(--moltex-lg-border-width); --moltex-sm-border-width: var(--moltex-md-border-width);
   --moltex-border-style: solid; --moltex-lg-border-style: var(--moltex-border-style); --moltex-md-border-style: var(--moltex-lg-border-style); --moltex-sm-border-style: var(--moltex-md-border-style);
   --moltex-border-color: transparent; --moltex-lg-border-color: var(--moltex-border-color); --moltex-md-border-color: var(--moltex-lg-border-color); --moltex-sm-border-color: var(--moltex-md-border-color);
   --moltex-border-radius: 0; --moltex-lg-border-radius: var(--moltex-border-radius); --moltex-md-border-radius: var(--moltex-lg-border-radius); --moltex-sm-border-radius: var(--moltex-md-border-radius);
+  --moltex-border-top-left-radius: var(--moltex-border-radius); --moltex-border-top-right-radius: var(--moltex-border-radius); --moltex-border-bottom-right-radius: var(--moltex-border-radius); --moltex-border-bottom-left-radius: var(--moltex-border-radius);
+  --moltex-box-shadow: none; --moltex-overlay-opacity: 1; --moltex-wide-width: var(--moltex-max-width);
   --moltex-color: inherit; --moltex-lg-color: var(--moltex-color); --moltex-md-color: var(--moltex-lg-color); --moltex-sm-color: var(--moltex-md-color);
   --moltex-font-size: inherit; --moltex-lg-font-size: var(--moltex-font-size); --moltex-md-font-size: var(--moltex-lg-font-size); --moltex-sm-font-size: var(--moltex-md-font-size);
   --moltex-font-family: inherit; --moltex-lg-font-family: var(--moltex-font-family); --moltex-md-font-family: var(--moltex-lg-font-family); --moltex-sm-font-family: var(--moltex-md-font-family);
@@ -126,6 +138,8 @@ main { width: 100%; min-height: 70vh; }
   --moltex-line-height: inherit; --moltex-lg-line-height: var(--moltex-line-height); --moltex-md-line-height: var(--moltex-lg-line-height); --moltex-sm-line-height: var(--moltex-md-line-height);
   --moltex-text-align: inherit; --moltex-lg-text-align: var(--moltex-text-align); --moltex-md-text-align: var(--moltex-lg-text-align); --moltex-sm-text-align: var(--moltex-md-text-align);
   box-sizing: border-box;
+  position: relative;
+  isolation: isolate;
   display: var(--moltex-lg-display, var(--moltex-display, block));
   grid-template-columns: var(--moltex-lg-grid-columns, var(--moltex-grid-columns, none));
   flex-direction: var(--moltex-lg-flex-direction, var(--moltex-flex-direction, row));
@@ -148,13 +162,31 @@ main { width: 100%; min-height: 70vh; }
   border-width: var(--moltex-lg-border-width, var(--moltex-border-width, 0));
   border-style: var(--moltex-lg-border-style, var(--moltex-border-style, solid));
   border-color: var(--moltex-lg-border-color, var(--moltex-border-color, transparent));
+  border-top-width: var(--moltex-border-top-width, var(--moltex-lg-border-width, var(--moltex-border-width, 0)));
+  border-right-width: var(--moltex-border-right-width, var(--moltex-lg-border-width, var(--moltex-border-width, 0)));
+  border-bottom-width: var(--moltex-border-bottom-width, var(--moltex-lg-border-width, var(--moltex-border-width, 0)));
+  border-left-width: var(--moltex-border-left-width, var(--moltex-lg-border-width, var(--moltex-border-width, 0)));
+  border-top-style: var(--moltex-border-top-style, var(--moltex-lg-border-style, var(--moltex-border-style, solid)));
+  border-right-style: var(--moltex-border-right-style, var(--moltex-lg-border-style, var(--moltex-border-style, solid)));
+  border-bottom-style: var(--moltex-border-bottom-style, var(--moltex-lg-border-style, var(--moltex-border-style, solid)));
+  border-left-style: var(--moltex-border-left-style, var(--moltex-lg-border-style, var(--moltex-border-style, solid)));
+  border-top-color: var(--moltex-border-top-color, var(--moltex-lg-border-color, var(--moltex-border-color, transparent)));
+  border-right-color: var(--moltex-border-right-color, var(--moltex-lg-border-color, var(--moltex-border-color, transparent)));
+  border-bottom-color: var(--moltex-border-bottom-color, var(--moltex-lg-border-color, var(--moltex-border-color, transparent)));
+  border-left-color: var(--moltex-border-left-color, var(--moltex-lg-border-color, var(--moltex-border-color, transparent)));
   border-radius: var(--moltex-lg-border-radius, var(--moltex-border-radius, 0));
+  border-top-left-radius: var(--moltex-border-top-left-radius, var(--moltex-border-radius, 0));
+  border-top-right-radius: var(--moltex-border-top-right-radius, var(--moltex-border-radius, 0));
+  border-bottom-right-radius: var(--moltex-border-bottom-right-radius, var(--moltex-border-radius, 0));
+  border-bottom-left-radius: var(--moltex-border-bottom-left-radius, var(--moltex-border-radius, 0));
+  box-shadow: var(--moltex-box-shadow, none);
   background-color: var(--moltex-lg-background-color, var(--moltex-background-color, transparent));
-  background-image: var(--moltex-lg-background-image, var(--moltex-background-image, none));
+  background-image: var(--moltex-lg-background-gradient, var(--moltex-background-gradient, none));
   background-position: var(--moltex-lg-background-position, var(--moltex-background-position, center));
   background-size: var(--moltex-lg-background-size, var(--moltex-background-size, cover));
   background-blend-mode: var(--moltex-background-blend-mode, normal);
-  background-repeat: no-repeat;
+  background-repeat: var(--moltex-background-repeat, no-repeat);
+  background-attachment: var(--moltex-background-attachment, scroll);
   color: var(--moltex-lg-color, var(--moltex-color, inherit));
   font-family: var(--moltex-lg-font-family, var(--moltex-font-family, inherit));
   font-size: var(--moltex-lg-font-size, var(--moltex-font-size, inherit));
@@ -162,17 +194,67 @@ main { width: 100%; min-height: 70vh; }
   line-height: var(--moltex-lg-line-height, var(--moltex-line-height, inherit));
   text-align: var(--moltex-lg-text-align, var(--moltex-text-align, inherit));
 }
+.moltex-block::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--moltex-overlay-opacity, 1);
+  background-image: var(--moltex-lg-background-image, var(--moltex-background-image, none));
+  background-position: var(--moltex-lg-background-position, var(--moltex-background-position, center));
+  background-size: var(--moltex-lg-background-size, var(--moltex-background-size, cover));
+  background-repeat: var(--moltex-background-repeat, no-repeat);
+  background-attachment: var(--moltex-background-attachment, scroll);
+}
 h1.moltex-content { max-width: min(1200px, calc(100% - 2rem)); }
+h1.moltex-content { --moltex-font-size: 75px; --moltex-line-height: 1.4; --moltex-font-family: var(--moltex-heading-font); }
+h2.moltex-content { --moltex-font-size: 60px; --moltex-line-height: 1.3; --moltex-font-family: var(--moltex-heading-font); }
+h3.moltex-content { --moltex-font-size: 40px; --moltex-line-height: 1.3; --moltex-font-family: var(--moltex-heading-font); }
+h4.moltex-content { --moltex-font-size: 22px; --moltex-line-height: 1.2; --moltex-font-weight: 700; --moltex-font-family: var(--moltex-body-font); }
+h5.moltex-content { --moltex-font-size: 20px; --moltex-line-height: 1.2; --moltex-font-weight: 700; --moltex-font-family: var(--moltex-body-font); }
+h6.moltex-content { --moltex-font-size: 16px; --moltex-line-height: 1.25; --moltex-font-weight: 700; --moltex-font-family: var(--moltex-body-font); }
 .moltex-buttons { align-items: center; }
 .moltex-button { display: inline-flex; align-items: center; justify-content: center; width: auto; min-height: 48px; padding: .75em 2em; border-radius: 3px; background: var(--moltex-lg-background-color, var(--moltex-background-color, var(--moltex-color-0))); color: var(--moltex-lg-color, var(--moltex-color, white)); font-weight: 600; text-decoration: none; transition: transform .2s ease, opacity .2s ease; }
 .moltex-button:hover, .moltex-button:focus-visible { opacity: .9; transform: translateY(-1px); }
 .moltex-icon { display: inline-grid; width: 1.75em; height: 1.75em; place-items: center; color: var(--moltex-color-0); }
+.moltex-separator { height: 0; border: 0; border-top: var(--moltex-border-width, 1px) var(--moltex-border-style, solid) var(--moltex-border-color, currentColor); }
+.moltex-accordion { width: 100%; }
+.moltex-accordion__item { border-bottom: 1px solid #d2d2d2; }
+.moltex-accordion__summary { position: relative; display: flex; align-items: center; gap: .75rem; padding: 1.25rem .5rem; cursor: pointer; list-style: none; font-weight: 700; }
+.moltex-accordion__summary::-webkit-details-marker { display: none; }
+.moltex-accordion__icon::before { content: "›"; display: block; font-size: 1.25rem; line-height: 1; transition: transform .2s ease; }
+.moltex-accordion__item[open] .moltex-accordion__icon::before { transform: rotate(90deg); }
+.moltex-accordion__details { padding: .5rem 1.5rem 1.25rem; }
+.moltex-map { display: grid; min-height: 350px; place-items: center; background: linear-gradient(135deg,#d9e5d0,#c7d8e8 45%,#d8d2bf); color: var(--moltex-color-1); }
+.moltex-map a { border-radius: 2px; padding: .85rem 1.2rem; background: white; box-shadow: 0 4px 18px rgb(0 0 0 / 15%); font-weight: 700; text-decoration: none; }
+.moltex-form { width: 100%; }
+.moltex-form__grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; }
+.moltex-form label { display: grid; gap: .35rem; font-size: .9rem; font-weight: 600; }
+.moltex-form__wide { grid-column: 1 / -1; }
+.moltex-form input, .moltex-form textarea { width: 100%; border: 1px solid #d5d8dc; border-radius: 2px; padding: .85rem; background: white; color: #222; font: inherit; }
+.moltex-form button { margin-top: 1rem; border: 0; padding: 1rem 1.4rem; background: var(--moltex-color-0); color: white; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.moltex-block > .alignwide { width: min(100%, var(--moltex-wide-width, 1200px)); margin-inline: auto; }
+.is-style-rounded img, img.is-style-rounded { border-radius: 9999px; }
 .moltex-placeholder, .moltex-dynamic-block { width: min(1200px, calc(100% - 3rem)); margin: 1rem auto; border: 2px dashed #9b6b00; padding: 1rem; background: #fff8dc; color: #4d3500; }
 .moltex-media-placeholder { display: block; min-height: 16rem; background: linear-gradient(135deg, #dbe3f3, #eef3fb 45%, #cbd7e9); }
 .listing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1.5rem; width: min(1200px, calc(100% - 3rem)); margin: 4rem auto; }
 .listing-card { border: 1px solid #dbe3f3; border-radius: .5rem; padding: 1.5rem; background: white; }
 .typed-fields { width: min(1200px, calc(100% - 3rem)); margin: 3rem auto; }
+.route-content--post { width: min(900px, calc(100% - 3rem)); margin: 0 auto; padding-bottom: 4rem; }
+.route-content--post .route-title { width: 100%; padding-bottom: 1rem; }
+.post-header { padding-top: 2rem; }
+.post-meta { margin: 0 0 2rem; color: var(--moltex-color-3); }
+.post-featured { margin-bottom: 2rem; }
+.post-featured img { width: 100%; max-height: 640px; object-fit: cover; }
+.post-navigation { display: flex; justify-content: space-between; gap: 2rem; margin-top: 3rem; border-top: 1px solid rgb(33 37 47 / 15%); padding-top: 1.5rem; }
+.route-content--form { width: min(900px, calc(100% - 3rem)); margin: 0 auto; padding-bottom: 4rem; }
 .site-footer { padding: 3rem max(1.5rem, calc((100% - 1200px) / 2)); background: var(--moltex-color-1); color: white; }
+.site-footer__inner { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 2rem; }
+.site-footer p { margin: 0; white-space: normal; }
+.site-footer nav ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem 1rem; margin: 0; padding: 0; list-style: none; }
+.site-footer a { color: inherit; }
 
 /* Safe utility treatment for paired Gutenberg blocks that ship rendered HTML. */
 .relative { position: relative; } .absolute { position: absolute; } .inset-0 { inset: 0; }
@@ -222,9 +304,26 @@ h1.moltex-content { max-width: min(1200px, calc(100% - 2rem)); }
     max-width: var(--moltex-md-max-width, var(--moltex-lg-max-width, var(--moltex-max-width, none)));
     padding: var(--moltex-md-padding-top, var(--moltex-lg-padding-top, var(--moltex-padding-top, 0))) var(--moltex-md-padding-right, var(--moltex-lg-padding-right, var(--moltex-padding-right, 0))) var(--moltex-md-padding-bottom, var(--moltex-lg-padding-bottom, var(--moltex-padding-bottom, 0))) var(--moltex-md-padding-left, var(--moltex-lg-padding-left, var(--moltex-padding-left, 0)));
     margin: var(--moltex-md-margin-top, var(--moltex-lg-margin-top, var(--moltex-margin-top, 0))) var(--moltex-md-margin-right, var(--moltex-lg-margin-right, var(--moltex-margin-right, 0))) var(--moltex-md-margin-bottom, var(--moltex-lg-margin-bottom, var(--moltex-margin-bottom, 0))) var(--moltex-md-margin-left, var(--moltex-lg-margin-left, var(--moltex-margin-left, 0)));
+    background-color: var(--moltex-md-background-color, var(--moltex-lg-background-color, var(--moltex-background-color, transparent)));
+    background-image: var(--moltex-md-background-gradient, var(--moltex-lg-background-gradient, var(--moltex-background-gradient, none)));
+    background-position: var(--moltex-md-background-position, var(--moltex-lg-background-position, var(--moltex-background-position, center)));
+    background-size: var(--moltex-md-background-size, var(--moltex-lg-background-size, var(--moltex-background-size, cover)));
+    color: var(--moltex-md-color, var(--moltex-lg-color, var(--moltex-color, inherit)));
+    font-family: var(--moltex-md-font-family, var(--moltex-lg-font-family, var(--moltex-font-family, inherit)));
     font-size: var(--moltex-md-font-size, var(--moltex-lg-font-size, var(--moltex-font-size, inherit)));
+    font-weight: var(--moltex-md-font-weight, var(--moltex-lg-font-weight, var(--moltex-font-weight, inherit)));
+    line-height: var(--moltex-md-line-height, var(--moltex-lg-line-height, var(--moltex-line-height, inherit)));
     text-align: var(--moltex-md-text-align, var(--moltex-lg-text-align, var(--moltex-text-align, inherit)));
   }
+  .moltex-block::before {
+    background-image: var(--moltex-md-background-image, var(--moltex-lg-background-image, var(--moltex-background-image, none)));
+    background-position: var(--moltex-md-background-position, var(--moltex-lg-background-position, var(--moltex-background-position, center)));
+    background-size: var(--moltex-md-background-size, var(--moltex-lg-background-size, var(--moltex-background-size, cover)));
+  }
+  .moltex-block-root > .moltex-container { max-width: var(--moltex-md-content-width, var(--moltex-lg-content-width, var(--moltex-content-width, none))); }
+  h1.moltex-content { --moltex-font-size: 55px; }
+  h2.moltex-content { --moltex-font-size: 40px; }
+  h3.moltex-content { --moltex-font-size: 30px; }
 }
 @media (min-width: 768px) {
   .md\:flex-row { flex-direction: row; } .md\:flex-row-reverse { flex-direction: row-reverse; } .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .md\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .md\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } .md\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
@@ -243,6 +342,8 @@ h1.moltex-content { max-width: min(1200px, calc(100% - 2rem)); }
   .site-menu__state:checked ~ nav { display: block; }
   .site-header nav > ul { align-items: stretch; flex-direction: column; flex-wrap: nowrap; gap: .4rem; font-size: 1rem; }
   .site-header nav a { display: block; padding: .45rem 0; }
+  .site-footer__inner { grid-template-columns: 1fr; }
+  .site-footer nav ul { grid-template-columns: 1fr; }
   .moltex-block {
     display: var(--moltex-sm-display, var(--moltex-md-display, var(--moltex-display, block)));
     grid-template-columns: var(--moltex-sm-grid-columns, var(--moltex-md-grid-columns, var(--moltex-grid-columns, none)));
@@ -255,9 +356,27 @@ h1.moltex-content { max-width: min(1200px, calc(100% - 2rem)); }
     max-width: var(--moltex-sm-max-width, var(--moltex-md-max-width, var(--moltex-max-width, none)));
     padding: var(--moltex-sm-padding-top, var(--moltex-md-padding-top, var(--moltex-padding-top, 0))) var(--moltex-sm-padding-right, var(--moltex-md-padding-right, var(--moltex-padding-right, 0))) var(--moltex-sm-padding-bottom, var(--moltex-md-padding-bottom, var(--moltex-padding-bottom, 0))) var(--moltex-sm-padding-left, var(--moltex-md-padding-left, var(--moltex-padding-left, 0)));
     margin: var(--moltex-sm-margin-top, var(--moltex-md-margin-top, var(--moltex-margin-top, 0))) var(--moltex-sm-margin-right, var(--moltex-md-margin-right, var(--moltex-margin-right, 0))) var(--moltex-sm-margin-bottom, var(--moltex-md-margin-bottom, var(--moltex-margin-bottom, 0))) var(--moltex-sm-margin-left, var(--moltex-md-margin-left, var(--moltex-margin-left, 0)));
+    background-color: var(--moltex-sm-background-color, var(--moltex-md-background-color, var(--moltex-background-color, transparent)));
+    background-image: var(--moltex-sm-background-gradient, var(--moltex-md-background-gradient, var(--moltex-background-gradient, none)));
+    background-position: var(--moltex-sm-background-position, var(--moltex-md-background-position, var(--moltex-background-position, center)));
+    background-size: var(--moltex-sm-background-size, var(--moltex-md-background-size, var(--moltex-background-size, cover)));
+    color: var(--moltex-sm-color, var(--moltex-md-color, var(--moltex-color, inherit)));
+    font-family: var(--moltex-sm-font-family, var(--moltex-md-font-family, var(--moltex-font-family, inherit)));
     font-size: var(--moltex-sm-font-size, var(--moltex-md-font-size, var(--moltex-font-size, inherit)));
+    font-weight: var(--moltex-sm-font-weight, var(--moltex-md-font-weight, var(--moltex-font-weight, inherit)));
+    line-height: var(--moltex-sm-line-height, var(--moltex-md-line-height, var(--moltex-line-height, inherit)));
     text-align: var(--moltex-sm-text-align, var(--moltex-md-text-align, var(--moltex-text-align, inherit)));
   }
+  .moltex-block::before {
+    background-image: var(--moltex-sm-background-image, var(--moltex-md-background-image, var(--moltex-background-image, none)));
+    background-position: var(--moltex-sm-background-position, var(--moltex-md-background-position, var(--moltex-background-position, center)));
+    background-size: var(--moltex-sm-background-size, var(--moltex-md-background-size, var(--moltex-background-size, cover)));
+  }
+  .moltex-block-root > .moltex-container { max-width: var(--moltex-sm-content-width, var(--moltex-md-content-width, var(--moltex-content-width, none))); }
+  h1.moltex-content { --moltex-font-size: 36px; }
+  h2.moltex-content { --moltex-font-size: 35px; }
+  h3.moltex-content { --moltex-font-size: 28px; }
+  .moltex-form__grid { grid-template-columns: 1fr; }
   .wp-block-columns, .wp-block-media-text { grid-template-columns: 1fr; flex-direction: column; }
 }
 """.strip() + "\n"
@@ -354,6 +473,18 @@ class BaselineService:
                     for item in visual_receipt.route_availability
                     if item.disposition == "omitted"
                 }
+                observed_redirects = {
+                    item.route_contract_id: (
+                        urlsplit(item.final_url).path
+                        + (
+                            f"?{urlsplit(item.final_url).query}"
+                            if urlsplit(item.final_url).query
+                            else ""
+                        )
+                    )
+                    for item in visual_receipt.route_availability
+                    if item.reason == "same_origin_redirect"
+                }
                 omitted_content = {
                     route.content_record_id
                     for route in contracts.routes
@@ -375,7 +506,11 @@ class BaselineService:
                 )
                 write_json(workspace / ".moltex" / "receipts" / "assets.json", receipts)
                 conversion_receipts = self._generate(
-                    workspace, contracts, omitted_route_ids, extraction
+                    workspace,
+                    contracts,
+                    omitted_route_ids,
+                    extraction,
+                    observed_redirects,
                 )
                 self._write_expectations(
                     workspace,
@@ -404,6 +539,9 @@ class BaselineService:
             message="H3 Astro baseline compiled successfully",
             counts={
                 "content": len(conversion_receipts),
+                "block_shapes": sum(
+                    len(receipt.blocks) for receipt in conversion_receipts
+                ),
                 "routes": sum(
                     1
                     for route in contracts.routes
@@ -416,6 +554,7 @@ class BaselineService:
             outputs={
                 "workspace": ".",
                 "conversion_receipts": ".moltex/receipts/conversion.json",
+                "block_inventory": ".moltex/reports/block-support-inventory.json",
                 "asset_receipts": ".moltex/receipts/assets.json",
                 "source_visuals": ".moltex/evidence/source-visuals/capture-receipt.json",
             },
@@ -449,6 +588,7 @@ class BaselineService:
         contracts: Any,
         omitted_route_ids: set[str],
         extraction: Path,
+        observed_redirects: dict[str, str] | None = None,
     ) -> tuple[Any, ...]:
         workspace.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(TEMPLATES / "package.json", workspace / "package.json")
@@ -553,10 +693,13 @@ class BaselineService:
             safe_name = record.record_id.replace(":", "-") + ".json"
             write_json(workspace / "src" / "content" / "records" / safe_name, document)
         write_json(workspace / ".moltex" / "receipts" / "conversion.json", receipts)
+        self._write_block_inventory(workspace, receipts, contracts.routes)
+        shell_context = self._snapshot_shell_context(extraction, contracts)
         self._write_shell(
             workspace,
             contracts.site_spec.site_name,
-            self._snapshot_shell_context(extraction, contracts),
+            shell_context,
+            extraction,
         )
         self._write_navigation(workspace, contracts, routes_by_id, omitted_route_ids)
         posts = [
@@ -607,11 +750,29 @@ class BaselineService:
             ):
                 listing_record_ids = geodirectory
             if route.output_path != "404.html":
+                effective_family = route.page_family
+                if route_receipt and any(
+                    disposition.name
+                    in {
+                        "contact-form-7",
+                        "wpforms",
+                        "forminator_form",
+                        "html-form",
+                    }
+                    for disposition in route_receipt.shortcodes
+                ):
+                    effective_family = "form"
                 generated_routes.append(
                     {
                         "routeId": route.contract_id,
                         "path": self._astro_route_path(route.output_path),
                         "recordId": record_id,
+                        "routeFamily": effective_family,
+                        "shellVariant": (
+                            "overlay"
+                            if shell_context.get("headerOverlay")
+                            else "normal"
+                        ),
                         "listingRecordIds": listing_record_ids,
                     }
                 )
@@ -630,15 +791,71 @@ class BaselineService:
         )
         write_json(workspace / "src" / "data" / "routes.json", generated_routes)
         self._write_route_templates(workspace)
-        self._write_metadata(workspace, contracts, omitted_route_ids)
+        self._write_metadata(
+            workspace,
+            contracts,
+            omitted_route_ids,
+            observed_redirects or {},
+        )
         self._write_scripts(workspace)
         return tuple(receipts)
+
+    @staticmethod
+    def _write_block_inventory(
+        workspace: Path,
+        receipts: list[Any],
+        routes: Any,
+    ) -> None:
+        """Materialize complete block-shape coverage for planning and verification."""
+        route_by_record = {
+            route.content_record_id: route.contract_id
+            for route in routes
+            if route.content_record_id is not None
+        }
+        entries = [
+            {
+                "recordId": receipt.record_id,
+                "routeId": route_by_record.get(receipt.record_id),
+                "blockName": block.name,
+                "namespace": block.namespace,
+                "attributeSignature": block.attribute_signature,
+                "disposition": block.disposition,
+                "count": block.count,
+            }
+            for receipt in receipts
+            for block in receipt.blocks
+        ]
+        totals: dict[str, int] = {}
+        for entry in entries:
+            disposition = entry["disposition"]
+            totals[disposition] = totals.get(disposition, 0) + entry["count"]
+        write_json(
+            workspace / ".moltex" / "reports" / "block-support-inventory.json",
+            {
+                "schemaVersion": 1,
+                "status": (
+                    "blocked"
+                    if totals.get("unsupported", 0) or totals.get("dynamic", 0)
+                    else "complete"
+                ),
+                "counts": totals,
+                "entries": sorted(
+                    entries,
+                    key=lambda item: (
+                        item["recordId"],
+                        item["blockName"],
+                        item["attributeSignature"],
+                    ),
+                ),
+            },
+        )
 
     @staticmethod
     def _write_shell(
         workspace: Path,
         site_name: str,
         shell_context: dict[str, Any] | None = None,
+        source_bundle: Path | None = None,
     ) -> None:
         shell_context = shell_context or {}
         write_json(
@@ -647,11 +864,34 @@ class BaselineService:
                 "siteName": site_name,
                 "siteLogo": shell_context.get("siteLogo"),
                 "headerCta": shell_context.get("headerCta"),
+                "headerNotice": shell_context.get("headerNotice"),
+                "footer": shell_context.get("footer", {"text": site_name, "links": []}),
             },
         )
         styles = workspace / "src" / "styles" / "moltex.css"
         styles.parent.mkdir(parents=True, exist_ok=True)
-        styles.write_text(BASELINE_STYLES, encoding="utf-8")
+        theme_tokens = shell_context.get("themeTokens", {})
+        token_lines = [
+            f"  {name}: {value};"
+            for name, value in sorted(theme_tokens.items())
+            if re.fullmatch(r"--[a-zA-Z0-9_-]{1,100}", str(name))
+        ]
+        for index in range(9):
+            source_name = f"--ast-global-color-{index}"
+            if source_name in theme_tokens:
+                token_lines.append(
+                    f"  --moltex-color-{index}: {theme_tokens[source_name]};"
+                )
+        token_css = (
+            "\n:root {\n" + "\n".join(token_lines) + "\n}\n"
+            if token_lines
+            else ""
+        )
+        font_face_css = BaselineService._font_face_css(source_bundle)
+        styles.write_text(
+            font_face_css + BASELINE_STYLES + token_css,
+            encoding="utf-8",
+        )
         component = workspace / "src" / "components" / "NavigationList.astro"
         component.parent.mkdir(parents=True, exist_ok=True)
         component.write_text(
@@ -664,17 +904,69 @@ class BaselineService:
         layout.parent.mkdir(parents=True, exist_ok=True)
         layout.write_text(
             "---\nimport nav from '../data/navigation.json';\nimport site from '../data/site.json';\nimport NavigationList from '../components/NavigationList.astro';\nimport '../styles/moltex.css';\n"
-            "const { title, description = '', canonical = '', robots = 'index,follow', openGraph = {}, structuredDataHints = [] } = Astro.props;\n"
+            "const { title, description = '', canonical = '', robots = 'index,follow', openGraph = {}, structuredDataHints = [], shellVariant = 'normal' } = Astro.props;\n"
             "const ogItems = Array.isArray(openGraph.items) ? openGraph.items : [openGraph];\n"
             "const ogEntries = ogItems.flatMap((item) => item && (item.property || item.name || item.key) ? [[item.property || item.name || item.key, item.content ?? item.value ?? '']] : Object.entries(item ?? {}).filter(([key]) => key !== 'items'));\n---\n"
             '<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width">'
             '<meta name="description" content={description}><meta name="robots" content={robots}><link rel="canonical" href={canonical}>'
             "{ogEntries.map(([property, content]) => <meta property={String(property).startsWith('og:') ? String(property) : `og:${property}`} content={String(content)} />)}"
             '{structuredDataHints.map((hint) => <meta name="moltex:structured-data-hint" content={hint} />)}<title>{title}</title></head>'
-            '<body><a class="skip" href="#content">Skip to content</a><header class="site-header"><div class="site-header__inner"><a class="site-brand" href="/">{site.siteLogo ? <img class="site-brand__logo" src={site.siteLogo.src} alt={site.siteLogo.alt} /> : site.siteName}</a><input class="site-menu__state" id="primary-navigation-toggle" type="checkbox" aria-label="Main menu toggle"><label class="site-menu__toggle" for="primary-navigation-toggle" role="button"><span></span><span></span><span></span></label><nav id="primary-navigation" aria-label="Primary"><NavigationList items={nav} /></nav>{site.headerCta ? <a class="site-header__cta" href={site.headerCta.href}>{site.headerCta.label}</a> : null}</div></header>'
-            '<main id="content"><slot /></main><footer class="site-footer">{site.siteName}</footer></body></html>\n',
+            '<body class={`shell-${shellVariant}`}><a class="skip" href="#content">Skip to content</a><header class={`site-header site-header--${shellVariant}`}>{site.headerNotice ? <div class="site-topbar"><span>{site.headerNotice}</span>{site.headerCta ? <a href={site.headerCta.href}>{site.headerCta.label}</a> : null}</div> : null}<div class="site-header__inner"><a class="site-brand" href="/">{site.siteLogo ? <img class="site-brand__logo" src={site.siteLogo.src} alt={site.siteLogo.alt} /> : site.siteName}</a><input class="site-menu__state" id="primary-navigation-toggle" type="checkbox" aria-label="Main menu toggle"><label class="site-menu__toggle" for="primary-navigation-toggle" role="button"><span></span><span></span><span></span></label><nav id="primary-navigation" aria-label="Primary"><NavigationList items={nav} /></nav>{!site.headerNotice && site.headerCta ? <a class="site-header__cta" href={site.headerCta.href}>{site.headerCta.label}</a> : null}</div></header>'
+            '<main id="content"><slot /></main><footer class="site-footer"><div class="site-footer__inner"><p>{site.footer?.text || site.siteName}</p>{site.footer?.links?.length ? <nav aria-label="Footer"><ul>{site.footer.links.map((item) => <li><a href={item.url}>{item.label}</a></li>)}</ul></nav> : null}</div></footer></body></html>\n',
             encoding="utf-8",
         )
+
+    @staticmethod
+    def _font_face_css(source_bundle: Path | None) -> str:
+        """Rebuild safe font declarations observed in rendered theme evidence."""
+        if source_bundle is None:
+            return ""
+        rendered = source_bundle / "theme" / "rendered"
+        if not rendered.is_dir():
+            return ""
+        output: list[str] = []
+        for path in sorted(rendered.glob("*.css")):
+            if path.stat().st_size > 1_000_000:
+                continue
+            source = path.read_text(encoding="utf-8", errors="replace")
+            for match in re.finditer(r"@font-face\s*\{([^{}]{1,5000})\}", source, re.I):
+                declarations: dict[str, str] = {}
+                for declaration in match.group(1).split(";"):
+                    name, separator, value = declaration.partition(":")
+                    if separator:
+                        declarations[name.strip().casefold()] = value.strip()
+                family_match = re.fullmatch(
+                    r"['\"]?([a-zA-Z0-9 _-]{1,80})['\"]?",
+                    declarations.get("font-family", ""),
+                )
+                style = declarations.get("font-style", "normal").casefold()
+                weight = declarations.get("font-weight", "400").casefold()
+                source_match = re.fullmatch(
+                    r"url\((['\"]?)(https://[^)'\"\s]{1,2048})\1\)"
+                    r"\s+format\((['\"]?)([a-z0-9-]{1,30})\3\)",
+                    declarations.get("src", ""),
+                    re.I,
+                )
+                if (
+                    family_match is None
+                    or style not in {"normal", "italic", "oblique"}
+                    or not re.fullmatch(r"(?:[1-9]00|normal|bold)", weight)
+                    or source_match is None
+                ):
+                    continue
+                family = family_match.group(1)
+                url = html.escape(source_match.group(2), quote=True)
+                font_format = source_match.group(4).casefold()
+                output.append(
+                    "@font-face {\n"
+                    f'  font-family: "{family}";\n'
+                    f"  font-style: {style};\n"
+                    f"  font-weight: {weight};\n"
+                    "  font-display: swap;\n"
+                    f'  src: url("{url}") format("{font_format}");\n'
+                    "}\n"
+                )
+        return "".join(output)
 
     @staticmethod
     def _snapshot_shell_context(extraction: Path, contracts: Any) -> dict[str, Any]:
@@ -711,6 +1003,12 @@ class BaselineService:
                 "href": cta.get("url") or "#",
                 "label": cta["label"],
             }
+        result["headerNotice"] = observed.get("header_notice") or ""
+        result["headerOverlay"] = bool(observed.get("header_overlay"))
+        result["themeTokens"] = observed.get("theme_tokens", {})
+        footer = observed.get("footer", {})
+        if footer.get("text") or footer.get("links"):
+            result["footer"] = footer
         return result
 
     @staticmethod
@@ -779,16 +1077,50 @@ class BaselineService:
     def _write_route_templates(workspace: Path) -> None:
         pages = workspace / "src" / "pages"
         pages.mkdir(parents=True, exist_ok=True)
-        shared_render = (
-            "<BaseLayout title={seo.title ?? record.title} description={seo.description ?? ''} canonical={seo.canonical_url ?? ''} robots={seo.robots ?? 'index,follow'} openGraph={seo.open_graph ?? {}} structuredDataHints={seo.structured_data_hints ?? []}>"
-            "<article class=\"route-content\" data-record-id={record.recordId}>{hasRenderedH1 ? <span class=\"visually-hidden\">{record.title}</span> : <h1 class=\"route-title\">{record.title}</h1>}"
+        route_components = workspace / "src" / "components" / "routes"
+        route_components.mkdir(parents=True, exist_ok=True)
+        (route_components / "PageRoute.astro").write_text(
+            "---\nconst { record, typedFields = [] } = Astro.props;\n"
+            "const hasRenderedHeading = /<h[1-6]\\b/i.test(record.renderedHtml ?? '');\n---\n"
+            '<article class="route-content route-content--page" data-record-id={record.recordId}>'
+            '{hasRenderedHeading ? <span class="visually-hidden">{record.title}</span> : <h1 class="route-title">{record.title}</h1>}'
             '<div class="content" set:html={record.renderedHtml} />'
             "{typedFields.length ? <dl class=\"typed-fields\">{typedFields.map(([key, value]) => <><dt>{key.replace('geodirectory.', '')}</dt><dd>{typeof value === 'object' ? JSON.stringify(value) : String(value ?? '')}</dd></>)}</dl> : null}"
-            '{listingItems.length ? <section class="listing-grid" aria-label="Listings">{listingItems.map((item) => <article class="listing-card" data-record-id={item.recordId}><h2>{item.targetUrl ? <a href={item.targetUrl}>{item.title}</a> : item.title}</h2>{item.excerpt ? <p>{item.excerpt}</p> : null}</article>)}</section> : null}'
-            "</article></BaseLayout>\n"
+            "</article>\n",
+            encoding="utf-8",
+        )
+        (route_components / "PostRoute.astro").write_text(
+            "---\nconst { record, previous = null, next = null } = Astro.props;\n"
+            "const featured = record.media?.[0] ?? null;\n---\n"
+            '<article class="route-content route-content--post" data-record-id={record.recordId}>'
+            '<header class="post-header"><h1 class="route-title">{record.title}</h1>'
+            '<p class="post-meta"><time datetime={record.publishedAt}>{record.publishedAt}</time>'
+            '{record.authors?.length ? <span> · {record.authors.join(", ")}</span> : null}'
+            '{record.taxonomies?.length ? <span> · {record.taxonomies.join(", ")}</span> : null}</p></header>'
+            '{featured ? <figure class="post-featured"><img src={featured.src} alt={featured.alt} data-asset-id={featured.assetId} /></figure> : null}'
+            '<div class="content post-content" set:html={record.renderedHtml} />'
+            '<nav class="post-navigation" aria-label="Post navigation">{previous ? <a rel="prev" href={previous.targetUrl}>← {previous.title}</a> : <span />}{next ? <a rel="next" href={next.targetUrl}>{next.title} →</a> : null}</nav>'
+            "</article>\n",
+            encoding="utf-8",
+        )
+        (route_components / "ListingRoute.astro").write_text(
+            "---\nconst { record, listingItems = [] } = Astro.props;\n---\n"
+            '<article class="route-content route-content--listing" data-record-id={record.recordId}>'
+            '<h1 class="route-title">{record.title}</h1><div class="content" set:html={record.renderedHtml} />'
+            '<section class="listing-grid" aria-label="Listings">{listingItems.map((item) => <article class="listing-card" data-record-id={item.recordId}><h2>{item.targetUrl ? <a href={item.targetUrl}>{item.title}</a> : item.title}</h2>{item.excerpt ? <p>{item.excerpt}</p> : null}</article>)}</section>'
+            "</article>\n",
+            encoding="utf-8",
+        )
+        (route_components / "FormRoute.astro").write_text(
+            "---\nconst { record } = Astro.props;\n---\n"
+            '<article class="route-content route-content--form" data-record-id={record.recordId}>'
+            '<h1 class="route-title">{record.title}</h1><div class="content" set:html={record.renderedHtml} />'
+            "</article>\n",
+            encoding="utf-8",
         )
         (pages / "[...path].astro").write_text(
             "---\nimport BaseLayout from '../layouts/BaseLayout.astro';\nimport routes from '../data/routes.json';\n"
+            "import PageRoute from '../components/routes/PageRoute.astro';\nimport PostRoute from '../components/routes/PostRoute.astro';\nimport ListingRoute from '../components/routes/ListingRoute.astro';\nimport FormRoute from '../components/routes/FormRoute.astro';\n"
             "const recordModules = import.meta.glob('../content/records/*.json', { eager: true, import: 'default' });\n"
             "const records = Object.values(recordModules) as any[];\n"
             "export function getStaticPaths() { return routes.map((route) => ({ params: { path: route.path || undefined }, props: route })); }\n"
@@ -796,14 +1128,17 @@ class BaselineService:
             "if (!record) throw new Error(`Missing route record: ${route.recordId}`);\n"
             "const listingItems = route.listingRecordIds.map((id) => records.find((item) => item.recordId === id)).filter(Boolean);\n"
             "const seo = record.seo ?? {};\nconst typedFields = Object.entries(record.customFields ?? {}).filter(([key]) => key.startsWith('geodirectory.'));\n"
-            "const hasRenderedH1 = /<h1\\b/i.test(record.renderedHtml ?? '');\n---\n"
-            + shared_render,
+            "const postRecords = records.filter((item) => item.contentType === 'post' && item.targetUrl).sort((a, b) => String(a.publishedAt).localeCompare(String(b.publishedAt)));\n"
+            "const postIndex = postRecords.findIndex((item) => item.recordId === record.recordId);\nconst previous = postIndex > 0 ? postRecords[postIndex - 1] : null;\nconst next = postIndex >= 0 && postIndex < postRecords.length - 1 ? postRecords[postIndex + 1] : null;\n"
+            "const renderers: Record<string, any> = { post: PostRoute, listing: ListingRoute, form: FormRoute };\nconst RouteRenderer = renderers[route.routeFamily] ?? PageRoute;\n---\n"
+            "<BaseLayout title={seo.title ?? record.title} description={seo.description ?? ''} canonical={seo.canonical_url ?? ''} robots={seo.robots ?? 'index,follow'} openGraph={seo.open_graph ?? {}} structuredDataHints={seo.structured_data_hints ?? []} shellVariant={route.shellVariant}>"
+            "<RouteRenderer record={record} typedFields={typedFields} listingItems={listingItems} previous={previous} next={next} />"
+            "</BaseLayout>\n",
             encoding="utf-8",
         )
         (pages / "404.astro").write_text(
-            "---\nimport BaseLayout from '../layouts/BaseLayout.astro';\nimport record from '../content/records/system-404.json';\n"
-            "const listingItems = [];\nconst seo = record.seo ?? {};\nconst typedFields = [];\nconst hasRenderedH1 = false;\n---\n"
-            + shared_render,
+            "---\nimport BaseLayout from '../layouts/BaseLayout.astro';\nimport PageRoute from '../components/routes/PageRoute.astro';\nimport record from '../content/records/system-404.json';\nconst seo = record.seo ?? {};\n---\n"
+            "<BaseLayout title={record.title} robots={seo.robots ?? 'noindex'} shellVariant=\"normal\"><PageRoute record={record} /></BaseLayout>\n",
             encoding="utf-8",
         )
 
@@ -819,7 +1154,10 @@ class BaselineService:
 
     @staticmethod
     def _write_metadata(
-        workspace: Path, contracts: Any, omitted_route_ids: set[str]
+        workspace: Path,
+        contracts: Any,
+        omitted_route_ids: set[str],
+        observed_redirects: dict[str, str] | None = None,
     ) -> None:
         seo_by_route = {item.route_contract_id: item for item in contracts.seo}
         sitemap = [
@@ -836,14 +1174,22 @@ class BaselineService:
             )
         ]
         write_json(workspace / "src" / "data" / "sitemap.json", sitemap)
-        redirects = "\n".join(
+        redirect_lines = [
             BaselineService._redirect_line(
                 item.source_url, item.target_url, item.status_code
             )
             for item in contracts.redirects
             if not item.needs_decision
             and item.target_route_contract_id not in omitted_route_ids
-        )
+        ]
+        route_by_id = {route.contract_id: route for route in contracts.routes}
+        for route_id, target in sorted((observed_redirects or {}).items()):
+            route = route_by_id.get(route_id)
+            if route is not None:
+                redirect_lines.append(
+                    BaselineService._redirect_line(route.target_url, target, 301)
+                )
+        redirects = "\n".join(redirect_lines)
         public = workspace / "public"
         public.mkdir(exist_ok=True)
         (public / "_redirects").write_text(
@@ -961,6 +1307,16 @@ class BaselineService:
                 "routeAvailability": [
                     item.model_dump(mode="json")
                     for item in visual_receipt.route_availability
+                ],
+                "observedRedirects": [
+                    {
+                        "routeId": item.route_contract_id,
+                        "sourceUrl": item.source_url,
+                        "targetUrl": item.final_url,
+                        "statusCode": 301,
+                    }
+                    for item in visual_receipt.route_availability
+                    if item.reason == "same_origin_redirect"
                 ],
                 "visualPlan": {
                     "id": plan.plan_id,
