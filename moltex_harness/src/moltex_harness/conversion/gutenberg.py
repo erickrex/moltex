@@ -19,6 +19,7 @@ from .blocks import (
     BlockDispositionKind,
     default_block_registry,
 )
+from .icons import known_icon_slug
 
 
 BLOCK_COMMENT = re.compile(
@@ -171,6 +172,7 @@ class GutenbergRenderResult:
     unresolved_blocks: int
     rewritten_urls: int
     blocks: tuple[BlockDisposition, ...]
+    unknown_icons: tuple[str, ...] = ()
 
 
 class GutenbergRenderer:
@@ -188,6 +190,7 @@ class GutenbergRenderer:
         self.converted_blocks = 0
         self.unresolved_blocks = 0
         self.rewritten_urls = 0
+        self.unknown_icons: set[str] = set()
         self.block_counts: Counter[tuple[str, str, BlockDispositionKind]] = Counter()
 
     def render(self, source: str) -> GutenbergRenderResult:
@@ -197,6 +200,7 @@ class GutenbergRenderer:
             converted_blocks=self.converted_blocks,
             unresolved_blocks=self.unresolved_blocks,
             rewritten_urls=self.rewritten_urls,
+            unknown_icons=tuple(sorted(self.unknown_icons)),
             blocks=tuple(
                 BlockDisposition(
                     name=name,
@@ -237,10 +241,7 @@ class GutenbergRenderer:
         if spec.adapter == "atomic-wind":
             self.converted_blocks += 1
             if name == "atomic-wind/icon" and self_closing and not closing:
-                icon = str(attributes.get("icon") or "check")
-                glyph = "✓" if icon in {"check", "check-circle"} else "•"
-                glyph = self._icon_glyph(icon)
-                return f'<span class="moltex-icon" aria-hidden="true">{glyph}</span>'
+                return self._icon(str(attributes.get("icon") or "check"))
             # Atomic Wind serializes its semantic HTML between the comments. Its
             # paired comments can be discarded without losing the rendered tree.
             return ""
@@ -391,10 +392,10 @@ class GutenbergRenderer:
                 f'{self._style(attributes)}>{text}<span aria-hidden="true"> →</span></a>'
             )
         if slug in {"icon", "list-child-icon"}:
-            icon = str(attributes.get("icon") or "check")
-            glyph = "✓" if icon in {"check", "check-circle"} else "•"
-            glyph = self._icon_glyph(icon)
-            return f'<span class="moltex-block moltex-icon" aria-hidden="true"{self._style(attributes)}>{glyph}</span>'
+            return self._icon(
+                str(attributes.get("icon") or "check"),
+                extra_style=self._style(attributes),
+            )
         tag = {
             "container": "div",
             "buttons": "div",
@@ -405,20 +406,28 @@ class GutenbergRenderer:
         root = " moltex-block-root" if attributes.get("isBlockRootParent") else ""
         return f'<{tag} class="moltex-block moltex-{slug}{root}"{self._style(attributes)}>'
 
-    @staticmethod
-    def _icon_glyph(icon: str) -> str:
-        normalized = icon.casefold()
-        if normalized in {"check", "check-circle"}:
-            return "\u2713"
-        if normalized in {"circle-arrow-down", "arrow-down"}:
-            return "\u2193"
-        if normalized in {"circle-arrow-right", "arrow-right"}:
-            return "\u2192"
-        if normalized in {"plus", "plus-circle"}:
-            return "+"
-        if normalized in {"star", "star-half"}:
-            return "\u2605"
-        return "\u2022"
+    # Common source aliases mapped onto registered icons.
+    _ICON_ALIASES = {
+        "circle-arrow-down": "arrow-down",
+        "circle-arrow-right": "arrow-right",
+        "star-half": "star",
+        "calendar": "calendar-days",
+        "user": "users",
+        "book": "book-open",
+    }
+
+    def _icon(self, raw_icon: str, extra_style: str = "") -> str:
+        """Render an icon as a semantic span backed by the local SVG registry."""
+
+        alias = self._ICON_ALIASES.get(str(raw_icon).strip().casefold(), raw_icon)
+        slug = known_icon_slug(alias)
+        if slug is None:
+            self.unknown_icons.add(str(raw_icon).strip().casefold()[:40] or "unknown")
+            slug = "unknown"
+        return (
+            f'<span class="moltex-block moltex-icon moltex-icon--{slug}" '
+            f'aria-hidden="true"{extra_style}></span>'
+        )
 
     @staticmethod
     def _container_defaults(attributes: dict[str, Any]) -> dict[str, Any]:

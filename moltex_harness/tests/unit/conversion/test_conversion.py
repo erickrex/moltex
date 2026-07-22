@@ -117,17 +117,30 @@ def test_gutenberg_comments_and_attributes_are_not_parsed_as_shortcodes() -> Non
     assert result.findings == ()
 
 
-def test_html_forms_are_replaced_and_escaped_shortcodes_remain_literal() -> None:
+def test_html_forms_are_preserved_and_neutralized() -> None:
     result = ShortcodeConverter().convert(
-        "<form><input value='secret'>Do not retain</form><p>[[gallery]]</p>",
+        "<form action='/send' onsubmit='steal()'>"
+        "<label>Email <input type='email' name='email' value='secret'></label>"
+        "<button type='submit'>Send</button>"
+        "Your message</form><p>[[gallery]]</p>",
         "content:contact",
     )
 
-    assert "Do not retain" not in result.html
-    assert "Form requires integration" in result.html
+    # The visual structure and labels are preserved.
+    assert '<form class="moltex-form" data-moltex-form="static"' in result.html
+    assert "Your message" in result.html
+    assert 'name="email"' in result.html
+    assert "Send" in result.html
+    # Submission behavior is stripped and cannot fire.
+    assert "onsubmit" not in result.html
+    assert "action" not in result.html
+    assert "steal" not in result.html
+    assert "secret" not in result.html
+    assert 'type="button"' in result.html
+    # Escaped shortcodes remain literal, and the form is reported as preserved.
     assert "[gallery]" in result.html
     assert not any(item.name == "gallery" for item in result.dispositions)
-    assert any(item.code == "form_placeholder" for item in result.findings)
+    assert any(item.code == "form_preserved" for item in result.findings)
 
 
 def test_sureforms_shortcode_renders_a_safe_native_form() -> None:
@@ -317,7 +330,7 @@ def test_converter_keeps_dynamic_core_blocks_explicit(golden_contracts) -> None:
     assert any(item.code == "gutenberg_blocks_unresolved" for item in receipt.findings)
 
 
-def test_converter_preserves_semantic_spectra_icon_glyphs(golden_contracts) -> None:
+def test_converter_renders_spectra_icon_as_local_svg_class(golden_contracts) -> None:
     record = golden_contracts.content_records[0].model_copy(
         update={
             "original_html": (
@@ -330,7 +343,11 @@ def test_converter_preserves_semantic_spectra_icon_glyphs(golden_contracts) -> N
         UrlRewriter(golden_contracts.site_spec.source_origin, {}, {})
     ).convert(record)
 
-    assert ">\u2193</span>" in receipt.sanitized_html
+    # The alias maps to a registered icon rendered via a CSS mask class, not a
+    # text glyph or bullet.
+    assert "moltex-icon--arrow-down" in receipt.sanitized_html
+    assert "\u2193" not in receipt.sanitized_html
+    assert "\u2022" not in receipt.sanitized_html
 
 
 def test_shortcode_parser_leaves_punctuation_brackets_as_text() -> None:
@@ -551,3 +568,22 @@ def test_generated_gutenberg_styles_reject_css_injection(golden_contracts) -> No
     assert "Safe" in receipt.sanitized_html
     assert "javascript" not in receipt.sanitized_html
     assert "position:fixed" not in receipt.sanitized_html
+
+
+def test_preserved_form_keeps_select_and_neutralizes_submit_input() -> None:
+    result = ShortcodeConverter().convert(
+        "<form>"
+        "<select name='topic'><option value='a'>Support</option>"
+        "<option value='b' selected>Sales</option></select>"
+        "<input type='submit' value='Go'>"
+        "</form>",
+        "content:contact",
+    )
+
+    assert "<select" in result.html
+    assert "Support" in result.html
+    assert "Sales" in result.html
+    # The submit input is downgraded to an inert button and its value dropped.
+    assert 'type="button"' in result.html
+    assert 'type="submit"' not in result.html
+    assert "Go" not in result.html

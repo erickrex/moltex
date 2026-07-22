@@ -22,10 +22,12 @@ from moltex_harness.conversion import (
 )
 from moltex_harness.intake.archive import ArchiveLimits, SafeArchive
 from moltex_harness.intake.serialization import deterministic_json, write_json
+from moltex_harness.conversion.icons import icon_mask_css
 from moltex_harness.intake.snapshot_shell import parse_snapshot_shell
 from moltex_harness.models import BaselineCompilationReport
 from moltex_harness.visuals import CaptureBackend, SourceVisualService
 
+from .css import collect_class_tokens, compile_observed_css
 from .media import AssetMaterializer, MediaFetcher
 from .toolchain import NODE_VERSION, NPM_VERSION
 
@@ -241,6 +243,9 @@ h6.moltex-content { --moltex-font-size: 16px; --moltex-line-height: 1.25; --molt
 .moltex-media-placeholder { display: block; min-height: 16rem; background: linear-gradient(135deg, #dbe3f3, #eef3fb 45%, #cbd7e9); }
 .listing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1.5rem; width: min(1200px, calc(100% - 3rem)); margin: 4rem auto; }
 .listing-card { border: 1px solid #dbe3f3; border-radius: .5rem; padding: 1.5rem; background: white; }
+.listing-card__media img { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: .375rem; display: block; margin-bottom: 1rem; }
+.listing-card time { display: block; color: #5b6b8c; font-size: .85rem; margin: .25rem 0 .5rem; }
+.listing-intro { margin-top: 3rem; }
 .typed-fields { width: min(1200px, calc(100% - 3rem)); margin: 3rem auto; }
 .route-content--post { width: min(900px, calc(100% - 3rem)); margin: 0 auto; padding-bottom: 4rem; }
 .route-content--post .route-title { width: 100%; padding-bottom: 1rem; }
@@ -694,12 +699,21 @@ class BaselineService:
             write_json(workspace / "src" / "content" / "records" / safe_name, document)
         write_json(workspace / ".moltex" / "receipts" / "conversion.json", receipts)
         self._write_block_inventory(workspace, receipts, contracts.routes)
+        observed_classes = collect_class_tokens(
+            [(receipt.record_id, receipt.sanitized_html) for receipt in receipts]
+        )
+        css_support = compile_observed_css(observed_classes)
+        write_json(
+            workspace / ".moltex" / "reports" / "css-support.json",
+            css_support.receipt(),
+        )
         shell_context = self._snapshot_shell_context(extraction, contracts)
         self._write_shell(
             workspace,
             contracts.site_spec.site_name,
             shell_context,
             extraction,
+            css_support.css,
         )
         self._write_navigation(workspace, contracts, routes_by_id, omitted_route_ids)
         posts = [
@@ -856,6 +870,7 @@ class BaselineService:
         site_name: str,
         shell_context: dict[str, Any] | None = None,
         source_bundle: Path | None = None,
+        utilities_css: str = "",
     ) -> None:
         shell_context = shell_context or {}
         write_json(
@@ -871,25 +886,10 @@ class BaselineService:
         styles = workspace / "src" / "styles" / "moltex.css"
         styles.parent.mkdir(parents=True, exist_ok=True)
         theme_tokens = shell_context.get("themeTokens", {})
-        token_lines = [
-            f"  {name}: {value};"
-            for name, value in sorted(theme_tokens.items())
-            if re.fullmatch(r"--[a-zA-Z0-9_-]{1,100}", str(name))
-        ]
-        for index in range(9):
-            source_name = f"--ast-global-color-{index}"
-            if source_name in theme_tokens:
-                token_lines.append(
-                    f"  --moltex-color-{index}: {theme_tokens[source_name]};"
-                )
-        token_css = (
-            "\n:root {\n" + "\n".join(token_lines) + "\n}\n"
-            if token_lines
-            else ""
-        )
+        token_css = BaselineService._theme_token_css(theme_tokens)
         font_face_css = BaselineService._font_face_css(source_bundle)
         styles.write_text(
-            font_face_css + BASELINE_STYLES + token_css,
+            font_face_css + BASELINE_STYLES + token_css + utilities_css + icon_mask_css(),
             encoding="utf-8",
         )
         component = workspace / "src" / "components" / "NavigationList.astro"
@@ -915,6 +915,64 @@ class BaselineService:
             '<main id="content"><slot /></main><footer class="site-footer"><div class="site-footer__inner"><p>{site.footer?.text || site.siteName}</p>{site.footer?.links?.length ? <nav aria-label="Footer"><ul>{site.footer.links.map((item) => <li><a href={item.url}>{item.label}</a></li>)}</ul></nav> : null}</div></footer></body></html>\n',
             encoding="utf-8",
         )
+
+    # Source theme variable names mapped onto Moltex typography tokens, in
+    # precedence order. The first present, safe value wins (workstream CSS3).
+    _BODY_FONT_SOURCES = (
+        "--wp--preset--font-family--body",
+        "--global-body-font-family",
+        "--body-font-family",
+        "--nv-fallback-ff",
+        "--e-global-typography-primary-font-family",
+    )
+    _HEADING_FONT_SOURCES = (
+        "--wp--preset--font-family--heading",
+        "--global-headings-font-family",
+        "--headings-font-family",
+        "--nv-primary-font",
+        "--e-global-typography-secondary-font-family",
+    )
+    _SAFE_FONT_VALUE = re.compile(r"^[a-zA-Z0-9 ,'\"_-]{1,120}$")
+
+    @staticmethod
+    def _theme_token_css(theme_tokens: dict[str, str]) -> str:
+        """Build the generated ``:root`` overrides from source theme evidence.
+
+        Safe source custom properties are passed through, the Astra global
+        palette is mapped onto Moltex color slots, and body/heading fonts are
+        derived from source evidence when present so baseline typography no
+        longer relies solely on hard-coded defaults.
+        """
+
+        token_lines = [
+            f"  {name}: {value};"
+            for name, value in sorted(theme_tokens.items())
+            if re.fullmatch(r"--[a-zA-Z0-9_-]{1,100}", str(name))
+        ]
+        for index in range(9):
+            source_name = f"--ast-global-color-{index}"
+            if source_name in theme_tokens:
+                token_lines.append(
+                    f"  --moltex-color-{index}: {theme_tokens[source_name]};"
+                )
+
+        def _first_safe_font(sources: tuple[str, ...]) -> str | None:
+            for name in sources:
+                value = theme_tokens.get(name)
+                if value and BaselineService._SAFE_FONT_VALUE.fullmatch(str(value)):
+                    return str(value)
+            return None
+
+        body_font = _first_safe_font(BaselineService._BODY_FONT_SOURCES)
+        if body_font:
+            token_lines.append(f"  --moltex-body-font: {body_font};")
+        heading_font = _first_safe_font(BaselineService._HEADING_FONT_SOURCES)
+        if heading_font:
+            token_lines.append(f"  --moltex-heading-font: {heading_font};")
+
+        if not token_lines:
+            return ""
+        return "\n:root {\n" + "\n".join(token_lines) + "\n}\n"
 
     @staticmethod
     def _font_face_css(source_bundle: Path | None) -> str:
@@ -990,6 +1048,9 @@ class BaselineService:
         media_targets = {
             entry.source_url: entry.target_url for entry in contracts.media_map
         }
+        url_targets = {
+            entry.source_url: entry.target_url for entry in contracts.url_map
+        }
         logo = next(iter(observed["media"]), None)
         cta = next(iter(observed["header_ctas"]), None)
         result: dict[str, Any] = {}
@@ -1000,7 +1061,11 @@ class BaselineService:
             }
         if cta:
             result["headerCta"] = {
-                "href": cta.get("url") or "#",
+                "href": BaselineService._rewrite_shell_url(
+                    cta.get("url") or "#",
+                    contracts.site_spec.source_origin,
+                    url_targets,
+                ),
                 "label": cta["label"],
             }
         result["headerNotice"] = observed.get("header_notice") or ""
@@ -1008,8 +1073,47 @@ class BaselineService:
         result["themeTokens"] = observed.get("theme_tokens", {})
         footer = observed.get("footer", {})
         if footer.get("text") or footer.get("links"):
-            result["footer"] = footer
+            result["footer"] = {
+                "text": footer.get("text", ""),
+                "links": [
+                    {
+                        **link,
+                        "url": BaselineService._rewrite_shell_url(
+                            link.get("url", "#"),
+                            contracts.site_spec.source_origin,
+                            url_targets,
+                        ),
+                    }
+                    for link in footer.get("links", [])
+                ],
+            }
         return result
+
+    @staticmethod
+    def _rewrite_shell_url(
+        value: str,
+        source_origin: str,
+        url_targets: dict[str, str],
+    ) -> str:
+        candidate = value.strip()
+        parsed = urlsplit(candidate)
+        source = urlsplit(source_origin)
+        if parsed.scheme in {"http", "https"}:
+            if parsed.netloc.casefold() != source.netloc.casefold():
+                return candidate
+            candidate = parsed.path or "/"
+            if parsed.query:
+                candidate += f"?{parsed.query}"
+            fragment = parsed.fragment
+        elif candidate.startswith("/"):
+            fragment = parsed.fragment
+            candidate = parsed.path or "/"
+            if parsed.query:
+                candidate += f"?{parsed.query}"
+        else:
+            return candidate
+        rewritten = url_targets.get(candidate, candidate)
+        return f"{rewritten}#{fragment}" if fragment else rewritten
 
     @staticmethod
     def _write_navigation(
@@ -1104,10 +1208,16 @@ class BaselineService:
             encoding="utf-8",
         )
         (route_components / "ListingRoute.astro").write_text(
-            "---\nconst { record, listingItems = [] } = Astro.props;\n---\n"
+            "---\nconst { record, listingItems = [] } = Astro.props;\n"
+            "const intro = (record.renderedHtml ?? '').replace(/<[^>]+>/g, '').trim();\n---\n"
             '<article class="route-content route-content--listing" data-record-id={record.recordId}>'
-            '<h1 class="route-title">{record.title}</h1><div class="content" set:html={record.renderedHtml} />'
-            '<section class="listing-grid" aria-label="Listings">{listingItems.map((item) => <article class="listing-card" data-record-id={item.recordId}><h2>{item.targetUrl ? <a href={item.targetUrl}>{item.title}</a> : item.title}</h2>{item.excerpt ? <p>{item.excerpt}</p> : null}</article>)}</section>'
+            '<header class="listing-header"><h1 class="route-title">{record.title}</h1></header>'
+            '<section class="listing-grid" aria-label="Listings">{listingItems.map((item) => <article class="listing-card" data-record-id={item.recordId}>'
+            '{item.media?.length ? <a class="listing-card__media" href={item.targetUrl ?? "#"}><img src={item.media[0].src} alt={item.media[0].alt} loading="lazy" /></a> : null}'
+            '<div class="listing-card__body"><h2>{item.targetUrl ? <a href={item.targetUrl}>{item.title}</a> : item.title}</h2>'
+            '{item.publishedAt ? <time datetime={item.publishedAt}>{item.publishedAt}</time> : null}'
+            '{item.excerpt ? <p>{item.excerpt}</p> : null}</div></article>)}</section>'
+            '{intro ? <div class="content listing-intro" set:html={record.renderedHtml} /> : null}'
             "</article>\n",
             encoding="utf-8",
         )

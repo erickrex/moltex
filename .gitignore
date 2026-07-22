@@ -36,6 +36,7 @@ vendor/
 .moltex/
 output/
 visual-comparisons/
+visual_comparisons/
 moltex_exporter/tests/wordpress/output/
 moltex_exporter/tests/wordpress/golden-output/
 moltex_exporter/tests/wordpress/release-output/

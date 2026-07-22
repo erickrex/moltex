@@ -226,6 +226,35 @@ class ShortcodeConverter:
         return attributes
 
 
+_SUBMIT_TYPES = {"submit", "image", "reset", "button"}
+_FORM_DROP_ATTRS = {"action", "formaction", "method", "value", "src", "srcset", "form"}
+
+
+def _neutralize_form_control(tag: str, attrs: list[tuple[str, str | None]]) -> str:
+    """Rebuild a start tag inside a preserved form with submission neutralized.
+
+    Event handlers, submission targets, and pre-filled values are dropped, and
+    submit/image/reset controls are downgraded to inert buttons so the static
+    baseline cannot send data before an integration is approved.
+    """
+
+    safe: list[tuple[str, str]] = []
+    for name, value in attrs:
+        lowered = name.lower()
+        if lowered.startswith("on") or lowered in _FORM_DROP_ATTRS:
+            continue
+        safe.append((lowered, value or ""))
+    if tag in {"input", "button"}:
+        rebuilt = dict(safe)
+        if tag == "button" or rebuilt.get("type", "text").lower() in _SUBMIT_TYPES:
+            rebuilt["type"] = "button"
+        safe = list(rebuilt.items())
+    rendered = "".join(
+        f' {key}="{html.escape(str(value), quote=True)}"' for key, value in safe
+    )
+    return f"<{tag}{rendered}>"
+
+
 class _HtmlShortcodeParser(HTMLParser):
     """Apply shortcode parsing only to visible text, never comments or attributes."""
 
@@ -245,25 +274,33 @@ class _HtmlShortcodeParser(HTMLParser):
         self.form_depth = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag.lower() == "form":
+        normalized = tag.lower()
+        if normalized == "form":
             self.form_depth += 1
             if self.form_depth == 1:
+                # Preserve the form's visual structure but strip its submission
+                # behavior. A separate integration decision governs whether it
+                # can ever send data.
                 self.output.append(
-                    '<div class="moltex-placeholder" data-shortcode="html-form">'
-                    "Form requires integration</div>"
+                    '<form class="moltex-form" data-moltex-form="static" '
+                    'role="form" aria-label="Contact form">'
                 )
-                self.counts[("html-form", "placeholder")] += 1
+                self.counts[("html-form", "preserved")] += 1
                 self.findings.append(
                     ConversionFinding(
-                        severity="warning",
-                        code="form_placeholder",
+                        severity="info",
+                        code="form_preserved",
                         classification="blocked",
                         subject_id=self.subject_id,
-                        message="An HTML form is represented by a safe baseline placeholder",
+                        message=(
+                            "An HTML form is preserved as a static baseline; "
+                            "submission requires an approved integration"
+                        ),
                     )
                 )
             return
         if self.form_depth:
+            self.output.append(_neutralize_form_control(normalized, attrs))
             return
         start_tag = self.get_starttag_text()
         if start_tag is not None:
@@ -273,21 +310,27 @@ class _HtmlShortcodeParser(HTMLParser):
         self, tag: str, attrs: list[tuple[str, str | None]]
     ) -> None:
         if self.form_depth:
+            self.output.append(_neutralize_form_control(tag.lower(), attrs))
             return
         start_tag = self.get_starttag_text()
         if start_tag is not None:
             self.output.append(start_tag)
 
     def handle_endtag(self, tag: str) -> None:
-        if tag.lower() == "form" and self.form_depth:
+        normalized = tag.lower()
+        if normalized == "form" and self.form_depth:
             self.form_depth -= 1
+            if self.form_depth == 0:
+                self.output.append("</form>")
             return
         if self.form_depth:
+            self.output.append(f"</{normalized}>")
             return
         self.output.append(f"</{tag}>")
 
     def handle_data(self, data: str) -> None:
         if self.form_depth:
+            self.output.append(html.escape(data))
             return
         self.output.append(
             self.converter._convert_range(
@@ -296,13 +339,9 @@ class _HtmlShortcodeParser(HTMLParser):
         )
 
     def handle_entityref(self, name: str) -> None:
-        if self.form_depth:
-            return
         self.output.append(f"&{name};")
 
     def handle_charref(self, name: str) -> None:
-        if self.form_depth:
-            return
         self.output.append(f"&#{name};")
 
     def handle_decl(self, decl: str) -> None:

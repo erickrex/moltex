@@ -32,12 +32,12 @@ The phase labels `H1`–`H6` and the module that owns each step:
 ## Diagram 1 — End-to-end migration
 
 ```mermaid
-flowchart LR
+flowchart TB
     WP["WordPress site"] --> EX["Export<br/>moltex_exporter"]
     EX --> ZIP["Evidence ZIP"]
 
     subgraph CORE["Deterministic core — moltex create-site"]
-        direction LR
+        direction TB
         INTAKE["H1 Intake<br/>parse ZIP safely"]
         CONTRACTS["H2 Contracts<br/>canonical migration facts"]
         CAPTURE["Source capture<br/>screenshots + availability"]
@@ -51,7 +51,7 @@ flowchart LR
     PLAN --> PUB["Published workspace"]
 
     subgraph REBUILD["Agentic reconstruction"]
-        direction LR
+        direction TB
         CODEX["Codex completes tasks"]
         VERIFY["H5 independent verifier"]
         CODEX --> VERIFY

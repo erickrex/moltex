@@ -69,6 +69,21 @@ def test_shell_renders_evidence_linked_logo_and_header_cta(tmp_path) -> None:
     assert "--moltex-color-0: #123456" in styles
 
 
+def test_shell_url_rewriter_localizes_same_origin_routes() -> None:
+    url_map = {"/about/": "/company/"}
+
+    assert BaselineService._rewrite_shell_url(
+        "https://example.test/about/#team",
+        "https://example.test/",
+        url_map,
+    ) == "/company/#team"
+    assert BaselineService._rewrite_shell_url(
+        "https://external.test/about/",
+        "https://example.test/",
+        url_map,
+    ) == "https://external.test/about/"
+
+
 def test_shell_rebuilds_only_safe_font_faces_from_theme_evidence(tmp_path) -> None:
     rendered = tmp_path / "bundle/theme/rendered"
     rendered.mkdir(parents=True)

@@ -23,7 +23,7 @@ ALLOWED_TAGS = {
     "a", "abbr", "article", "aside", "blockquote", "br", "caption", "code", "col", "colgroup",
     "dd", "del", "details", "div", "dl", "dt", "em", "figcaption", "figure",
     "h1", "h2", "h3", "h4", "h5", "h6", "hr", "img", "li", "mark", "ol",
-    "button", "footer", "form", "header", "input", "label", "main", "nav", "p", "picture", "pre", "q", "s", "section", "small", "source", "span", "strong", "textarea",
+    "button", "fieldset", "footer", "form", "header", "input", "label", "legend", "main", "nav", "option", "p", "picture", "pre", "q", "s", "section", "select", "small", "source", "span", "strong", "textarea",
     "sub", "summary", "sup", "table", "tbody", "td", "tfoot", "th", "thead",
     "time", "tr", "u", "ul",
 }
@@ -39,10 +39,21 @@ ALLOWED_ATTRIBUTES = {
     "td": {"colspan", "rowspan"},
     "th": {"colspan", "rowspan", "scope"},
     "div": {"data-shortcode", "data-moltex-evidence", "data-moltex-capability", "data-moltex-decision"},
-    "form": {"data-shortcode", "data-source-form"},
-    "input": {"type", "name", "autocomplete", "required"},
-    "textarea": {"name", "rows", "required"},
-    "button": {"type"},
+    "form": {"data-shortcode", "data-source-form", "data-moltex-form"},
+    "input": {
+        "type", "name", "autocomplete", "required", "placeholder", "checked",
+        "min", "max", "minlength", "maxlength", "step", "pattern", "readonly",
+        "disabled", "inputmode",
+    },
+    "textarea": {
+        "name", "rows", "cols", "required", "placeholder", "maxlength",
+        "minlength", "readonly", "disabled",
+    },
+    "select": {"name", "required", "multiple", "disabled"},
+    "option": {"value", "selected", "disabled", "label"},
+    "label": {"for"},
+    "fieldset": {"disabled"},
+    "button": {"type", "disabled"},
 }
 COMPLEX_TAG = re.compile(r"<(?:table|picture|details)\b", re.I)
 DYNAMIC_MEDIA_PLACEHOLDERS = {"placeholder-image.jpg"}
@@ -129,6 +140,17 @@ class ContentConverter:
                     subject_id=record.record_id,
                     message="Dynamic or unsupported Gutenberg blocks still require target behavior",
                     context={"blocks": blocks.unresolved_blocks},
+                )
+            )
+        if blocks.unknown_icons:
+            findings.append(
+                ConversionFinding(
+                    severity="warning",
+                    code="icon_unresolved",
+                    classification="blocked",
+                    subject_id=record.record_id,
+                    message="Unknown icon names rendered a neutral local fallback and need a registered SVG",
+                    context={"icons": list(blocks.unknown_icons)},
                 )
             )
         rewritten_count = blocks.rewritten_urls
