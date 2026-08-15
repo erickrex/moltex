@@ -406,8 +406,24 @@ class Moltex_Exporter_Admin_Page {
 			) );
 		} else {
 			// Format error message with helpful context
-			$error_message = isset( $result['error'] ) ? $result['error'] : 'The export did not produce a validated download.';
-			
+			$error_message = isset( $result['error'] ) && '' !== $result['error']
+				? $result['error']
+				: 'The export did not produce a validated download.';
+
+			// Surface the most relevant logged reason so the operator is not
+			// forced to enable WP_DEBUG to learn why packaging was refused.
+			if ( ! isset( $result['error'] ) || '' === $result['error'] ) {
+				$logged = isset( $result['errors'] ) && is_array( $result['errors'] ) ? $result['errors'] : array();
+				foreach ( array_reverse( $logged ) as $entry ) {
+					$component = isset( $entry['component'] ) ? $entry['component'] : '';
+					$detail    = isset( $entry['message'] ) ? trim( (string) $entry['message'] ) : '';
+					if ( '' !== $detail && in_array( $component, array( 'packager', 'exporter' ), true ) ) {
+						$error_message .= sprintf( ' Reason (%s): %s', $component, $detail );
+						break;
+					}
+				}
+			}
+
 			// Add troubleshooting tips
 			$error_message .= ' ' . 'Please check the WordPress debug log for more details.';
 

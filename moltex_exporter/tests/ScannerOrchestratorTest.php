@@ -63,4 +63,43 @@ class ScannerOrchestratorTest extends TestCase {
 		$this->assertStringNotContainsString( 'Approaching execution time limit', $source );
 		$this->assertStringNotContainsString( '$elapsed_time / $max_execution_time', $source );
 	}
+
+	/**
+	 * A failed packaging step must not be reported as a successful scan.
+	 *
+	 * The validated ZIP is a required artifact. Before this regression fix the
+	 * packaging failure was logged and discarded, so the admin response fell
+	 * back to a generic "did not produce a validated download" message with no
+	 * reason attached.
+	 */
+	public function test_packaging_failure_propagates_success_false_and_reason() {
+		$source = file_get_contents( MOLTEX_PLUGIN_DIR . '/includes/class-scanner.php' );
+
+		$packaging_branch = substr(
+			$source,
+			(int) strpos( $source, '$package_result = $this->package_artifacts();' )
+		);
+		$packaging_branch = substr( $packaging_branch, 0, (int) strpos( $packaging_branch, 'return $result;' ) );
+
+		$this->assertStringContainsString( "\$result['success'] = false;", $packaging_branch );
+		$this->assertStringContainsString( "\$result['error']", $packaging_branch );
+
+		// The export/packaging failure must short-circuit run_scan instead of
+		// continuing on to report a completed scan.
+		$this->assertStringContainsString( "'error'    => \$export_error,", $source );
+		$this->assertStringNotContainsString(
+			"\$this->log_error( 'exporter', 'Failed to export data', 'error' );",
+			$source
+		);
+	}
+
+	/**
+	 * The admin notice must expose the logged reason without requiring WP_DEBUG.
+	 */
+	public function test_admin_error_message_includes_logged_packager_reason() {
+		$source = file_get_contents( MOLTEX_PLUGIN_DIR . '/includes/class-admin-page.php' );
+
+		$this->assertStringContainsString( "' Reason (%s): %s'", $source );
+		$this->assertStringContainsString( "array( 'packager', 'exporter' )", $source );
+	}
 }

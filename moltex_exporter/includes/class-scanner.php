@@ -385,7 +385,30 @@ class Moltex_Exporter_Scanner {
 			$export_result = $this->export_data();
 
 			if ( ! $export_result['success'] ) {
-				$this->log_error( 'exporter', 'Failed to export data', 'error' );
+				$export_error = isset( $export_result['error'] ) && '' !== $export_result['error']
+					? $export_result['error']
+					: 'Failed to export data';
+				$this->log_error( 'exporter', $export_error, 'error' );
+
+				// Export and packaging produce required artifacts. Surface the
+				// classified reason instead of completing as a successful scan
+				// with no validated download.
+				$this->update_progress(
+					'failed',
+					100,
+					sprintf( 'Export failed: %s', $export_error ),
+					false,
+					$export_error
+				);
+				$this->store_results();
+
+				return array(
+					'success'  => false,
+					'error'    => $export_error,
+					'results'  => $this->results,
+					'errors'   => $this->get_errors(),
+					'warnings' => $this->get_warnings(),
+				);
 			}
 
 			// Store download information in results
@@ -982,7 +1005,16 @@ class Moltex_Exporter_Scanner {
 					$result['zip_filename'] = $package_result['zip_filename'];
 					$result['zip_size'] = $package_result['zip_size'];
 				} else {
-					$this->log_error( 'packager', $package_result['error'], 'error' );
+					$package_error = isset( $package_result['error'] ) && '' !== $package_result['error']
+						? $package_result['error']
+						: 'Packaging failed without a reported reason.';
+					$this->log_error( 'packager', $package_error, 'error' );
+
+					// The validated ZIP is a required artifact. Report the real
+					// packaging reason instead of returning a successful scan
+					// that produced no download.
+					$result['success'] = false;
+					$result['error']   = $package_error;
 				}
 			}
 

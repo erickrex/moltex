@@ -809,7 +809,7 @@ class Moltex_Exporter_Exporter {
 
 		return array(
 			'created_at'       => gmdate( 'c' ),
-			'exporter_version' => defined( 'MOLTEX_EXPORTER_VERSION' ) ? MOLTEX_EXPORTER_VERSION : '1.3.0',
+			'exporter_version' => defined( 'MOLTEX_EXPORTER_VERSION' ) ? MOLTEX_EXPORTER_VERSION : '1.3.1',
 			'mode'             => isset( $content['export_mode'] ) && 'discovery' === $content['export_mode'] ? 'discovery' : 'complete',
 			'site_origin'      => $site_origin,
 			'site_identity'    => Moltex_Exporter_Site_Identity::from_values( $site_origin, $site_name ),

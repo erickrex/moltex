@@ -4,7 +4,7 @@ Tags: migration, export, astro, static-site
 Requires at least: 5.9
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -45,6 +45,11 @@ No. Transactional, account-heavy, multisite, and unknown custom behavior can pro
 blockers or manual-review items.
 
 == Changelog ==
+
+= 1.3.1 =
+* Reported the real packaging and bundle-validation reason when an export cannot produce a validated download.
+* Stopped completing a scan as successful when export or packaging failed to produce the required ZIP.
+* Surfaced the logged packager or exporter reason in the admin notice without requiring WP_DEBUG.
 
 = 1.3.0 =
 * Added a bounded legacy evidence index for inactive, removed, and unknown plugin data that still affects public content.
