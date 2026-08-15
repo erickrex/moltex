@@ -20,6 +20,9 @@ as a current component. Do not create a third implementation project.
   Golden Path, and end-to-end acceptance.
 - `moltex_harness.md` owns safe intake, canonical models, conversion, Astro generation,
   Codex workspace planning, verification, lifecycle, mutations, and evals.
+- `GDirectory_replatforming.md` separately owns the proposed GeoDirectory-to-Payload
+  product and implementation roadmap. Do not copy that roadmap into `moltex.md` or
+  `moltex_harness.md` unless the user explicitly merges the products again.
 
 Keep responsibilities in the owning document. Cross-link instead of duplicating detailed
 requirements.
