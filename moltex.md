@@ -26,7 +26,7 @@ authoritative; the harness implementation must be updated to consume that bounda
 - Product name: **Moltex**
 - Exporter project: `moltex_exporter`
 - Harness project: `moltex_harness`
-- Current exporter release candidate: **1.3.0**
+- Current exporter release candidate: **1.3.1**
 - Current export contract: **`moltex-export/1`**
 - Target output: Git-managed Astro 5 static site
 - Primary implementation surface: Codex Desktop working on a generated repository
@@ -360,7 +360,7 @@ payloads below `legacy/`.
   "manifest_version": 1,
   "bundle_id": "sha256:...",
   "created_at": "2026-07-18T11:00:00Z",
-  "exporter_version": "1.3.0",
+  "exporter_version": "1.3.1",
   "mode": "complete",
   "site_origin": "https://example.test",
   "site_identity": {
@@ -850,7 +850,7 @@ adapter for breaking changes.
 
 ### Release behavior drifts beyond the last live WordPress receipt
 
-Mitigation: keep the 1.3.0 unit/regression and reproducible-release gates green, then run the
+Mitigation: keep the 1.3.1 unit/regression and reproducible-release gates green, then run the
 install-from-ZIP smoke and staging-clone pilot before making production claims for a newer
 release.
 
@@ -905,7 +905,7 @@ Moltex is ready for submission only when:
 ## Current Next Actions
 
 1. Treat exporter phases E1-E3 as accepted maintenance gates, not open implementation work.
-2. After committing and reproducibly building 1.3.0, pilot its release ZIP on a supported
+2. After committing and reproducibly building 1.3.1, pilot its release ZIP on a supported
    staging clone using the checked-in runbook; validate the downloaded bundle and review
    privacy/readiness evidence before production.
 3. Keep the PHPUnit suite, standalone regressions, synthetic bundle, legacy fixture, and

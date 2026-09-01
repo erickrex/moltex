@@ -1,181 +1,155 @@
+<p>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/assets/moltex-wordmark-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="./docs/assets/moltex-wordmark-light.svg">
+    <img alt="Moltex. WordPress out. Astro in. Evidence stays attached." src="./docs/assets/moltex-wordmark-light.svg" width="720">
+  </picture>
+</p>
+
 # Moltex
 
-> **Moltex, the last WP plugin, rebuild your website in Astro JS using Codex.**
+[![Exporter 1.3.1](https://img.shields.io/badge/exporter-1.3.1-EA5B33)](./moltex_exporter/)
+[![MIT license](https://img.shields.io/badge/license-MIT-1D2433)](./LICENSE)
 
-WordPress powers more than 40% of the web. Moltex is our plan to rebuild that web for
-the next generation: fast, portable, Git-managed Astro websites created with Codex.
+**Move a content-led WordPress site into Astro without pretending that copying posts is
+the whole migration.**
 
-Moltex turns an existing WordPress site into structured migration evidence, compiles
-that evidence into a safe Astro 5 workspace, and gives Codex a bounded, verifiable plan
-for completing the rebuild. The result is not another WordPress layer. It is a path out
-of WordPress.
+Moltex exports source evidence, compiles it into versioned migration contracts, generates
+an Astro repository, and gives Codex a bounded list of work that still needs judgment. A
+separate verifier checks the result. The generated website has no WordPress or Moltex
+runtime dependency.
 
-## One last plugin
+> [!NOTE]
+> Moltex is in active development. The exporter source is at 1.3.1, and the harness can run the
+> supported fixture through intake, contract compilation, Astro generation, planning, and
+> baseline verification. A fresh supported staging pilot is still required before a
+> production-readiness claim.
 
-Install Moltex Exporter in WordPress, export a migration blueprint, and let the local
-Moltex harness do the rest:
+## Run the pipeline
 
-1. **Capture the site.** The exporter records public content, routes, menus, media,
-   SEO data, theme and plugin evidence, custom content structures, and source visuals.
-2. **Compile the blueprint.** The harness validates the archive, normalizes its data,
-   and turns WordPress-specific observations into explicit migration contracts.
-3. **Build in Astro.** Moltex creates a self-contained Astro 5 repository with local
-   content and assets—without requiring WordPress at runtime.
-4. **Finish with Codex.** Codex receives scoped tasks, source evidence, and visual
-   references instead of an ambiguous instruction to “copy this website.”
-5. **Verify the result.** A generated, independent verifier checks routes, assets,
-   behavior, build health, and visual parity.
+Build the installable exporter ZIP from a clean commit:
 
-```mermaid
-flowchart LR
-    WP["Your WordPress site"] --> EX["Moltex Exporter"]
-    EX --> ZIP["Migration blueprint ZIP"]
-    ZIP --> H["Moltex Harness"]
-    H --> ASTRO["Astro 5 repository"]
-    H --> TASKS["Evidence-linked Codex tasks"]
-    ASTRO --> CODEX["Codex"]
-    TASKS --> CODEX
-    CODEX --> VERIFY["Independent verification"]
-    VERIFY --> SITE["Fast, Git-managed website"]
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File moltex_exporter/tools/build-release.ps1
 ```
 
-## Rebuilding 40% of the web
-
-This is deliberately ambitious. WordPress is used by more than 40% of all websites,
-which makes migration one of the largest modernization opportunities on the web.
-Moltex is being built to make that migration repeatable instead of artisanal: observe
-the source, preserve the evidence, generate the new foundation, let Codex perform
-bounded implementation work, and verify every result.
-
-We are starting with content-led sites—brochure sites, blogs, portfolios, directories,
-and similar publishing experiences—because they are both widespread and well suited to
-Astro. More complex WordPress applications will be added through explicit, tested
-adapters rather than optimistic best-effort conversion.
-
-The “more than 40%” figure reflects W3Techs reporting that WordPress is used by roughly
-41% of websites. See [current WordPress usage statistics](https://w3techs.com/technologies/comparison/cm-wordpress).
-
-## Why Moltex
-
-- **Leave WordPress behind.** The generated Astro repository becomes the source of
-  truth; the production site does not call WordPress or Moltex at runtime.
-- **Keep what matters.** Content, media relationships, routes, metadata, menus, plugin
-  evidence, and visual references travel together in a versioned blueprint.
-- **Make Codex effective.** Work is split into bounded tasks with evidence, dependencies,
-  acceptance checks, and protected contracts.
-- **Verify instead of guessing.** The generated repository includes its own Node-based
-  verifier and stable machine-readable reports.
-- **Own the result.** The rebuilt site is a normal Git-managed Astro project with a
-  committed lockfile and local assets.
-- **Repeat safely.** Every export incarnation receives its own domain-and-timestamp
-  workspace, so repeated rebuilds of the same WordPress domain cannot contaminate one
-  another.
-
-## The two-part system
-
-Moltex contains exactly two internal projects:
-
-- [`moltex_exporter`](./moltex_exporter/) is the WordPress plugin. It observes the source
-  site and produces a privacy-filtered, versioned evidence ZIP. It does not generate
-  Astro or make target-architecture decisions.
-- [`moltex_harness`](./moltex_harness/) is the local migration system. It safely reads
-  the export, compiles canonical contracts, acquires approved public assets, generates
-  the Astro/Codex workspace, runs the build, creates the migration task graph, and
-  verifies the result.
-
-The ZIP is the boundary. This keeps source observation separate from migration judgment
-and makes every rebuild inspectable and reproducible.
-
-## Try the pipeline
-
-The normal operator workflow is one command:
+Install `dist/moltex-exporter-1.3.1.zip` on a staging copy of the WordPress site, run a
+complete export, and review the downloaded ZIP for private data. Then run:
 
 ```bash
 uv sync --project moltex_harness
-uv run --project moltex_harness moltex create-site path/to/migration-artifacts.zip
+uv run --project moltex_harness moltex create-site path/to/moltex-export.zip
 ```
 
-Moltex reads the website identity and export time from the blueprint and creates a
-contained workspace such as:
+Moltex writes a new repository under `output/<site-and-export-time>/`. It contains the
+Astro source, localized media, source contracts, Codex task graph, verification scripts,
+and machine-readable reports.
 
-```text
-output/example-com-2026-07-21_17-51-13/
-```
-
-Inside that folder is the complete generated website, its contracts, reports, Codex
-task graph, verifier, source evidence references, and committed Node configuration.
-
-Generated workspaces use Node 24.14.0 and npm 10.9.2 exactly:
+Generated workspaces pin Node 24.14.0 and npm 10.9.2:
 
 ```bash
-cd output/example-com-2026-07-21_17-51-13
+cd output/<site-and-export-time>
 npm ci
 npm run build
 npm run verify
 ```
 
-## What “built” means
+## How it works
 
-Moltex is evidence-driven and intentionally honest about completion.
+```mermaid
+flowchart LR
+    WP["WordPress site"] --> EX["Moltex Exporter"]
+    EX --> ZIP["Checksummed evidence ZIP"]
+    ZIP --> CONTRACTS["Versioned migration contracts"]
+    CONTRACTS --> ASTRO["Astro repository"]
+    CONTRACTS --> TASKS["Evidence-linked Codex tasks"]
+    ASTRO --> VERIFY["Independent verifier"]
+    TASKS --> VERIFY
+```
 
-A successful baseline build means the export was accepted, contracts were compiled,
-approved assets were localized, the Astro repository built successfully, and baseline
-verification passed. If plugin behavior, custom fields, dynamic listings, forms, or
-visual differences still require implementation, Moltex records them as explicit Codex
-tasks. It never turns missing migration work into a silent green check.
+Moltex has two internal projects:
 
-## Current scope
+- [`moltex_exporter`](./moltex_exporter/) is a read-only WordPress plugin. It records the
+  site and packages a privacy-filtered, checksummed `moltex-export/1` archive.
+- [`moltex_harness`](./moltex_harness/) validates that archive, compiles canonical
+  contracts, acquires approved public assets, generates Astro, plans the remaining work,
+  and verifies the output.
 
-The current Golden Path focuses on content-led WordPress sites using native Gutenberg
-blocks and supported block/plugin evidence. Custom post types, custom fields, and plugin
-residue are retained and classified so migration-relevant data is not lost merely
-because a plugin is inactive.
+The ZIP is the boundary between observation and migration decisions. The exporter never
+generates Astro code. The harness never reads the live WordPress database.
 
-Transactional applications—including ecommerce, memberships, communities, learning
-systems, bookings, and multisite—require dedicated adapters and must currently produce
-explicit readiness blockers. Elementor and Divi are also outside complete-migration
-support until each has an accepted adapter and fixture suite. See the
-[authoritative support matrix](./moltex.md#authoritative-support-matrix).
+## What Moltex preserves
 
-Moltex Exporter 1.3.0 is the current plugin release. The harness currently implements
-safe intake, canonical contracts, content conversion, local media acquisition, source
-visuals, Astro generation, Codex planning, lifecycle/eval orchestration, and the atomic
-`create-site` workflow.
+- Published content, custom post types, taxonomies, routes, menus, media relationships,
+  SEO data, and redirects
+- Plugin, theme, custom-field, shortcode, form, and integration evidence needed to decide
+  what must be reproduced or replaced
+- Source lineage for generated contracts and explicit findings where the source evidence
+  does not support an automatic decision
+- A task graph with protected files, dependencies, acceptance commands, and evidence for
+  each piece of remaining migration work
 
-## Repository layout
+## Current support
+
+| Source site | Current result |
+| --- | --- |
+| Classic or Gutenberg content-led site | Eligible, subject to migration tasks and verification |
+| Static ACF fields | Preserved through typed contracts within declared fields |
+| Tested GeoDirectory listing data | Preserved; interactive directory behavior still requires explicit replacement work |
+| Forms, custom shortcodes, or external integrations | Recorded as blocking decisions until a target is chosen |
+| Elementor or Divi | Ineligible for complete migration until a dedicated adapter exists |
+| Ecommerce, memberships, LMS, bookings, or multisite | Ineligible for the current static profile |
+
+Moltex fails closed when the evidence exceeds its support boundary. It does not turn
+rendered HTML into a false claim of feature parity. See the
+[support and readiness report](./docs/support-readiness.md) for the executable rules.
+
+## What verification means
+
+A green baseline proves that Moltex accepted the export, compiled the contracts, localized
+approved assets, built the Astro repository, and passed the generated checks. It does not
+mean every plugin behavior or visual detail was recreated. Moltex records that work as
+explicit tasks instead of hiding it behind a successful content import.
+
+The repository includes reviewed evidence for:
+
+- reproducible exporter release packaging;
+- hostile archive and privacy checks;
+- route, asset, SEO, redirect, accessibility, and visual verification;
+- mutation tests that insert known defects and require the verifier to identify them.
+
+Start with the [previous release-readiness receipt](./docs/verification/x7-release-readiness-receipt.md)
+and the [export bundle contract](./docs/export-bundle-contract.md).
+
+## Repository map
 
 ```text
-moltex_exporter/       WordPress evidence-export plugin
-moltex_harness/        Local migration, generation, planning, and verification system
-samples/               Sanitized fixtures used by tests and evals
-docs/                  Bundle contracts and supporting documentation
-moltex.md              Product, exporter, and end-to-end acceptance plan
+moltex_exporter/       WordPress evidence exporter
+moltex_harness/        Intake, conversion, generation, planning, and verification
+samples/               Sanitized export fixtures
+docs/                  Contracts, readiness rules, and verification receipts
+moltex.md              Product scope and exporter plan
 moltex_harness.md      Harness implementation and verification plan
-AGENTS.md              Repository development guidance
 ```
+
+The separate [GeoDirectory replatforming proposal](./GDirectory_replatforming.md) targets
+Payload CMS and Astro. It is not part of the current content-led Moltex pipeline.
 
 ## Development
 
-Harness development uses Python 3.11+, `uv`, pytest, Pydantic, Astro 5, Node, and
-Playwright:
+Harness development uses Python 3.11 and `uv`:
 
 ```bash
 uv sync --project moltex_harness
 uv run --project moltex_harness pytest
-uv run --project moltex_harness moltex --help
+uv run --project moltex_harness ruff check moltex_harness/src moltex_harness/tests
+uv run --project moltex_harness mypy --config-file moltex_harness/pyproject.toml moltex_harness/src/moltex_harness
 ```
 
-Exporter development uses PHP, Composer, PHPUnit, standalone regression scripts, and
-disposable WordPress installations. The versioned artifact format is documented in
-[`docs/export-bundle-contract.md`](./docs/export-bundle-contract.md).
-
-Implementation details and acceptance gates live in:
-
-- [`moltex.md`](./moltex.md) — product scope, exporter contract, Golden Path, and
-  end-to-end acceptance.
-- [`moltex_harness.md`](./moltex_harness.md) — intake, canonical models, conversion,
-  generation, Codex planning, verification, mutations, and evals.
+Exporter development uses PHP, Composer, PHPUnit, standalone regressions, and disposable
+WordPress installations. See the [exporter test guide](./moltex_exporter/tests/README.md).
 
 ## License
 
-See [`LICENSE`](./LICENSE) and the component-specific licensing files.
+Moltex is available under the [MIT License](./LICENSE). The WordPress exporter includes its
+own component license.

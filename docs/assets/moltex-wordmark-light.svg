@@ -1,0 +1,12 @@
+<svg width="1200" height="300" viewBox="0 0 1200 300" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Moltex</title>
+  <desc id="desc">WordPress out. Astro in. Evidence stays attached.</desc>
+  <rect width="1200" height="300" rx="28" fill="#F5F1E8"/>
+  <rect x="52" y="52" width="196" height="196" rx="42" fill="#171B24"/>
+  <path d="M95 102L150 150L95 198" stroke="#F5F1E8" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M205 102L150 150L205 198" stroke="#EA5B33" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="298" y="154" fill="#171B24" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="108" font-weight="760" letter-spacing="-5">Moltex</text>
+  <text x="303" y="205" fill="#596171" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="27" font-weight="520" letter-spacing="0.4">WORDPRESS OUT. ASTRO IN. EVIDENCE STAYS ATTACHED.</text>
+  <circle cx="1096" cy="74" r="17" fill="#EA5B33"/>
+  <circle cx="1143" cy="74" r="17" fill="#171B24"/>
+</svg>
