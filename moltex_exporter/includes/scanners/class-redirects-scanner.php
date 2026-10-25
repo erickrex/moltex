@@ -239,9 +239,15 @@ class Moltex_Exporter_Redirects_Scanner extends Moltex_Exporter_Scanner_Base {
 	private function export_plugin_redirects() {
 		$redirects = array();
 
-		// Export from Redirection plugin
-		if ( class_exists( 'Red_Item' ) ) {
-			$redirects['redirection'] = $this->export_redirection_plugin();
+		// Export from Redirection plugin. Detected by its table, so a deactivated
+		// plugin's rules are still evidence (F2).
+		$redirection = $this->export_redirection_plugin();
+		if ( ! empty( $redirection ) || class_exists( 'Red_Item' ) ) {
+			$redirects['redirection'] = $redirection;
+		}
+		$redirection_full = $this->export_redirection_full();
+		if ( ! empty( $redirection_full ) ) {
+			$redirects['redirection_full'] = $redirection_full;
 		}
 
 		// Export from Simple 301 Redirects
@@ -302,6 +308,92 @@ class Moltex_Exporter_Redirects_Scanner extends Moltex_Exporter_Scanner_Base {
 		}
 
 		return $redirects;
+	}
+
+	/**
+	 * Every Redirection rule in every status and group, plus aggregated 404s.
+	 *
+	 * 404 rows are grouped by URL; IP, user agent and referrer are not exported.
+	 *
+	 * @return array
+	 */
+	private function export_redirection_full() {
+		global $wpdb;
+		$items_table = $wpdb->prefix . 'redirection_items';
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $items_table ) ) !== $items_table ) {
+			return array();
+		}
+		$groups = array();
+		$groups_table = $wpdb->prefix . 'redirection_groups';
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $groups_table ) ) === $groups_table ) {
+			$safe_groups = esc_sql( $groups_table );
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			foreach ( (array) $wpdb->get_results( "SELECT id, name, module_id, status, position FROM `{$safe_groups}` ORDER BY position, id", ARRAY_A ) as $row ) {
+				$groups[] = array(
+					'id'        => (int) $row['id'],
+					'name'      => (string) $row['name'],
+					'module_id' => isset( $row['module_id'] ) ? (int) $row['module_id'] : 0,
+					'status'    => isset( $row['status'] ) ? (string) $row['status'] : '',
+					'position'  => isset( $row['position'] ) ? (int) $row['position'] : 0,
+				);
+			}
+		}
+		$safe_items = esc_sql( $items_table );
+		$items = array();
+		$by_status = array();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		foreach ( (array) $wpdb->get_results( "SELECT * FROM `{$safe_items}` ORDER BY id", ARRAY_A ) as $row ) {
+			$status = isset( $row['status'] ) ? (string) $row['status'] : '';
+			$by_status[ $status ] = isset( $by_status[ $status ] ) ? $by_status[ $status ] + 1 : 1;
+			$items[] = array(
+				'id'          => isset( $row['id'] ) ? (int) $row['id'] : 0,
+				'source_url'  => isset( $row['url'] ) ? (string) $row['url'] : '',
+				'match_url'   => isset( $row['match_url'] ) ? (string) $row['match_url'] : '',
+				'match_type'  => isset( $row['match_type'] ) ? (string) $row['match_type'] : 'url',
+				'match_data'  => isset( $row['match_data'] ) ? $this->decode_structure( $row['match_data'] ) : null,
+				'action_type' => isset( $row['action_type'] ) ? (string) $row['action_type'] : 'url',
+				'action_code' => isset( $row['action_code'] ) ? (int) $row['action_code'] : 0,
+				'action_data' => isset( $row['action_data'] ) ? $this->decode_structure( $row['action_data'] ) : '',
+				'regex'       => ! empty( $row['regex'] ),
+				'status'      => $status,
+				'group_id'    => isset( $row['group_id'] ) ? (int) $row['group_id'] : 0,
+				'position'    => isset( $row['position'] ) ? (int) $row['position'] : 0,
+				'title'       => isset( $row['title'] ) ? (string) $row['title'] : '',
+				'hits'        => isset( $row['last_count'] ) ? (int) $row['last_count'] : 0,
+				'last_access' => isset( $row['last_access'] ) ? (string) $row['last_access'] : '',
+			);
+		}
+		ksort( $by_status, SORT_STRING );
+		$not_found = array();
+		$log_table = $wpdb->prefix . 'redirection_404';
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $log_table ) ) === $log_table ) {
+			$safe_log = esc_sql( $log_table );
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			foreach ( (array) $wpdb->get_results( "SELECT url, COUNT(*) AS hits, MAX(created) AS last_seen FROM `{$safe_log}` GROUP BY url ORDER BY hits DESC LIMIT 5000", ARRAY_A ) as $row ) {
+				$not_found[] = array(
+					'url'       => (string) $row['url'],
+					'hits'      => (int) $row['hits'],
+					'last_seen' => isset( $row['last_seen'] ) ? (string) $row['last_seen'] : '',
+				);
+			}
+		}
+		return array(
+			'schema_version' => 1,
+			'groups'         => $groups,
+			'items'          => $items,
+			'counts'         => array( 'items' => count( $items ), 'by_status' => $by_status ),
+			'not_found'      => $not_found,
+		);
+	}
+
+	/** Decode a JSON or serialized column, keeping plain strings. */
+	private function decode_structure( $value ) {
+		$value = maybe_unserialize( $value );
+		if ( ! is_string( $value ) || '' === $value || ! in_array( $value[0], array( '{', '[' ), true ) ) {
+			return $value;
+		}
+		$decoded = json_decode( $value, true );
+		return JSON_ERROR_NONE === json_last_error() ? $decoded : $value;
 	}
 
 	/**

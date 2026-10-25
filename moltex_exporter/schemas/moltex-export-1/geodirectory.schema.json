@@ -16,8 +16,51 @@
           "fields": {"type": "array"},
           "search_fields": {"type": "array"},
           "sort_fields": {"type": "array"},
-          "tabs": {"type": "array"}
+          "tabs": {"type": "array"},
+          "all_fields": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["key", "disposition", "is_active", "definition"],
+              "properties": {
+                "key": {"type": "string"},
+                "label": {"type": "string"},
+                "disposition": {"type": "string", "pattern": "^(exported|inactive|admin_only|operator_included|sensitive:[a-z_]+)$"},
+                "is_active": {"type": "boolean"},
+                "publicly_displayed": {"type": "boolean"},
+                "definition": {"type": "object"}
+              }
+            }
+          },
+          "unkeyed_rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "disposition", "definition"],
+              "properties": {
+                "id": {"type": "integer"},
+                "disposition": {"const": "no_htmlvar_name"},
+                "definition": {"type": "object"}
+              }
+            }
+          },
+          "field_summary": {
+            "type": "object",
+            "properties": {
+              "source_rows": {"type": "integer", "minimum": 0},
+              "by_disposition": {"type": "object", "additionalProperties": {"type": "integer"}}
+            }
+          }
         }
+      }
+    },
+    "field_reconciliation": {
+      "type": "object",
+      "required": ["source_rows", "by_post_type", "rows_outside_export"],
+      "properties": {
+        "source_rows": {"type": "integer", "minimum": 0},
+        "by_post_type": {"type": "object", "additionalProperties": {"type": "integer"}},
+        "rows_outside_export": {"type": "array", "items": {"type": "object", "required": ["id", "post_type", "reason"]}}
       }
     },
     "privacy": {

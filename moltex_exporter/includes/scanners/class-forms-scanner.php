@@ -92,6 +92,16 @@ class Moltex_Exporter_Forms_Scanner extends Moltex_Exporter_Scanner_Base {
 			}
 		}
 
+		// Detect and export Forminator definitions (F1). Submissions are never exported.
+		if ( $this->is_plugin_active( 'forminator/forminator.php' ) || post_type_exists( 'forminator_forms' ) ) {
+			$forms_data['detected_plugins'][] = 'forminator';
+			$frmt_forms = $this->export_forminator();
+			if ( ! empty( $frmt_forms ) ) {
+				$forms_data['forms']['forminator'] = $frmt_forms;
+				$forms_data['summary']['forms_by_plugin']['forminator'] = count( $frmt_forms );
+			}
+		}
+
 		// Detect and export Formidable Forms
 		if ( $this->is_plugin_active( 'formidable/formidable.php' ) ) {
 			$forms_data['detected_plugins'][] = 'formidable';
@@ -100,6 +110,18 @@ class Moltex_Exporter_Forms_Scanner extends Moltex_Exporter_Scanner_Base {
 				$forms_data['forms']['formidable_forms'] = $frm_forms;
 				$forms_data['summary']['forms_by_plugin']['formidable_forms'] = count( $frm_forms );
 			}
+		}
+
+		// Popup Maker popups with their assigned theme design (S3).
+		$popups = $this->export_popup_maker();
+		if ( ! empty( $popups ) ) {
+			$forms_data['popups']['popup_maker'] = $popups;
+		}
+
+		// MailPoet lists always; subscribers only with operator opt-in (F5).
+		$newsletter = $this->export_mailpoet();
+		if ( ! empty( $newsletter ) ) {
+			$forms_data['newsletter']['mailpoet'] = $newsletter;
 		}
 
 		// Calculate total forms
@@ -650,6 +672,164 @@ class Moltex_Exporter_Forms_Scanner extends Moltex_Exporter_Scanner_Base {
 	 * @param string $plugin Plugin path.
 	 * @return bool
 	 */
+	/**
+	 * Popup Maker: popups (triggers, cookies, conditions) and popup_theme designs (S3).
+	 *
+	 * @return array
+	 */
+	public function export_popup_maker() {
+		$themes = array();
+		foreach ( (array) get_posts( array( 'post_type' => 'popup_theme', 'numberposts' => -1, 'post_status' => 'any' ) ) as $post ) {
+			$settings = maybe_unserialize( get_post_meta( $post->ID, 'popup_theme_settings', true ) );
+			$themes[ (int) $post->ID ] = array(
+				'id'       => (int) $post->ID,
+				'title'    => (string) $post->post_title,
+				'settings' => is_array( $settings ) ? $settings : array(),
+			);
+		}
+		$popups = array();
+		foreach ( (array) get_posts( array( 'post_type' => 'popup', 'numberposts' => -1, 'post_status' => 'any' ) ) as $post ) {
+			$settings = maybe_unserialize( get_post_meta( $post->ID, 'popup_settings', true ) );
+			$settings = is_array( $settings ) ? $settings : array();
+			$theme_id = isset( $settings['theme_id'] ) ? (int) $settings['theme_id'] : (int) get_post_meta( $post->ID, 'popup_theme', true );
+			$popups[] = array(
+				'id'         => (int) $post->ID,
+				'title'      => (string) $post->post_title,
+				'status'     => (string) $post->post_status,
+				'theme_id'   => $theme_id ?: null,
+				'theme'      => isset( $themes[ $theme_id ] ) ? $themes[ $theme_id ]['title'] : null,
+				'triggers'   => isset( $settings['triggers'] ) ? array_values( (array) $settings['triggers'] ) : array(),
+				'cookies'    => isset( $settings['cookies'] ) ? array_values( (array) $settings['cookies'] ) : array(),
+				'conditions' => isset( $settings['conditions'] ) ? array_values( (array) $settings['conditions'] ) : array(),
+				'size'       => array_intersect_key( $settings, array_flip( array( 'size', 'responsive_min_width', 'responsive_max_width', 'custom_width', 'custom_height', 'location', 'animation_type', 'animation_speed', 'overlay_disabled', 'close_on_overlay_click', 'close_on_esc_press', 'close_text' ) ) ),
+				'settings'   => $settings,
+			);
+		}
+		if ( empty( $popups ) && empty( $themes ) ) {
+			return array();
+		}
+		return array(
+			'popups' => $popups,
+			'themes' => array_values( $themes ),
+		);
+	}
+
+	private function export_mailpoet() {
+		global $wpdb;
+		$segments = $wpdb->prefix . 'mailpoet_segments';
+		if ( $segments !== $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $segments ) ) ) {
+			return array();
+		}
+		$links = $wpdb->prefix . 'mailpoet_subscriber_segment';
+		$subscribers = $wpdb->prefix . 'mailpoet_subscribers';
+		$lists = array();
+		foreach ( (array) $wpdb->get_results( "SELECT s.id, s.name, s.type, s.description, s.deleted_at, COUNT(l.id) AS subscriber_count, SUM(CASE WHEN l.status = 'subscribed' THEN 1 ELSE 0 END) AS subscribed_count FROM {$segments} s LEFT JOIN {$links} l ON l.segment_id = s.id GROUP BY s.id ORDER BY s.id ASC", ARRAY_A ) as $row ) {
+			$lists[] = array(
+				'id'               => (int) $row['id'],
+				'name'             => (string) $row['name'],
+				'type'             => isset( $row['type'] ) ? (string) $row['type'] : '',
+				'description'      => isset( $row['description'] ) ? (string) $row['description'] : '',
+				'deleted'          => ! empty( $row['deleted_at'] ),
+				'subscriber_count' => (int) $row['subscriber_count'],
+				'subscribed_count' => (int) $row['subscribed_count'],
+			);
+		}
+		$out = array( 'lists' => $lists, 'subscribers' => 'not_exported_without_opt_in' );
+		if ( Moltex_Exporter_Export_Policy::get( 'include_subscribers' ) ) {
+			$people = array();
+			foreach ( (array) $wpdb->get_results( "SELECT sub.id, sub.email, sub.status, sub.created_at, sub.confirmed_at, sub.last_subscribed_at, GROUP_CONCAT(l.segment_id ORDER BY l.segment_id) AS segment_ids FROM {$subscribers} sub LEFT JOIN {$links} l ON l.subscriber_id = sub.id AND l.status = 'subscribed' GROUP BY sub.id ORDER BY sub.id ASC", ARRAY_A ) as $row ) {
+				$people[] = array(
+					'email'        => sanitize_email( (string) $row['email'] ),
+					'status'       => (string) $row['status'],
+					'list_ids'     => '' === (string) $row['segment_ids'] || null === $row['segment_ids'] ? array() : array_map( 'intval', explode( ',', (string) $row['segment_ids'] ) ),
+					'consent_date' => ! empty( $row['confirmed_at'] ) ? (string) $row['confirmed_at'] : ( ! empty( $row['last_subscribed_at'] ) ? (string) $row['last_subscribed_at'] : (string) $row['created_at'] ),
+				);
+			}
+			$out['subscribers'] = $people;
+			$out['personal_data'] = 'operator_opted_in';
+		}
+		return $out;
+	}
+
+	private function export_forminator() {
+		$forms = array();
+		$posts = get_posts(
+			array(
+				'post_type'      => array( 'forminator_forms', 'forminator_polls', 'forminator_quizzes' ),
+				'post_status'    => 'any',
+				'posts_per_page' => -1,
+				'orderby'        => 'ID',
+				'order'          => 'ASC',
+			)
+		);
+		foreach ( (array) $posts as $post ) {
+			$meta = maybe_unserialize( get_post_meta( $post->ID, 'forminator_form_meta', true ) );
+			$meta = is_array( $meta ) ? $meta : array();
+			$fields = array();
+			foreach ( isset( $meta['fields'] ) && is_array( $meta['fields'] ) ? $meta['fields'] : array() as $field ) {
+				if ( ! is_array( $field ) ) {
+					continue;
+				}
+				$fields[] = array(
+					'id'         => isset( $field['element_id'] ) ? (string) $field['element_id'] : ( isset( $field['id'] ) ? (string) $field['id'] : '' ),
+					'type'       => isset( $field['type'] ) ? (string) $field['type'] : '',
+					'label'      => isset( $field['field_label'] ) ? (string) $field['field_label'] : '',
+					'required'   => ! empty( $field['required'] ) && 'false' !== $field['required'],
+					'wrapper_id' => isset( $field['wrapper_id'] ) ? (string) $field['wrapper_id'] : '',
+					'definition' => $field,
+				);
+			}
+			$settings = isset( $meta['settings'] ) && is_array( $meta['settings'] ) ? $meta['settings'] : array();
+			$forms[] = array(
+				'id'            => (int) $post->ID,
+				'kind'          => str_replace( 'forminator_', '', (string) $post->post_type ),
+				'title'         => isset( $settings['formName'] ) ? (string) $settings['formName'] : (string) $post->post_title,
+				'status'        => (string) $post->post_status,
+				'fields'        => $fields,
+				'settings'      => $settings,
+				'notifications' => isset( $meta['notifications'] ) && is_array( $meta['notifications'] ) ? $meta['notifications'] : array(),
+				'integrations'  => isset( $meta['integrations'] ) && is_array( $meta['integrations'] ) ? array_keys( $meta['integrations'] ) : array(),
+				// Destination details (list, sheet, field mapping) kept; credentials redacted (F1).
+				'integration_settings' => isset( $meta['integrations'] ) && is_array( $meta['integrations'] ) ? self::redact_integration_settings( $meta['integrations'] ) : array(),
+				'submissions'   => 'not_exported',
+			);
+		}
+		return $forms;
+	}
+
+	/**
+	 * Keep integration configuration but replace every credential with
+	 * "[REDACTED]": values under credential-like keys, webhook URLs (which
+	 * authorize by themselves) and credential-shaped strings.
+	 *
+	 * @param mixed $value Integration settings.
+	 * @param int   $depth Recursion depth.
+	 * @return mixed
+	 */
+	public static function redact_integration_settings( $value, $depth = 0 ) {
+		if ( $depth > 20 ) {
+			return '[TRUNCATED]';
+		}
+		if ( is_array( $value ) ) {
+			$out = array();
+			foreach ( $value as $key => $item ) {
+				if ( is_string( $key ) && preg_match( '/key|secret|token|passw|pwd|auth|credential|webhook|hook_url|signature|bearer|cookie|session/i', $key ) && ! is_array( $item ) ) {
+					$out[ $key ] = '' === (string) $item ? '' : '[REDACTED]';
+					continue;
+				}
+				$out[ $key ] = self::redact_integration_settings( $item, $depth + 1 );
+			}
+			return $out;
+		}
+		if ( is_string( $value ) ) {
+			if ( preg_match( '#^https?://(?:hooks\.|[^/]*zapier\.com/hooks|[^/]*/webhook)#i', $value ) ) {
+				return '[REDACTED]';
+			}
+			return Moltex_Exporter_Privacy_Scanner::redact_credentials( $value )['text'];
+		}
+		return $value;
+	}
+
 	private function is_plugin_active( $plugin ) {
 		if ( ! function_exists( 'is_plugin_active' ) ) {
 			include_once ABSPATH . 'wp-admin/includes/plugin.php';

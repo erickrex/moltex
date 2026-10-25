@@ -301,11 +301,18 @@ function get_post_types( $args = array(), $output = 'names' ) {
 		);
 	}
 	
-	if ( $output === 'objects' ) {
-		return $wp_post_types;
+	$types = $wp_post_types;
+	foreach ( (array) $args as $key => $expected ) {
+		$types = array_filter( $types, function ( $type ) use ( $key, $expected ) {
+			$type = (object) $type;
+			return ! isset( $type->$key ) || (bool) $type->$key === (bool) $expected;
+		} );
 	}
-	
-	return array_keys( $wp_post_types );
+	if ( $output === 'objects' ) {
+		return $types;
+	}
+
+	return array_keys( $types );
 }
 
 /**
@@ -846,7 +853,8 @@ function sanitize_file_name( $filename ) {
  * Mock get_theme_mods().
  */
 function get_theme_mods() {
-	return array();
+	global $mock_theme_mods;
+	return is_array( $mock_theme_mods ) ? $mock_theme_mods : array();
 }
 
 /**
@@ -913,5 +921,30 @@ if ( ! function_exists( 'error_log' ) ) {
 	function error_log( $message ) {
 		// Suppress in tests
 		return true;
+	}
+}
+
+if ( ! function_exists( 'esc_sql' ) ) {
+	function esc_sql( $data ) {
+		return is_array( $data ) ? array_map( 'esc_sql', $data ) : addslashes( (string) $data );
+	}
+}
+
+if ( ! function_exists( 'post_type_exists' ) ) {
+	function post_type_exists( $post_type ) {
+		global $wp_post_types;
+		return is_array( $wp_post_types ) && isset( $wp_post_types[ $post_type ] );
+	}
+}
+
+if ( ! function_exists( 'get_stylesheet' ) ) {
+	function get_stylesheet() {
+		return 'mock-theme';
+	}
+}
+
+if ( ! function_exists( 'sanitize_email' ) ) {
+	function sanitize_email( $email ) {
+		return filter_var( (string) $email, FILTER_VALIDATE_EMAIL ) ? (string) $email : '';
 	}
 }

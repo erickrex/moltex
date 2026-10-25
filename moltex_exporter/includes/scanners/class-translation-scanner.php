@@ -45,9 +45,19 @@ class Moltex_Exporter_Translation_Scanner extends Moltex_Exporter_Scanner_Base {
 		// Detect which multilingual plugin is active
 		$this->detect_multilingual_plugin();
 
-		// If no multilingual plugin detected, return null
+		// Site-specific .po overrides (Loco Translate and hand-edited files, F3).
+		$translation_files = $this->scan_translation_files( $this->get_languages_dir() );
+
+		// If no multilingual plugin detected, return only the override files (or null).
 		if ( ! $this->detected_plugin ) {
-			return null;
+			if ( empty( $translation_files ) ) {
+				return null;
+			}
+			return array(
+				'plugin'            => null,
+				'locale'            => get_locale(),
+				'translation_files' => $translation_files,
+			);
 		}
 
 		$data = array(
@@ -76,7 +86,215 @@ class Moltex_Exporter_Translation_Scanner extends Moltex_Exporter_Scanner_Base {
 				break;
 		}
 
+		$data['locale'] = get_locale();
+		$data['translation_files'] = $translation_files;
+
 		return $data;
+	}
+
+	/** @return string */
+	private function get_languages_dir() {
+		if ( defined( 'WP_LANG_DIR' ) ) {
+			return WP_LANG_DIR;
+		}
+		return defined( 'WP_CONTENT_DIR' ) ? WP_CONTENT_DIR . '/languages' : '';
+	}
+
+	/**
+	 * Parse custom .po files into entries (F3).
+	 *
+	 * Everything under `loco/` is taken. Elsewhere only files whose header names
+	 * Loco or that have no WordPress.org project header are taken, so stock
+	 * language packs are skipped (they can be re-downloaded).
+	 *
+	 * @param string $dir Languages directory.
+	 * @return array[]
+	 */
+	public function scan_translation_files( $dir ) {
+		$dir = rtrim( (string) $dir, '/' );
+		if ( '' === $dir || ! is_dir( $dir ) ) {
+			return array();
+		}
+		$files = array();
+		$iterator = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $dir, FilesystemIterator::SKIP_DOTS ) );
+		foreach ( $iterator as $file ) {
+			$extension = strtolower( $file->getExtension() );
+			if ( ! $file->isFile() || $file->isLink() || ! in_array( $extension, array( 'po', 'mo' ), true ) || $file->getSize() > 5242880 ) {
+				continue;
+			}
+			$sibling = substr( $file->getPathname(), 0, -2 ) . ( 'po' === $extension ? 'mo' : 'po' );
+			// The .po is the editable source; a .mo beside it is its compiled copy.
+			if ( 'mo' === $extension && is_file( $sibling ) ) {
+				continue;
+			}
+			$relative = ltrim( str_replace( '\\', '/', substr( $file->getPathname(), strlen( $dir ) ) ), '/' );
+			$content = (string) file_get_contents( $file->getPathname() );
+			$parsed = 'po' === $extension ? self::parse_po( $content ) : self::parse_mo( $content );
+			if ( null === $parsed ) {
+				$this->log_warning( 'translations', 'Unreadable .mo translation file skipped: ' . $relative );
+				continue;
+			}
+			$headers = $parsed['headers'];
+			$is_loco = 0 === strpos( $relative, 'loco/' ) || false !== stripos( isset( $headers['X-Generator'] ) ? $headers['X-Generator'] : '', 'Loco' ) || isset( $headers['X-Loco-Version'] );
+			$is_stock = isset( $headers['Project-Id-Version'] ) && preg_match( '/^WordPress|Plugins - |Themes - /', $headers['Project-Id-Version'] ) && ! $is_loco;
+			if ( $is_stock ) {
+				continue;
+			}
+			$basename = basename( $relative, '.' . $extension );
+			$locale = preg_match( '/([a-z]{2,3}(?:_[A-Z]{2})?(?:_[a-z]+)?)$/', $basename, $m ) ? $m[1] : ( isset( $headers['Language'] ) ? $headers['Language'] : '' );
+			$domain = rtrim( substr( $basename, 0, strlen( $basename ) - strlen( $locale ) ), '-' );
+			$scope = 0 === strpos( $relative, 'loco/' ) ? explode( '/', $relative )[1] : explode( '/', $relative )[0];
+			$files[] = array(
+				'path'        => $relative,
+				'format'      => $extension,
+				'source'      => $is_loco ? 'loco' : 'custom',
+				'scope'       => in_array( $scope, array( 'plugins', 'themes' ), true ) ? rtrim( $scope, 's' ) : 'core',
+				'text_domain' => '' === $domain ? 'default' : $domain,
+				'locale'      => $locale,
+				'sha256'      => hash( 'sha256', $content ),
+				'headers'     => array_intersect_key( $headers, array_flip( array( 'Language', 'Plural-Forms', 'X-Generator', 'X-Loco-Version', 'Project-Id-Version' ) ) ),
+				'entry_count' => count( $parsed['entries'] ),
+				'entries'     => $parsed['entries'],
+			);
+		}
+		usort( $files, function ( $a, $b ) { return strcmp( $a['path'], $b['path'] ); } );
+		return $files;
+	}
+
+	/**
+	 * Minimal gettext .po parser: msgctxt, msgid, msgid_plural, msgstr[n].
+	 *
+	 * @param string $content File content.
+	 * @return array {headers, entries[]}
+	 */
+	public static function parse_po( $content ) {
+		$entries = array();
+		$entry = array();
+		$field = null;
+		$flush = function () use ( &$entry, &$entries ) {
+			if ( isset( $entry['msgid'] ) ) {
+				$entries[] = $entry;
+			}
+			$entry = array();
+		};
+		foreach ( preg_split( '/\r\n|\n|\r/', $content ) as $line ) {
+			$line = trim( $line );
+			if ( '' === $line ) {
+				$flush();
+				$field = null;
+				continue;
+			}
+			if ( '#' === $line[0] ) {
+				continue;
+			}
+			if ( preg_match( '/^(msgctxt|msgid_plural|msgid|msgstr(?:\[(\d+)\])?)\s+"(.*)"$/', $line, $m ) ) {
+				if ( 'msgid' === $m[1] && isset( $entry['msgid'] ) ) {
+					$flush();
+				}
+				$field = $m[1];
+				$value = stripcslashes( $m[3] );
+				if ( 0 === strpos( $field, 'msgstr' ) ) {
+					$field = 'msgstr:' . ( isset( $m[2] ) && '' !== $m[2] ? $m[2] : '0' );
+				}
+				$entry[ $field ] = $value;
+			} elseif ( null !== $field && preg_match( '/^"(.*)"$/', $line, $m ) ) {
+				$entry[ $field ] .= stripcslashes( $m[1] );
+			}
+		}
+		$flush();
+		return self::finalize_entries( $entries );
+	}
+
+	/**
+	 * Minimal gettext .mo reader (both byte orders). Entries come back in the
+	 * same shape as parse_po(), so compiled-only overrides are not lost (F3).
+	 *
+	 * @param string $content Binary file content.
+	 * @return array|null {headers, entries[]} or null when not a valid .mo file.
+	 */
+	public static function parse_mo( $content ) {
+		$length = strlen( $content );
+		if ( $length < 28 ) {
+			return null;
+		}
+		$magic = unpack( 'V', substr( $content, 0, 4 ) )[1];
+		if ( 0x950412de === $magic ) {
+			$format = 'V';
+		} elseif ( 0xde120495 === $magic ) {
+			$format = 'N';
+		} else {
+			return null;
+		}
+		$header = unpack( $format . 'revision/' . $format . 'count/' . $format . 'originals/' . $format . 'translations', substr( $content, 4, 16 ) );
+		$count = (int) $header['count'];
+		if ( $count < 0 || $header['originals'] + 8 * $count > $length || $header['translations'] + 8 * $count > $length ) {
+			return null;
+		}
+		$read = function ( $table, $index ) use ( $content, $format, $length ) {
+			$pair = unpack( $format . 'len/' . $format . 'offset', substr( $content, $table + 8 * $index, 8 ) );
+			if ( $pair['offset'] + $pair['len'] > $length ) {
+				return null;
+			}
+			return (string) substr( $content, $pair['offset'], $pair['len'] );
+		};
+		$entries = array();
+		for ( $i = 0; $i < $count; $i++ ) {
+			$original = $read( $header['originals'], $i );
+			$translation = $read( $header['translations'], $i );
+			if ( null === $original || null === $translation ) {
+				return null;
+			}
+			$entry = array();
+			if ( false !== strpos( $original, "\x04" ) ) {
+				list( $entry['msgctxt'], $original ) = explode( "\x04", $original, 2 );
+			}
+			$ids = explode( "\0", $original );
+			$entry['msgid'] = $ids[0];
+			if ( isset( $ids[1] ) ) {
+				$entry['msgid_plural'] = $ids[1];
+			}
+			foreach ( explode( "\0", $translation ) as $n => $text ) {
+				$entry[ 'msgstr:' . $n ] = $text;
+			}
+			$entries[] = $entry;
+		}
+		return self::finalize_entries( $entries );
+	}
+
+	/**
+	 * Split the header entry from translated entries and normalize them.
+	 *
+	 * @param array $entries Raw entries keyed msgctxt/msgid/msgid_plural/msgstr:N.
+	 * @return array {headers, entries[]}
+	 */
+	private static function finalize_entries( array $entries ) {
+		$headers = array();
+		$output = array();
+		foreach ( $entries as $item ) {
+			if ( '' === $item['msgid'] && ! isset( $item['msgctxt'] ) ) {
+				foreach ( explode( "\n", isset( $item['msgstr:0'] ) ? $item['msgstr:0'] : '' ) as $header ) {
+					if ( false !== strpos( $header, ':' ) ) {
+						list( $key, $value ) = explode( ':', $header, 2 );
+						$headers[ trim( $key ) ] = trim( $value );
+					}
+				}
+				continue;
+			}
+			$translations = array();
+			foreach ( $item as $key => $value ) {
+				if ( 0 === strpos( $key, 'msgstr:' ) ) {
+					$translations[ (int) substr( $key, 7 ) ] = $value;
+				}
+			}
+			ksort( $translations );
+			$output[] = array(
+				'context'      => isset( $item['msgctxt'] ) ? $item['msgctxt'] : null,
+				'msgid'        => $item['msgid'],
+				'msgid_plural' => isset( $item['msgid_plural'] ) ? $item['msgid_plural'] : null,
+				'msgstr'       => array_values( $translations ),
+			);
+		}
+		return array( 'headers' => $headers, 'entries' => $output );
 	}
 
 	/**

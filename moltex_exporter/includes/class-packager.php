@@ -199,6 +199,18 @@ class Moltex_Exporter_Packager {
 			// Generate secure download URL
 			$download_url = $this->generate_download_url();
 
+			// M1/X3: also publish upload-sized parts when the full ZIP exceeds the limit.
+			$parts = array();
+			$part_limit = (int) Moltex_Exporter_Export_Policy::get( 'part_max_bytes' );
+			if ( $zip_size > $part_limit ) {
+				$parts = $this->split_into_parts( $this->zip_file_path, $part_limit );
+				foreach ( $parts['parts'] as $index => $part ) {
+					foreach ( $part['downloads'] as $download_index => $download ) {
+						$parts['parts'][ $index ]['downloads'][ $download_index ]['download_url'] = $this->generate_part_download_url( $download['filename'] );
+					}
+				}
+			}
+
 			// Clean up temporary uncompressed files
 			$this->cleanup_temp_files( $this->export_dir );
 
@@ -209,6 +221,7 @@ class Moltex_Exporter_Packager {
 				'zip_size'     => $zip_size,
 				'download_url' => $download_url,
 				'files_added'  => $files_added,
+				'parts'        => $parts,
 			);
 
 		} catch ( Exception $e ) {
@@ -219,6 +232,210 @@ class Moltex_Exporter_Packager {
 				'error'   => $e->getMessage(),
 			);
 		}
+	}
+
+	/**
+	 * Split a validated bundle ZIP into a data part and media-NN parts (M1).
+	 *
+	 * The data part holds every non-media entry, including bundle.json. Media
+	 * entries are packed in manifest order into parts no larger than the limit
+	 * (a single file over the limit gets its own part and is flagged). Extracting
+	 * every part into one directory reproduces the validated bundle exactly; the
+	 * sidecar `<name>.parts.json` lists each part's files, bytes and sha256.
+	 *
+	 * @param string $zip_path Validated bundle ZIP.
+	 * @param int    $limit    Maximum part size in bytes.
+	 * @return array {index_path, parts[]}
+	 */
+	private function split_into_parts( $zip_path, $limit ) {
+		$source = new ZipArchive();
+		if ( true !== $source->open( $zip_path ) ) {
+			throw new Exception( 'Validated ZIP cannot be reopened for splitting' );
+		}
+		$limit = max( 1, (int) $limit );
+		$entries = array( 'data' => array(), 'media' => array() );
+		$all = array();
+		for ( $index = 0; $index < $source->numFiles; $index++ ) {
+			$stat = $source->statIndex( $index );
+			if ( false === $stat || '/' === substr( $stat['name'], -1 ) ) {
+				continue;
+			}
+			$name = $stat['name'];
+			$all[] = $name;
+			// Estimated on-disk cost: compressed bytes plus local header,
+			// central-directory record and data descriptor for this entry.
+			$cost = (int) $stat['comp_size'] + 30 + 46 + 16 + 2 * strlen( $name );
+			$kind = 0 === strpos( $name, 'media/' ) ? 'media' : 'data';
+			// bundle.json always opens the first data part.
+			if ( 'bundle.json' === $name ) {
+				array_unshift( $entries[ $kind ], array( $name, $cost ) );
+			} else {
+				$entries[ $kind ][] = array( $name, $cost );
+			}
+		}
+
+		$base = substr( basename( $zip_path ), 0, -4 );
+		$dir = trailingslashit( dirname( $zip_path ) );
+		$parts = array();
+		$planned = array();
+		$temp_number = 0;
+		foreach ( $entries as $kind => $kind_entries ) {
+			// Greedy grouping by estimated size, then verify the real archive
+			// size and bisect any group that still exceeds the limit.
+			$queue = array();
+			$current = array();
+			$current_bytes = 22;
+			foreach ( $kind_entries as $entry ) {
+				if ( ! empty( $current ) && $current_bytes + $entry[1] > $limit ) {
+					$queue[] = $current;
+					$current = array();
+					$current_bytes = 22;
+				}
+				$current[] = $entry[0];
+				$current_bytes += $entry[1];
+			}
+			if ( ! empty( $current ) ) {
+				$queue[] = $current;
+			}
+
+			$final = array();
+			while ( ! empty( $queue ) ) {
+				$files = array_shift( $queue );
+				$temp = $dir . $base . '.tmp-' . ( ++$temp_number ) . '.zip';
+				$this->write_part_zip( $source, $temp, $files );
+				if ( filesize( $temp ) > $limit && count( $files ) > 1 ) {
+					@unlink( $temp );
+					$half = (int) ceil( count( $files ) / 2 );
+					array_unshift( $queue, array_slice( $files, 0, $half ), array_slice( $files, $half ) );
+					continue;
+				}
+				$final[] = array( $files, $temp );
+			}
+
+			foreach ( $final as $number => $group ) {
+				list( $files, $temp ) = $group;
+				$label = 'data' === $kind ? ( 0 === $number ? 'data' : sprintf( 'data-%02d', $number + 1 ) ) : sprintf( 'media-%02d', $number + 1 );
+				$filename = $base . '.' . $label . '.zip';
+				if ( ! rename( $temp, $dir . $filename ) ) {
+					throw new Exception( 'Failed to finalize ZIP part ' . $label );
+				}
+				$planned = array_merge( $planned, $files );
+				$parts[] = $this->describe_part( $dir, $filename, $label, $files, $limit );
+			}
+		}
+		$source->close();
+
+		// Exact coverage, independent of order: every entry once, nothing extra.
+		$expected = $all;
+		sort( $expected, SORT_STRING );
+		sort( $planned, SORT_STRING );
+		if ( $expected !== $planned ) {
+			throw new Exception( 'ZIP parts do not cover the validated bundle exactly' );
+		}
+
+		$index_path = $dir . $base . '.parts.json';
+		$index = array(
+			'schema_version'    => 1,
+			'contract'          => 'moltex-export/1',
+			'bundle_zip'        => basename( $zip_path ),
+			'bundle_sha256'     => hash_file( 'sha256', $zip_path ),
+			'part_max_bytes'    => (int) $limit,
+			'reassembly'        => 'For a chunked part, concatenate its chunks in order to rebuild the part ZIP and check its sha256. Then extract every part into one directory; the result is the validated bundle.',
+			'parts'             => $parts,
+		);
+		file_put_contents( $index_path, wp_json_encode( $index, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
+
+		return array( 'index_path' => $index_path, 'parts' => $parts );
+	}
+
+	/**
+	 * Copy the named entries of the source ZIP into a new part ZIP.
+	 *
+	 * @param ZipArchive $source Open source bundle.
+	 * @param string     $path   Part path to create.
+	 * @param string[]   $files  Entry names.
+	 */
+	private function write_part_zip( ZipArchive $source, $path, array $files ) {
+		$part = new ZipArchive();
+		if ( true !== $part->open( $path, ZipArchive::CREATE | ZipArchive::OVERWRITE ) ) {
+			throw new Exception( 'Failed to create ZIP part ' . basename( $path ) );
+		}
+		foreach ( $files as $name ) {
+			$content = $source->getFromName( $name );
+			if ( false === $content || ! $part->addFromString( $name, $content ) ) {
+				throw new Exception( 'Failed to copy ' . $name . ' into part ' . basename( $path ) );
+			}
+		}
+		if ( ! $part->close() ) {
+			throw new Exception( 'Failed to write ZIP part ' . basename( $path ) );
+		}
+	}
+
+	/**
+	 * Describe one part. A part that is still over the limit holds a single
+	 * entry larger than the limit; it is cut into byte chunks of at most
+	 * $limit bytes so that every downloadable file fits the upload limit.
+	 *
+	 * @param string   $dir      Artifacts directory (trailing slash).
+	 * @param string   $filename Part ZIP filename.
+	 * @param string   $label    Part label.
+	 * @param string[] $files    Entry names in the part.
+	 * @param int      $limit    Maximum file size in bytes.
+	 * @return array
+	 */
+	private function describe_part( $dir, $filename, $label, array $files, $limit ) {
+		$path = $dir . $filename;
+		$bytes = filesize( $path );
+		$part = array(
+			'label'      => $label,
+			'filename'   => $filename,
+			'bytes'      => $bytes,
+			'sha256'     => hash_file( 'sha256', $path ),
+			'file_count' => count( $files ),
+			'files'      => $files,
+			'chunked'    => $bytes > $limit,
+			'downloads'  => array(),
+		);
+		if ( ! $part['chunked'] ) {
+			$part['downloads'][] = array( 'filename' => $filename, 'bytes' => $bytes, 'sha256' => $part['sha256'] );
+			return $part;
+		}
+		$handle = fopen( $path, 'rb' );
+		if ( false === $handle ) {
+			throw new Exception( 'Failed to read ZIP part ' . $label . ' for chunking' );
+		}
+		$number = 0;
+		while ( ! feof( $handle ) ) {
+			$chunk = fread( $handle, $limit );
+			if ( false === $chunk || '' === $chunk ) {
+				break;
+			}
+			$chunk_name = sprintf( '%s.%03d', $filename, ++$number );
+			if ( false === file_put_contents( $dir . $chunk_name, $chunk ) ) {
+				fclose( $handle );
+				throw new Exception( 'Failed to write chunk ' . $chunk_name );
+			}
+			$part['downloads'][] = array( 'filename' => $chunk_name, 'bytes' => strlen( $chunk ), 'sha256' => hash( 'sha256', $chunk ) );
+		}
+		fclose( $handle );
+		// Only the chunks are offered, so no downloadable file exceeds the limit.
+		@unlink( $path );
+		return $part;
+	}
+
+	/**
+	 * Signed download URL for one part, reusing the bundle signing path.
+	 *
+	 * @param string $filename Part filename inside the artifacts directory.
+	 * @return string
+	 */
+	private function generate_part_download_url( $filename ) {
+		$saved = array( $this->zip_filename, $this->zip_file_path );
+		$this->zip_filename = $filename;
+		$this->zip_file_path = $this->artifacts_base_dir . $filename;
+		$url = $this->generate_download_url();
+		list( $this->zip_filename, $this->zip_file_path ) = $saved;
+		return $url;
 	}
 
 	/**
@@ -372,7 +589,8 @@ class Moltex_Exporter_Packager {
 	private function get_zip_path_from_filename( $zip_filename ) {
 		$zip_filename = basename( rawurldecode( (string) $zip_filename ) );
 
-		if ( empty( $zip_filename ) || substr( $zip_filename, -4 ) !== '.zip' ) {
+		// Bundle ZIPs, part ZIPs and numbered chunks of an oversized part (M1).
+		if ( empty( $zip_filename ) || ! preg_match( '/\.zip(\.\d{3})?$/', $zip_filename ) ) {
 			return false;
 		}
 
@@ -704,8 +922,8 @@ class Moltex_Exporter_Packager {
 						} else {
 							$errors[] = 'Failed to delete directory: ' . $item;
 						}
-					} elseif ( is_file( $item_path ) && pathinfo( $item_path, PATHINFO_EXTENSION ) === 'zip' ) {
-						// Delete ZIP file
+					} elseif ( is_file( $item_path ) && preg_match( '/\.zip(\.\d{3})?$|\.parts\.json$/', $item ) ) {
+						// Delete bundle/part ZIPs, part chunks and part indexes
 						if ( unlink( $item_path ) ) {
 							$deleted_count++;
 						} else {

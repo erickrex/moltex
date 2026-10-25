@@ -75,6 +75,8 @@ function moltex_exporter_init() {
 	// Load security filters class (always available)
 	require_once MOLTEX_EXPORTER_PATH . 'includes/class-security-filters.php';
 	require_once MOLTEX_EXPORTER_PATH . 'includes/class-public-http-policy.php';
+	require_once MOLTEX_EXPORTER_PATH . 'includes/class-media-reference-finder.php';
+	require_once MOLTEX_EXPORTER_PATH . 'includes/class-export-policy.php';
 
 	// Load scanner orchestrator class
 	require_once MOLTEX_EXPORTER_PATH . 'includes/class-scanner.php';

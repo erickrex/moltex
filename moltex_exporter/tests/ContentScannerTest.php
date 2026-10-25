@@ -26,6 +26,8 @@ class ContentScannerGeoDirectoryWpdb extends Mock_WPDB {
 		'wp_geodir_custom_sort_fields',
 		'wp_geodir_custom_advance_search_fields',
 		'wp_geodir_tabs_layout',
+		'wp_geodir_rating_category',
+		'wp_geodir_post_locations',
 	);
 
 	public function prepare( $query, ...$args ) {
@@ -61,6 +63,8 @@ class ContentScannerGeoDirectoryWpdb extends Mock_WPDB {
 			'contact_email'=> 'private@example.test',
 			'admin_notes'  => 'never export this',
 			'submit_ip'    => '192.0.2.10',
+			'featured'     => '1',
+			'legacy_hours' => 'Mon 9-17',
 		);
 	}
 
@@ -72,13 +76,46 @@ class ContentScannerGeoDirectoryWpdb extends Mock_WPDB {
 				array( 'post_type' => 'gd_nightclubs', 'data_type' => 'TINYINT', 'field_type' => 'checkbox', 'frontend_title' => 'Has DJ', 'htmlvar_name' => 'has_dj', 'is_active' => '1', 'for_admin_use' => '0', 'show_in' => '["detail"]', 'sort_order' => '3' ),
 				array( 'post_type' => 'gd_nightclubs', 'data_type' => 'VARCHAR', 'field_type' => 'email', 'frontend_title' => 'Email', 'htmlvar_name' => 'contact_email', 'is_active' => '1', 'for_admin_use' => '0', 'show_in' => '["detail"]', 'sort_order' => '4' ),
 				array( 'post_type' => 'gd_nightclubs', 'data_type' => 'TEXT', 'field_type' => 'textarea', 'frontend_title' => 'Admin notes', 'htmlvar_name' => 'admin_notes', 'is_active' => '1', 'for_admin_use' => '1', 'show_in' => '[]', 'sort_order' => '5' ),
+				array( 'post_type' => 'gd_nightclubs', 'data_type' => 'TINYINT', 'field_type' => 'checkbox', 'frontend_title' => 'Featured', 'htmlvar_name' => 'featured', 'is_active' => '1', 'for_admin_use' => '1', 'show_in' => '[]', 'sort_order' => '6' ),
+				array( 'post_type' => 'gd_nightclubs', 'data_type' => 'VARCHAR', 'field_type' => 'select', 'frontend_title' => 'Old style', 'htmlvar_name' => 'old_style', 'is_active' => '0', 'for_admin_use' => '0', 'show_in' => '["detail"]', 'sort_order' => '7', 'option_values' => 'Rock,Pop', 'extra_fields' => 'a:1:{s:4:"mode";s:4:"list";}' ),
+				array( 'id' => '40', 'post_type' => 'gd_nightclubs', 'data_type' => '', 'field_type' => 'fieldset', 'frontend_title' => 'Details', 'htmlvar_name' => '', 'is_active' => '1', 'for_admin_use' => '0', 'show_in' => '["detail"]', 'sort_order' => '8' ),
+				array( 'id' => '41', 'post_type' => 'gd_events', 'data_type' => 'VARCHAR', 'field_type' => 'text', 'frontend_title' => 'Venue', 'htmlvar_name' => 'venue', 'is_active' => '1', 'for_admin_use' => '0', 'show_in' => '["detail"]', 'sort_order' => '1' ),
 			);
 		}
 
-		if ( false !== strpos( $query, 'wp_geodir_attachments' ) ) {
+		if ( false !== strpos( $query, "type = 'comment_images'" ) ) {
+			return array( array( 'other_id' => '501', 'file' => '/2026/07/floor.jpg', 'title' => 'Floor', 'menu_order' => '0' ) );
+		}
+
+		if ( false !== strpos( $query, 'wp_geodir_attachments' ) && false === strpos( $query, 'GROUP BY a.type' ) ) {
 			return array(
 				array( 'ID' => '901', 'title' => 'Dance floor', 'caption' => 'Main room', 'file' => '2026/07/club.jpg', 'mime_type' => 'image/jpeg', 'menu_order' => '2', 'featured' => '1', 'metadata' => '' ),
 			);
+		}
+
+		if ( false !== strpos( $query, 'GROUP BY a.type' ) ) {
+			return array(
+				array( 'type' => 'post_images', 'approved' => '1', 'post_status' => 'publish', 'total' => '40' ),
+				array( 'type' => 'post_images', 'approved' => '0', 'post_status' => 'publish', 'total' => '2' ),
+				array( 'type' => 'post_images', 'approved' => '1', 'post_status' => null, 'total' => '3' ),
+				array( 'type' => 'comment_images', 'approved' => '1', 'post_status' => 'trash', 'total' => '1' ),
+			);
+		}
+
+		if ( false !== strpos( $query, 'GROUP BY c.comment_approved' ) ) {
+			return array(
+				array( 'approved' => '1', 'post_status' => 'publish', 'total' => '100' ),
+				array( 'approved' => '0', 'post_status' => 'publish', 'total' => '5' ),
+				array( 'approved' => '1', 'post_status' => 'draft', 'total' => '3' ),
+			);
+		}
+
+		if ( false !== strpos( $query, 'wp_geodir_rating_category' ) ) {
+			return array( array( 'id' => '2', 'title' => 'Service', 'post_type' => 'gd_nightclubs', 'category' => '1,2', 'category_style' => '1', 'display_order' => '2' ), array( 'id' => '1', 'title' => 'Music', 'post_type' => 'gd_nightclubs', 'category' => '', 'category_style' => '1', 'display_order' => '1' ) );
+		}
+
+		if ( false !== strpos( $query, 'wp_geodir_post_locations' ) ) {
+			return array( array( 'location_id' => '7', 'country' => 'Ecuador', 'region' => 'Pichincha', 'city' => 'Quito', 'country_slug' => 'ecuador', 'region_slug' => 'pichincha', 'city_slug' => 'quito', 'latitude' => '-0.18', 'longitude' => '-78.46', 'is_default' => '1' ) );
 		}
 
 		if ( false !== strpos( $query, 'wp_geodir_post_review' ) ) {
@@ -373,6 +410,8 @@ class ContentScannerTest extends TestCase {
 		$this->assertSame( 'https://example.com/wp-content/uploads/2026/07/club.jpg', $data['media'][0]['url'] );
 		$this->assertSame( 'geodirectory:901', $data['media'][0]['metadata']['id'] );
 		$this->assertSame( 4.5, $data['reviews'][0]['rating'] );
+		$this->assertSame( 'approved', $data['reviews'][0]['approval_status'] );
+		$this->assertSame( '/2026/07/floor.jpg', $data['reviews'][0]['images'][0]['file'] );
 		$this->assertArrayNotHasKey( 'email', $data['reviews'][0] );
 		$this->assertArrayNotHasKey( 'ip', $data['reviews'][0] );
 	}
@@ -392,6 +431,124 @@ class ContentScannerTest extends TestCase {
 		$this->assertSame( 'price_level', $config['post_types']['gd_nightclubs']['sort_fields'][0]['key'] );
 		$this->assertSame( 'photos', $config['post_types']['gd_nightclubs']['tabs'][0]['key'] );
 		$this->assertContains( 'contact_email', $config['privacy']['excluded_field_keys'] );
+	}
+
+	public function test_geodirectory_configuration_lists_every_field_row_with_disposition() {
+		global $wpdb;
+		$wpdb = new ContentScannerGeoDirectoryWpdb();
+
+		$scanner = new Moltex_Exporter_Content_Scanner();
+		$method = new ReflectionMethod( $scanner, 'get_geodirectory_configuration' );
+		$method->setAccessible( true );
+		$config = $method->invoke( $scanner, array( 'gd_nightclubs' ) );
+		$type = $config['post_types']['gd_nightclubs'];
+
+		$by_key = array_column( $type['all_fields'], null, 'key' );
+		$this->assertCount( 7, $type['all_fields'] );
+		// Regression: the keyless fieldset row used to vanish from the count.
+		$this->assertSame( 8, $type['field_summary']['source_rows'] );
+		$this->assertSame( 1, $type['field_summary']['by_disposition']['no_htmlvar_name'] );
+		$this->assertSame( 40, $type['unkeyed_rows'][0]['id'] );
+		$this->assertSame( 'fieldset', $type['unkeyed_rows'][0]['field_type'] );
+		$this->assertSame( 9, $config['field_reconciliation']['source_rows'] );
+		$this->assertSame( array( 'gd_events' => 1, 'gd_nightclubs' => 8 ), $config['field_reconciliation']['by_post_type'] );
+		$this->assertSame( array( array( 'id' => 41, 'post_type' => 'gd_events', 'htmlvar_name' => 'venue', 'reason' => 'post_type_not_exported' ) ), $config['field_reconciliation']['rows_outside_export'] );
+		$this->assertSame( 'inactive', $by_key['old_style']['disposition'] );
+		$this->assertFalse( $by_key['old_style']['is_active'] );
+		$this->assertSame( array( 'mode' => 'list' ), $by_key['old_style']['definition']['extra_fields'] );
+		$this->assertSame( 'sensitive:admin_note', $by_key['admin_notes']['disposition'] );
+		$this->assertSame( 'admin_only', $by_key['featured']['disposition'] );
+		$this->assertSame( 'sensitive:email', $by_key['contact_email']['disposition'] );
+		$this->assertSame( 'exported', $by_key['phone']['disposition'] );
+		$this->assertContains( 'featured', $config['privacy']['excluded_field_keys'] );
+		$this->assertCount( 3, $type['fields'] );
+	}
+
+	public function test_geodirectory_allowlisted_admin_field_is_exported_but_email_never() {
+		global $wpdb;
+		$wpdb = new ContentScannerGeoDirectoryWpdb();
+		update_option( 'moltex_settings', array( 'geodirectory_include_fields' => 'featured, contact_email' ) );
+
+		$scanner = new Moltex_Exporter_Content_Scanner();
+		$method = new ReflectionMethod( $scanner, 'get_geodirectory_metadata' );
+		$method->setAccessible( true );
+		$data = $method->invoke( $scanner, (object) array( 'ID' => 77, 'post_type' => 'gd_nightclubs' ) );
+
+		$this->assertTrue( $data['custom_fields']['featured'] );
+		$this->assertArrayNotHasKey( 'contact_email', $data['custom_fields'] );
+		$this->assertTrue( $data['contact_flags']['has_email'] );
+		$this->assertSame( array( 'legacy_hours' ), $data['diagnostics']['undeclared_value_columns'] );
+
+		$config_method = new ReflectionMethod( $scanner, 'get_geodirectory_configuration' );
+		$config_method->setAccessible( true );
+		$config = $config_method->invoke( $scanner, array( 'gd_nightclubs' ) );
+		$by_key = array_column( $config['post_types']['gd_nightclubs']['all_fields'], null, 'key' );
+		$this->assertSame( 'operator_included', $by_key['featured']['disposition'] );
+		$this->assertSame( 'sensitive:email', $by_key['contact_email']['disposition'] );
+		$this->assertNotContains( 'featured', $config['privacy']['excluded_field_keys'] );
+	}
+
+	public function test_post_type_inventory_lists_non_public_types_and_honours_opt_in() {
+		global $wp_post_types;
+		get_post_types();
+		$wp_post_types['wp_story'] = (object) array( 'name' => 'wp_story', 'label' => 'Stories', 'public' => false );
+		$wp_post_types['popup'] = (object) array( 'name' => 'popup', 'label' => 'Popups', 'public' => false );
+		update_option( 'moltex_settings', array( 'include_non_public_post_types' => 'wp_story' ) );
+
+		$scanner = new Moltex_Exporter_Content_Scanner();
+		$types = new ReflectionMethod( $scanner, 'get_custom_post_types' );
+		$types->setAccessible( true );
+		$this->assertContains( 'wp_story', $types->invoke( $scanner ) );
+		$this->assertNotContains( 'popup', $types->invoke( $scanner ) );
+
+		$method = new ReflectionMethod( $scanner, 'build_post_type_inventory' );
+		$method->setAccessible( true );
+		$inventory = $method->invoke( $scanner )['post_types'];
+		$this->assertSame( 'operator_included', $inventory['wp_story']['reason'] );
+		$this->assertTrue( $inventory['wp_story']['exported'] );
+		$this->assertSame( 'non_public_not_opted_in', $inventory['popup']['reason'] );
+		$this->assertSame( 10, $inventory['popup']['counts']['publish'] );
+		$this->assertSame( 'exported', $inventory['post']['reason'] );
+	}
+
+	public function test_geodirectory_configuration_exports_criteria_locations_and_review_reconciliation() {
+		global $wpdb;
+		$wpdb = new ContentScannerGeoDirectoryWpdb();
+		$scanner = new Moltex_Exporter_Content_Scanner();
+		$method = new ReflectionMethod( $scanner, 'get_geodirectory_configuration' );
+		$method->setAccessible( true );
+		$config = $method->invoke( $scanner, array( 'gd_nightclubs' ) );
+
+		$this->assertSame( 'Music', $config['rating_criteria'][0]['title'] );
+		$this->assertSame( 2, $config['rating_criteria'][1]['id'] );
+		$this->assertSame( 'quito', $config['locations']['locations'][0]['city_slug'] );
+		$this->assertSame( array( 'exported' => 100, 'listing_draft' => 3, 'unapproved' => 5 ), $config['review_reconciliation']['by_reason'] );
+		$this->assertSame( 108, $config['review_reconciliation']['source_rows'] );
+		$this->assertSame( 46, $config['attachment_reconciliation']['source_rows'] );
+		$this->assertSame( array( 'exported' => 40, 'listing_missing' => 3, 'unapproved' => 2 ), $config['attachment_reconciliation']['by_type']['post_images'] );
+		$this->assertSame( array( 'listing_trash' => 1 ), $config['attachment_reconciliation']['by_type']['comment_images'] );
+		$this->assertSame( 'price_level', $config['sort_fields_all'][0]['htmlvar_name'] );
+	}
+
+	public function test_business_hours_are_parsed_with_timezone() {
+		$hours = Moltex_Exporter_Content_Scanner::parse_business_hours( '["Mo 12:00-00:00","Fr 09:00-14:00,18:00-23:30"],["UTC":"-5","Timezone":"America\\/Guayaquil"]' );
+		$this->assertSame( array( array( 'open' => '12:00', 'close' => '00:00' ) ), $hours['days']['mo'] );
+		$this->assertCount( 2, $hours['days']['fr'] );
+		$this->assertSame( '-5', $hours['utc_offset'] );
+		$this->assertSame( 'America/Guayaquil', $hours['timezone'] );
+		$this->assertNull( Moltex_Exporter_Content_Scanner::parse_business_hours( 'call us' ) );
+	}
+
+	public function test_nested_postmeta_and_legacy_gallery_strings_move_to_diagnostics() {
+		$scanner = new Moltex_Exporter_Content_Scanner();
+		$method = new ReflectionMethod( $scanner, 'extract_nested_postmeta' );
+		$method->setAccessible( true );
+		$meta = array( 'keep' => 'x', '__2540' => array( 'post_images' => 'a.jpg|1||::b.jpg|2||' ), 'post_images' => 'a.jpg|1||' );
+		$diagnostics = $method->invokeArgs( $scanner, array( &$meta ) );
+		$this->assertSame( array( 'keep' => 'x' ), $meta );
+		$this->assertSame( 2540, $diagnostics[0]['origin_post_id'] );
+		$this->assertSame( array( 'post_images' ), $diagnostics[0]['meta_keys'] );
+		$this->assertSame( 'post_images', $diagnostics[1]['key'] );
 	}
 
 	/**

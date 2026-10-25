@@ -57,7 +57,14 @@
 					max_per_custom_post_type: $('#moltex-max-cpt').val(),
 					html_snapshot_mode: $('#moltex-html-snapshot-mode').val(),
 					batch_size: $('#moltex-batch-size').val(),
-					cleanup_after_hours: $('#moltex-cleanup-hours').val()
+					cleanup_after_hours: $('#moltex-cleanup-hours').val(),
+					media_acquisition: $('#moltex-media-acquisition').val(),
+					part_max_bytes: $('#moltex-part-max-bytes').val(),
+					geodirectory_include_fields: $('#moltex-geodir-include-fields').val(),
+					include_non_public_post_types: $('#moltex-non-public-types').val(),
+					include_user_emails: $('#moltex-include-user-emails').is(':checked') ? 1 : 0,
+					include_subscribers: $('#moltex-include-subscribers').is(':checked') ? 1 : 0,
+					production_origin: $('#moltex-production-origin').val() || ''
 				},
 				success: function(response) {
 					$saveSettingsBtn.prop('disabled', false);
@@ -142,6 +149,22 @@
 
 			if (data.download_url) {
 				$downloadBtn.data('download-url', data.download_url);
+			}
+
+			$successContainer.find('.moltex-parts').remove();
+			if (Array.isArray(data.parts) && data.parts.length) {
+				const $list = $('<ul class="moltex-parts"></ul>');
+				data.parts.forEach(function(part) {
+					(part.downloads || []).forEach(function(download, index) {
+						let text = part.label + ' (' + Math.round(download.bytes / 1048576) + ' MB)';
+						if (part.chunked) {
+							text = part.label + ' chunk ' + (index + 1) + '/' + part.downloads.length + ' (' + Math.round(download.bytes / 1048576) + ' MB)';
+						}
+						const $link = $('<a></a>').attr('href', download.download_url).text(text);
+						$('<li></li>').append($link).appendTo($list);
+					});
+				});
+				$successContainer.append($('<p class="moltex-parts"></p>').text('Upload-sized parts:'), $list);
 			}
 
 			if (data.has_issues && (data.warnings || data.errors)) {

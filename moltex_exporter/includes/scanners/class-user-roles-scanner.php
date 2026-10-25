@@ -75,6 +75,8 @@ class Moltex_Exporter_User_Roles_Scanner extends Moltex_Exporter_Scanner_Base {
 			'scan_timestamp'          => current_time( 'mysql' ),
 		);
 
+		$data['users_export'] = $this->build_users_export();
+
 		// Get all roles
 		$roles = $wp_roles->roles;
 		$data['total_roles'] = count( $roles );
@@ -333,5 +335,109 @@ class Moltex_Exporter_User_Roles_Scanner extends Moltex_Exporter_Scanner_Base {
 		);
 
 		return isset( $defaults[ $role_slug ] ) ? $defaults[ $role_slug ] : array();
+	}
+
+	/**
+	 * Users who own content or reviews, plus UsersWP form config (U1, U2).
+	 *
+	 * Never passwords, activation keys or sessions. Email only with the
+	 * include_user_emails opt-in.
+	 *
+	 * @return array
+	 */
+	public function build_users_export() {
+		global $wpdb;
+		$owned = array();
+		$skip = "'revision','nav_menu_item','attachment','customize_changeset','oembed_cache','custom_css','wp_global_styles','user_request'";
+		foreach ( (array) $wpdb->get_results( "SELECT ID, post_author, post_type FROM {$wpdb->posts} WHERE post_author > 0 AND post_status IN ('publish','private','pending','draft','future') AND post_type NOT IN ({$skip}) ORDER BY ID ASC", ARRAY_A ) as $row ) {
+			$owned[ (int) $row['post_author'] ][ (string) $row['post_type'] ][] = (int) $row['ID'];
+		}
+		$reviews = array();
+		foreach ( (array) $wpdb->get_results( "SELECT user_id, COUNT(*) AS total FROM {$wpdb->comments} WHERE user_id > 0 GROUP BY user_id", ARRAY_A ) as $row ) {
+			$reviews[ (int) $row['user_id'] ] = (int) $row['total'];
+		}
+		$ids = array_unique( array_merge( array_keys( $owned ), array_keys( $reviews ) ) );
+		sort( $ids );
+		$with_email = (bool) Moltex_Exporter_Export_Policy::get( 'include_user_emails' );
+		$users = array();
+		if ( ! empty( $ids ) ) {
+			$in = implode( ',', array_map( 'intval', $ids ) );
+			$cap_key = $wpdb->prefix . 'capabilities';
+			$caps = array();
+			foreach ( (array) $wpdb->get_results( $wpdb->prepare( "SELECT user_id, meta_value FROM {$wpdb->usermeta} WHERE meta_key = %s AND user_id IN ({$in})", $cap_key ), ARRAY_A ) as $row ) {
+				$value = maybe_unserialize( $row['meta_value'] );
+				$caps[ (int) $row['user_id'] ] = is_array( $value ) ? array_values( array_keys( array_filter( $value ) ) ) : array();
+			}
+			foreach ( (array) $wpdb->get_results( "SELECT ID, user_email, display_name, user_registered FROM {$wpdb->users} WHERE ID IN ({$in}) ORDER BY ID ASC", ARRAY_A ) as $row ) {
+				$id = (int) $row['ID'];
+				$user = array(
+					'id'            => $id,
+					'display_name'  => (string) $row['display_name'],
+					'roles'         => isset( $caps[ $id ] ) ? $caps[ $id ] : array(),
+					'registered'    => (string) $row['user_registered'],
+					'owned_posts'   => isset( $owned[ $id ] ) ? $owned[ $id ] : array(),
+					'comment_count' => isset( $reviews[ $id ] ) ? $reviews[ $id ] : 0,
+				);
+				if ( $with_email ) {
+					$user['email'] = sanitize_email( (string) $row['user_email'] );
+				}
+				$users[] = $user;
+			}
+		}
+
+		$userswp = array();
+		foreach ( array( 'form_fields' => array( 'uwp_form_fields', 'uform_fields' ), 'profile_tabs' => array( 'uwp_profile_tabs', 'uprofile_tabs' ), 'user_sorting' => array( 'uwp_user_sorting', 'uuser_sorting' ) ) as $key => $candidates ) {
+			foreach ( $candidates as $suffix ) {
+				$table = $wpdb->prefix . $suffix;
+				if ( $table === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) ) {
+					$userswp[ $key ] = $this->decode_rows( (array) $wpdb->get_results( "SELECT * FROM {$table}", ARRAY_A ) );
+					break;
+				}
+			}
+		}
+		$settings = get_option( 'uwp_settings', array() );
+		if ( is_array( $settings ) && ! empty( $settings ) ) {
+			$userswp['settings'] = array_filter(
+				$settings,
+				function ( $key ) {
+					return ! preg_match( '/key|secret|token|password|recaptcha/i', (string) $key );
+				},
+				ARRAY_FILTER_USE_KEY
+			);
+		}
+
+		return array(
+			'schema_version' => 1,
+			'emails'         => $with_email ? 'operator_opted_in' : 'not_exported',
+			'passwords'      => 'never_exported',
+			'users'          => $users,
+			'userswp'        => $userswp,
+		);
+	}
+
+	/** Decode serialized/JSON columns and drop sensitive ones. */
+	private function decode_rows( array $rows ) {
+		$out = array();
+		foreach ( $rows as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			foreach ( $row as $column => $value ) {
+				if ( preg_match( '/email|password|_ip$|token/i', (string) $column ) && 'field_type' !== $column && 'htmlvar_name' !== $column ) {
+					unset( $row[ $column ] );
+					continue;
+				}
+				if ( is_string( $value ) ) {
+					$decoded = maybe_unserialize( $value );
+					if ( is_array( $decoded ) ) {
+						$row[ $column ] = $decoded;
+					} elseif ( is_numeric( $value ) && (string) (int) $value === $value ) {
+						$row[ $column ] = (int) $value;
+					}
+				}
+			}
+			$out[] = $row;
+		}
+		return $out;
 	}
 }

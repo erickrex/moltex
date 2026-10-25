@@ -64,9 +64,68 @@ class Moltex_Exporter_Site_Options_Scanner extends Moltex_Exporter_Scanner_Base 
 			'cron'           => $this->get_cron_jobs(),
 			'plugins'        => $this->get_plugin_options(),
 			'theme'          => $this->get_theme_options(),
+			'code_snippets'  => $this->get_code_snippets(),
+			'production_origin' => self::production_origin_evidence( Moltex_Exporter_Export_Policy::get( 'production_origin' ), home_url( '/' ) ),
 		);
 
 		return $options;
+	}
+
+	/**
+	 * Operator-declared production origin compared to the source home (X1).
+	 *
+	 * @param string $declared Normalized origin or ''.
+	 * @param string $home     Source home URL.
+	 * @return array
+	 */
+	public static function production_origin_evidence( $declared, $home ) {
+		$source = Moltex_Exporter_Export_Policy::origin( $home );
+		if ( '' === (string) $declared ) {
+			return array( 'configured' => false, 'source_origin' => $source, 'status' => 'unconfirmed', 'note' => 'Client must confirm whether the source origin is the live site.' );
+		}
+		return array(
+			'configured'    => true,
+			'origin'        => (string) $declared,
+			'source_origin' => $source,
+			'status'        => $source === $declared ? 'source_is_production' : 'source_is_staging',
+		);
+	}
+
+	/**
+	 * Code Snippets plugin rows, for developer review only (F4).
+	 *
+	 * @return array
+	 */
+	private function get_code_snippets() {
+		global $wpdb;
+		$table = $wpdb->prefix . 'snippets';
+		if ( $table !== $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) ) {
+			return array();
+		}
+		$rows = $wpdb->get_results( "SELECT * FROM {$table} ORDER BY id ASC", ARRAY_A );
+		$snippets = array();
+		foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+			$code = isset( $row['code'] ) ? (string) $row['code'] : '';
+			$redacted = Moltex_Exporter_Privacy_Scanner::redact_credentials( $code );
+			$snippets[] = array(
+				'id'          => isset( $row['id'] ) ? (int) $row['id'] : 0,
+				'name'        => isset( $row['name'] ) ? (string) $row['name'] : '',
+				'description' => isset( $row['description'] ) ? (string) $row['description'] : '',
+				'scope'       => isset( $row['scope'] ) ? (string) $row['scope'] : '',
+				'active'      => ! empty( $row['active'] ),
+				'priority'    => isset( $row['priority'] ) ? (int) $row['priority'] : 10,
+				'tags'        => isset( $row['tags'] ) && '' !== $row['tags'] ? array_map( 'trim', explode( ',', (string) $row['tags'] ) ) : array(),
+				'modified'    => isset( $row['modified'] ) ? (string) $row['modified'] : null,
+				'code'        => $redacted['text'],
+				'code_sha256' => hash( 'sha256', $code ),
+				'redactions'  => $redacted['redactions'],
+			);
+		}
+		return array(
+			'execution' => 'never_execute',
+			'note'      => 'Source code for developer review; it may hide redirects, formatting or access rules.',
+			'snippets'  => $snippets,
+		);
 	}
 
 	/**
@@ -83,6 +142,9 @@ class Moltex_Exporter_Site_Options_Scanner extends Moltex_Exporter_Scanner_Base 
 			'users_can_register',
 			'default_role',
 			'timezone_string',
+			'gmt_offset',
+			'site_icon',
+			'site_logo',
 			'date_format',
 			'time_format',
 			'start_of_week',

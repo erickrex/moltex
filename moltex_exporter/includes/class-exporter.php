@@ -472,7 +472,12 @@ class Moltex_Exporter_Exporter {
 
 		// Export user roles
 		if ( isset( $this->results['user_roles'] ) ) {
-			$this->write_json_file( 'user_roles.json', $this->results['user_roles'] );
+			$user_roles = $this->results['user_roles'];
+			if ( isset( $user_roles['users_export'] ) ) {
+				$this->write_json_file( 'users.json', $user_roles['users_export'] );
+				unset( $user_roles['users_export'] );
+			}
+			$this->write_json_file( 'user_roles.json', $user_roles );
 		}
 
 		// Export site options
@@ -556,6 +561,20 @@ class Moltex_Exporter_Exporter {
 
 		if ( isset( $this->results['content']['completeness'] ) ) {
 			$this->write_json_file( 'export_completeness.json', $this->results['content']['completeness'] );
+		}
+
+		if ( isset( $this->results['redirects'] ) && is_array( $this->results['redirects'] ) ) {
+			$redirects = $this->results['redirects'];
+			unset( $redirects['redirect_candidates'] );
+			$this->write_json_file( 'redirects.json', array( 'schema_version' => 1 ) + $redirects );
+		}
+
+		if ( isset( $this->results['content']['post_type_inventory'] ) ) {
+			$this->write_json_file( 'post_types.json', $this->results['content']['post_type_inventory'] );
+		}
+
+		if ( isset( $this->results['taxonomies'] ) && is_array( $this->results['taxonomies'] ) ) {
+			$this->write_json_file( 'taxonomies.json', $this->results['taxonomies'] );
 		}
 
 		if ( isset( $this->results['content']['geodirectory'] ) ) {
