@@ -72,4 +72,30 @@ class PrivacyScannerTest extends TestCase {
 		$this->expectExceptionMessage( 'theme/functions.php (executable_source)' );
 		( new Moltex_Exporter_Privacy_Scanner( $this->directory ) )->scan();
 	}
+
+	public function test_personal_data_is_classified_not_blocked() {
+		$dir = sys_get_temp_dir() . '/moltex-p4-' . uniqid();
+		mkdir( $dir );
+		file_put_contents( $dir . '/users.json', '{"users":[{"email":"mary@example.com"}]}' );
+		file_put_contents( $dir . '/geodirectory.json', '{"contact":"club@example.com"}' );
+		update_option( 'moltex_settings', array( 'include_user_emails' => '1' ) );
+		try {
+			$receipt = ( new Moltex_Exporter_Privacy_Scanner( $dir ) )->scan();
+		} finally {
+			update_option( 'moltex_settings', array() );
+			array_map( 'unlink', glob( $dir . '/*' ) );
+			rmdir( $dir );
+		}
+		$this->assertSame( 'pass', $receipt['status'] );
+		$by_path = array_column( $receipt['personal_data'], 'classification', 'path' );
+		$this->assertSame( 'operator_opted_in', $by_path['users.json'] );
+		$this->assertSame( 'site_content', $by_path['geodirectory.json'] );
+		$this->assertStringNotContainsString( 'mary@', json_encode( $receipt ) );
+	}
+
+	public function test_snippet_credentials_are_redacted() {
+		$out = Moltex_Exporter_Privacy_Scanner::redact_credentials( "\$api_key = 'abcd1234efgh';" );
+		$this->assertSame( 1, $out['redactions'] );
+		$this->assertStringNotContainsString( 'abcd1234efgh', $out['text'] );
+	}
 }

@@ -11,7 +11,35 @@
       "artifact": {"type": ["string", "null"]},
       "type": {"type": "string"},
       "note": {"type": "string"},
-      "metadata": {"type": "object"},
+      "metadata": {
+        "type": "object",
+        "properties": {
+          "alt": {"type": "string"},
+          "alt_source": {"enum": ["wp_attachment", "geodir_title", "source_markup", "none"]},
+          "length": {"type": "number", "minimum": 0},
+          "width": {"type": "integer", "minimum": 0},
+          "height": {"type": "integer", "minimum": 0},
+          "probe": {"enum": ["container_header", "unsupported_container"]}
+        }
+      },
+      "poster": {"type": "string", "minLength": 1},
+      "poster_for": {"type": "array", "items": {"type": "string"}},
+      "media_type": {"enum": ["image", "video", "audio", "document", "unknown"]},
+      "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+      "bytes": {"type": "integer", "minimum": 0},
+      "references": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["source", "field"],
+          "properties": {
+            "source": {"type": "string"},
+            "post_id": {"type": "integer"},
+            "post_type": {"type": "string"},
+            "field": {"type": "string"}
+          }
+        }
+      },
       "acquisition": {
         "type": "object",
         "required": ["status", "method", "runtime_policy"],

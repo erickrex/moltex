@@ -22,6 +22,7 @@ $defaults = array(
 	'batch_size'               => 50,
 	'cleanup_after_hours'      => 24,
 );
+$defaults = array_merge( $defaults, Moltex_Exporter_Export_Policy::sanitize( array() ) );
 $settings = get_option( 'moltex_settings', $defaults );
 $settings['html_snapshot_mode'] = isset( $settings['html_snapshot_mode'] )
 	? $settings['html_snapshot_mode']
@@ -145,6 +146,51 @@ $preflight = isset( $preflight ) && is_array( $preflight ) ? $preflight : array(
 						<td>
 							<input type="number" id="moltex-cleanup-hours" value="<?php echo esc_attr( $settings['cleanup_after_hours'] ); ?>" min="1" max="168" class="small-text" />
 							<p class="description"><?php echo esc_html( 'Automatically delete old artifacts after this many hours (default: 24)' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="moltex-media-acquisition"><?php echo esc_html( 'Media Files' ); ?></label></th>
+						<td>
+							<select id="moltex-media-acquisition">
+								<option value="bundle_all" <?php selected( $settings['media_acquisition'], 'bundle_all' ); ?>><?php echo esc_html( 'Bundle every referenced original (recommended)' ); ?></option>
+								<option value="featured_only" <?php selected( $settings['media_acquisition'], 'featured_only' ); ?>><?php echo esc_html( 'Bundle only featured GeoDirectory images (defer gallery files)' ); ?></option>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="moltex-part-max-bytes"><?php echo esc_html( 'Archive Part Size (bytes)' ); ?></label></th>
+						<td>
+							<input type="number" id="moltex-part-max-bytes" value="<?php echo esc_attr( $settings['part_max_bytes'] ); ?>" min="<?php echo esc_attr( Moltex_Exporter_Export_Policy::MIN_PART_MAX_BYTES ); ?>" max="<?php echo esc_attr( Moltex_Exporter_Export_Policy::MAX_PART_MAX_BYTES ); ?>" class="regular-text" />
+							<p class="description"><?php echo esc_html( 'Media is split into parts no larger than this (default: 24 MiB).' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="moltex-geodir-include-fields"><?php echo esc_html( 'Include Excluded GeoDirectory Fields' ); ?></label></th>
+						<td>
+							<input type="text" id="moltex-geodir-include-fields" value="<?php echo esc_attr( implode( ', ', (array) $settings['geodirectory_include_fields'] ) ); ?>" class="regular-text" />
+							<p class="description"><?php echo esc_html( 'Comma-separated field keys whose values should be exported even though they are admin-only (for example featured, expire_date). Email values are never exported.' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="moltex-non-public-types"><?php echo esc_html( 'Include Non-Public Post Types' ); ?></label></th>
+						<td>
+							<input type="text" id="moltex-non-public-types" value="<?php echo esc_attr( implode( ', ', (array) $settings['include_non_public_post_types'] ) ); ?>" class="regular-text" />
+							<p class="description"><?php echo esc_html( 'Comma-separated post type slugs (for example wp_story, popup_theme).' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php echo esc_html( 'Personal Data' ); ?></th>
+						<td>
+							<label><input type="checkbox" id="moltex-include-user-emails" <?php checked( ! empty( $settings['include_user_emails'] ) ); ?> /> <?php echo esc_html( 'Include listing owner email addresses' ); ?></label><br />
+							<label><input type="checkbox" id="moltex-include-subscribers" <?php checked( ! empty( $settings['include_subscribers'] ) ); ?> /> <?php echo esc_html( 'Include newsletter subscribers' ); ?></label>
+							<p class="description"><?php echo esc_html( 'Off by default. Only enable with a lawful basis to transfer this data.' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="moltex-production-origin"><?php echo esc_html( 'Production Origin' ); ?></label></th>
+						<td>
+							<input type="url" id="moltex-production-origin" class="regular-text" placeholder="https://www.example.com" value="<?php echo esc_attr( isset( $settings['production_origin'] ) ? $settings['production_origin'] : '' ); ?>" />
+							<p class="description"><?php echo esc_html( 'Optional. The live domain when this site is a staging copy. Recorded as evidence only; URLs are not rewritten.' ); ?></p>
 						</td>
 					</tr>
 				</table>

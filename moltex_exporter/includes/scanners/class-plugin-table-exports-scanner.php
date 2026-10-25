@@ -86,13 +86,8 @@ class Moltex_Exporter_Plugin_Table_Exports_Scanner extends Moltex_Exporter_Scann
 					$prefix . 'nf3_form_meta',
 				),
 			),
-			'forminator' => array(
-				'detect'  => 'Forminator',
-				'tables'  => array(
-					$prefix . 'frmt_form_entry',
-					$prefix . 'frmt_form_entry_meta',
-				),
-			),
+			// Forminator entry tables hold submissions (personal data); the form
+			// definitions come from forms_config.json instead (F1).
 		);
 	}
 

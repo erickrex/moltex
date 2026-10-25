@@ -71,6 +71,20 @@ class Moltex_Exporter_Assets_Scanner extends Moltex_Exporter_Scanner_Base {
 			// Build the complete registry.
 			$registry = $this->build_registry( $all_assets, $copied_files );
 
+			// Font families and locally hosted font files (S2).
+			$fonts = $this->build_font_inventory();
+			if ( ! empty( $fonts['families'] ) || ! empty( $fonts['files'] ) ) {
+				wp_mkdir_p( $this->assets_dir . '/fonts' );
+				file_put_contents( $this->assets_dir . '/fonts/manifest.json', wp_json_encode( $fonts, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
+			}
+
+			// Kadence generated CSS keyed by post ID (S4).
+			$kadence = $this->build_kadence_css_inventory();
+			if ( ! empty( $kadence['posts'] ) || ! empty( $kadence['unkeyed_files'] ) ) {
+				wp_mkdir_p( $this->assets_dir . '/kadence-css' );
+				file_put_contents( $this->assets_dir . '/kadence-css/manifest.json', wp_json_encode( $kadence, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
+			}
+
 			$results['data'] = array(
 				'total_scripts'      => count( $all_assets['scripts'] ),
 				'total_styles'       => count( $all_assets['styles'] ),
@@ -84,6 +98,222 @@ class Moltex_Exporter_Assets_Scanner extends Moltex_Exporter_Scanner_Base {
 		}
 
 		return $results;
+	}
+
+	/**
+	 * Font families in use and local font files, copied under assets/fonts/ (S2).
+	 *
+	 * @param string|null $uploads_dir Override for tests.
+	 * @return array
+	 */
+	public function build_font_inventory( $uploads_dir = null ) {
+		if ( null === $uploads_dir ) {
+			$upload = wp_upload_dir();
+			$uploads_dir = isset( $upload['basedir'] ) ? $upload['basedir'] : '';
+		}
+		$families = array();
+		$mods = function_exists( 'get_theme_mods' ) ? get_theme_mods() : array();
+		foreach ( is_array( $mods ) ? $mods : array() as $key => $value ) {
+			if ( ! is_array( $value ) || false === stripos( (string) $key, 'font' ) || empty( $value['family'] ) ) {
+				continue;
+			}
+			$family = (string) $value['family'];
+			$entry = isset( $families[ $family ] ) ? $families[ $family ] : array( 'family' => $family, 'source' => ! empty( $value['google'] ) ? 'google' : 'local_or_system', 'weights' => array(), 'subsets' => array(), 'theme_mods' => array() );
+			foreach ( array( 'variant', 'weight' ) as $field ) {
+				foreach ( (array) ( isset( $value[ $field ] ) ? $value[ $field ] : array() ) as $weight ) {
+					if ( '' !== (string) $weight && 'inherit' !== (string) $weight ) {
+						$entry['weights'][] = (string) $weight;
+					}
+				}
+			}
+			foreach ( (array) ( isset( $value['subset'] ) ? $value['subset'] : array() ) as $subset ) {
+				if ( '' !== (string) $subset ) {
+					$entry['subsets'][] = (string) $subset;
+				}
+			}
+			$entry['weights'] = array_values( array_unique( $entry['weights'] ) );
+			$entry['subsets'] = array_values( array_unique( $entry['subsets'] ) );
+			$entry['theme_mods'][] = (string) $key;
+			$families[ $family ] = $entry;
+		}
+		foreach ( function_exists( 'get_posts' ) ? (array) get_posts( array( 'post_type' => 'wp_font_family', 'numberposts' => -1, 'post_status' => 'publish' ) ) : array() as $post ) {
+			$settings = json_decode( (string) $post->post_content, true );
+			$name = is_array( $settings ) && ! empty( $settings['name'] ) ? (string) $settings['name'] : (string) $post->post_title;
+			if ( '' !== $name && ! isset( $families[ $name ] ) ) {
+				$families[ $name ] = array( 'family' => $name, 'source' => 'wp_font_library', 'weights' => array(), 'subsets' => array(), 'theme_mods' => array() );
+			}
+		}
+
+		$files = array();
+		$root = rtrim( str_replace( '\\', '/', (string) $uploads_dir ), '/' );
+		foreach ( array( 'fonts', 'font-awesome', 'kadence/fonts', 'kt-fonts' ) as $sub ) {
+			$dir = $root . '/' . $sub;
+			if ( '' === $root || ! is_dir( $dir ) ) {
+				continue;
+			}
+			$iterator = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $dir, FilesystemIterator::SKIP_DOTS ) );
+			foreach ( $iterator as $file ) {
+				$ext = strtolower( pathinfo( $file->getFilename(), PATHINFO_EXTENSION ) );
+				if ( $file->isLink() || ! $file->isFile() || ! in_array( $ext, array( 'woff', 'woff2', 'ttf', 'otf', 'eot', 'svg', 'css' ), true ) || $file->getSize() > 5242880 ) {
+					continue;
+				}
+				$relative = substr( str_replace( '\\', '/', $file->getPathname() ), strlen( $root ) + 1 );
+				if ( false !== strpos( $relative, '..' ) ) {
+					continue;
+				}
+				$dest = $this->assets_dir . '/fonts/' . $relative;
+				wp_mkdir_p( dirname( $dest ) );
+				if ( ! copy( $file->getPathname(), $dest ) ) {
+					continue;
+				}
+				$files[] = array(
+					'path'        => 'assets/fonts/' . $relative,
+					'source_path' => 'wp-content/uploads/' . $relative,
+					'format'      => $ext,
+					'bytes'       => (int) $file->getSize(),
+					'sha256'      => hash_file( 'sha256', $dest ),
+				);
+			}
+		}
+		usort( $files, function ( $a, $b ) {
+			return strcmp( $a['path'], $b['path'] );
+		} );
+		ksort( $families );
+
+		return array(
+			'schema_version' => 1,
+			'families'       => array_values( $families ),
+			'files'          => $files,
+		);
+	}
+
+	/**
+	 * Kadence per-post generated CSS from postmeta and uploads/kadence (S4).
+	 *
+	 * @param string|null $uploads_dir Override for tests.
+	 * @return array {schema_version, posts:{id:{meta:{key:css}, files:[]}}, unkeyed_files}
+	 */
+	public function build_kadence_css_inventory( $uploads_dir = null ) {
+		global $wpdb;
+		$posts = array();
+		if ( isset( $wpdb ) && is_object( $wpdb ) && method_exists( $wpdb, 'get_results' ) ) {
+			$table = isset( $wpdb->postmeta ) ? $wpdb->postmeta : $wpdb->prefix . 'postmeta';
+			$rows = $wpdb->get_results( "SELECT post_id, meta_key, meta_value FROM {$table} WHERE meta_key LIKE '%kad%css%' OR meta_key LIKE '%kt_blocks%css%' OR meta_key LIKE '_kadence%css%' ORDER BY post_id ASC, meta_key ASC", ARRAY_A );
+			foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+				$css = maybe_unserialize( $row['meta_value'] );
+				if ( is_string( $css ) && '' !== trim( $css ) ) {
+					$posts[ (string) (int) $row['post_id'] ]['meta'][ (string) $row['meta_key'] ] = $css;
+				}
+			}
+		}
+		if ( null === $uploads_dir ) {
+			$upload = wp_upload_dir();
+			$uploads_dir = isset( $upload['basedir'] ) ? $upload['basedir'] : '';
+		}
+		$unkeyed = array();
+		$dir = rtrim( str_replace( '\\', '/', (string) $uploads_dir ), '/' ) . '/kadence';
+		if ( '' !== (string) $uploads_dir && is_dir( $dir ) ) {
+			$iterator = new RecursiveIteratorIterator( new RecursiveDirectoryIterator( $dir, FilesystemIterator::SKIP_DOTS ) );
+			foreach ( $iterator as $file ) {
+				if ( $file->isLink() || ! $file->isFile() || 'css' !== strtolower( pathinfo( $file->getFilename(), PATHINFO_EXTENSION ) ) || $file->getSize() > 5242880 ) {
+					continue;
+				}
+				$relative = substr( str_replace( '\\', '/', $file->getPathname() ), strlen( $dir ) + 1 );
+				$dest = $this->assets_dir . '/kadence-css/' . $relative;
+				wp_mkdir_p( dirname( $dest ) );
+				if ( ! copy( $file->getPathname(), $dest ) ) {
+					continue;
+				}
+				$record = array( 'path' => 'assets/kadence-css/' . $relative, 'source_path' => 'wp-content/uploads/kadence/' . $relative, 'sha256' => hash_file( 'sha256', $dest ) );
+				if ( preg_match( '/(?:post|kb|kadence)[-_](\d+)/i', $file->getFilename(), $m ) ) {
+					$posts[ (string) (int) $m[1] ]['files'][] = $record;
+				} else {
+					$unkeyed[] = $record;
+				}
+			}
+		}
+		$rendered = $this->collect_rendered_kadence_css( $posts );
+		ksort( $posts, SORT_NUMERIC );
+		return array(
+			'schema_version'   => 1,
+			'note'             => 'Kadence prints most block CSS per request. rendered entries are the inline Kadence styles of each saved detail snapshot; a post without any entry has no snapshot (bounded snapshot mode) and must be rebuilt from its block attributes.',
+			'posts'            => $posts,
+			'unkeyed_files'    => $unkeyed,
+			'rendered_coverage' => $rendered,
+		);
+	}
+
+	/**
+	 * Capture the CSS Kadence generated at render time (S4) from the detail
+	 * snapshots the content scanner saved: every inline <style> that Kadence
+	 * printed is written to assets/kadence-css/rendered/post-<id>.css.
+	 *
+	 * @param array $posts Inventory keyed by post ID (updated in place).
+	 * @return array {snapshotted_posts, posts_with_css}
+	 */
+	private function collect_rendered_kadence_css( array &$posts ) {
+		$coverage = array( 'snapshotted_posts' => 0, 'posts_with_css' => 0 );
+		$root = rtrim( (string) $this->export_dir, '/' );
+		$manifest_path = $root . '/snapshots/manifest.json';
+		if ( '' === $root || ! is_file( $manifest_path ) ) {
+			return $coverage;
+		}
+		$manifest = json_decode( (string) file_get_contents( $manifest_path ), true );
+		foreach ( isset( $manifest['snapshots'] ) && is_array( $manifest['snapshots'] ) ? $manifest['snapshots'] : array() as $entry ) {
+			if ( empty( $entry['post_id'] ) || empty( $entry['file'] ) || 'saved' !== ( isset( $entry['status'] ) ? $entry['status'] : '' ) || ! preg_match( '#^snapshots/[^/]+\.html$#', (string) $entry['file'] ) ) {
+				continue;
+			}
+			$html_path = $root . '/' . $entry['file'];
+			if ( ! is_file( $html_path ) || is_link( $html_path ) ) {
+				continue;
+			}
+			$coverage['snapshotted_posts']++;
+			$css = self::extract_kadence_styles( (string) file_get_contents( $html_path ) );
+			if ( empty( $css['blocks'] ) ) {
+				continue;
+			}
+			$post_id = (int) $entry['post_id'];
+			$relative = 'kadence-css/rendered/post-' . $post_id . '.css';
+			wp_mkdir_p( $this->assets_dir . '/kadence-css/rendered' );
+			$text = implode( "\n", $css['blocks'] ) . "\n";
+			if ( false === file_put_contents( $this->assets_dir . '/' . $relative, $text ) ) {
+				continue;
+			}
+			$posts[ (string) $post_id ]['rendered'] = array(
+				'path'            => 'assets/' . $relative,
+				'source_snapshot' => $entry['file'],
+				'style_blocks'    => count( $css['blocks'] ),
+				'style_ids'       => $css['ids'],
+				'sha256'          => hash( 'sha256', $text ),
+			);
+			$coverage['posts_with_css']++;
+		}
+		return $coverage;
+	}
+
+	/**
+	 * Inline <style> blocks Kadence printed into a rendered page.
+	 *
+	 * @param string $html Rendered HTML.
+	 * @return array {blocks: string[], ids: string[]}
+	 */
+	public static function extract_kadence_styles( $html ) {
+		$out = array( 'blocks' => array(), 'ids' => array() );
+		if ( ! preg_match_all( '/<style\b([^>]*)>(.*?)<\/style>/is', (string) $html, $styles, PREG_SET_ORDER ) ) {
+			return $out;
+		}
+		foreach ( $styles as $style ) {
+			$id = preg_match( '/\sid\s*=\s*["\']([^"\']+)["\']/i', ' ' . $style[1], $m ) ? $m[1] : '';
+			$body = trim( $style[2] );
+			if ( '' === $body || ( ! preg_match( '/kadence|^kb-/i', $id ) && ! preg_match( '/\.kb-|\.kt-|\.wp-block-kadence|kadence-column|--global-kb/i', $body ) ) ) {
+				continue;
+			}
+			$out['blocks'][] = ( '' !== $id ? '/* ' . str_replace( '*/', '', $id ) . " */\n" : '' ) . $body;
+			if ( '' !== $id ) {
+				$out['ids'][] = $id;
+			}
+		}
+		return $out;
 	}
 
 	/**

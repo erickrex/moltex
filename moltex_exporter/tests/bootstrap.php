@@ -22,6 +22,8 @@ require_once MOLTEX_PLUGIN_DIR . '/includes/class-callback-resolver.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-source-identifier.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-site-identity.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-security-filters.php';
+require_once MOLTEX_PLUGIN_DIR . '/includes/class-media-reference-finder.php';
+require_once MOLTEX_PLUGIN_DIR . '/includes/class-export-policy.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-plugin-signature-registry.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-public-http-policy.php';
 require_once MOLTEX_PLUGIN_DIR . '/includes/class-preflight.php';

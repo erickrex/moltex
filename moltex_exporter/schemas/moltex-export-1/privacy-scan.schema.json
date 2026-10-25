@@ -10,6 +10,20 @@
     "scanner_version": {"type": "integer", "minimum": 1},
     "scanned_files": {"type": "integer", "minimum": 0},
     "scanned_bytes": {"type": "integer", "minimum": 0},
+    "personal_data": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "kind", "occurrences", "classification"],
+        "properties": {
+          "path": {"type": "string"},
+          "kind": {"type": "string", "enum": ["email_address"]},
+          "occurrences": {"type": "integer", "minimum": 1},
+          "classification": {"type": "string", "enum": ["operator_opted_in", "site_content", "unexpected"]}
+        },
+        "additionalProperties": false
+      }
+    },
     "artifacts": {
       "type": "array",
       "items": {

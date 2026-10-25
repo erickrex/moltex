@@ -105,6 +105,21 @@ class BundleValidatorTest extends TestCase {
 		$this->assertStringContainsString( 'Unsafe ZIP entry', implode( ' ', $result['errors'] ) );
 	}
 
+	public function test_stray_file_not_listed_in_manifest_is_rejected() {
+		$this->write_contract_fixture( $this->directory );
+		$zip_path = $this->directory . '/stray.zip';
+		$this->zip_contract_fixture( $this->directory, $zip_path );
+		$zip = new ZipArchive();
+		$zip->open( $zip_path );
+		$zip->addFromString( '_verify6.sh', "#!/bin/sh\necho stray\n" );
+		$zip->close();
+
+		$result = ( new Moltex_Exporter_Bundle_Validator() )->validate_zip( $zip_path );
+
+		$this->assertFalse( $result['valid'] );
+		$this->assertStringContainsString( 'ZIP contains an unlisted artifact: _verify6.sh', implode( ' ', $result['errors'] ) );
+	}
+
 	public function test_case_insensitive_duplicate_entry_is_rejected() {
 		$this->write_contract_fixture( $this->directory );
 		$zip_path = $this->directory . '/duplicate.zip';

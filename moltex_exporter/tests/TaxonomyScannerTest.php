@@ -297,4 +297,44 @@ class TaxonomyScannerTest extends TestCase {
 			$this->assertArrayNotHasKey( 'secret', $meta );
 		}
 	}
+
+	public function test_geodir_term_meta_rows_are_attached_and_reconciled() {
+		global $wpdb;
+		$saved = $wpdb;
+		$wpdb = new TaxonomyGeodirTermMetaWpdb();
+		try {
+			$result = $this->create_scanner( array( 'posts' => array( array( 'id' => 1 ) ) ) )->scan();
+		} finally {
+			$wpdb = $saved;
+		}
+
+		$news = $result['taxonomies']['category']['terms'][0];
+		$this->assertSame( 1, $news['term_id'] );
+		$this->assertSame( array( 'src' => 'https://example.com/wp-content/uploads/2025/04/news.png' ), $news['geodir_meta'][0]['ct_cat_icon'] );
+		$this->assertSame( '#ff0000', $news['geodir_meta'][0]['ct_cat_color'] );
+		$this->assertArrayNotHasKey( 'user_id', $news['geodir_meta'][0] );
+		$summary = $result['geodir_term_meta'];
+		$this->assertSame( 3, $summary['source_rows'] );
+		$this->assertSame( 1, $summary['attached_rows'] );
+		$this->assertCount( 2, $summary['unattached_rows'] );
+		$this->assertSame( 77, $summary['unattached_rows'][0]['term_id'] );
+		$this->assertSame( 'orphan', $summary['unattached_rows'][1]['ct_cat_top_desc'] );
+	}
+}
+
+class TaxonomyGeodirTermMetaWpdb extends Mock_WPDB {
+	public function get_var( $query ) {
+		return false !== strpos( $query, 'SHOW TABLES' ) ? 'wp_geodir_term_meta' : 0;
+	}
+
+	public function get_results( $query, $output = null ) {
+		if ( false === strpos( $query, 'wp_geodir_term_meta' ) ) {
+			return array();
+		}
+		return array(
+			array( 'id' => '1', 'term_id' => '1', 'cpt' => 'post', 'ct_cat_icon' => serialize( array( 'src' => 'https://example.com/wp-content/uploads/2025/04/news.png' ) ), 'ct_cat_color' => '#ff0000', 'user_id' => '3' ),
+			array( 'id' => '2', 'term_id' => '77', 'cpt' => 'gd_place', 'ct_cat_icon' => 'https://example.com/old.png' ),
+			array( 'id' => '3', 'term_id' => '0', 'cpt' => 'gd_place', 'ct_cat_top_desc' => 'orphan' ),
+		);
+	}
 }

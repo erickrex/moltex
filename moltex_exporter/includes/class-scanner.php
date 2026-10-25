@@ -237,6 +237,8 @@ class Moltex_Exporter_Scanner {
 
 			// Load security filters class
 			require_once MOLTEX_EXPORTER_PATH . 'includes/class-security-filters.php';
+			require_once MOLTEX_EXPORTER_PATH . 'includes/class-media-reference-finder.php';
+			require_once MOLTEX_EXPORTER_PATH . 'includes/class-export-policy.php';
 			
 			// Load exporter and packager classes
 			require_once MOLTEX_EXPORTER_PATH . 'includes/class-exporter.php';

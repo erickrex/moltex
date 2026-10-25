@@ -176,6 +176,11 @@ class Moltex_Exporter_Admin_Page {
 			$sanitized['cleanup_after_hours'] = absint( $input['cleanup_after_hours'] );
 		}
 
+		if ( ! class_exists( 'Moltex_Exporter_Export_Policy' ) ) {
+			require_once MOLTEX_EXPORTER_PATH . 'includes/class-export-policy.php';
+		}
+		$sanitized = array_merge( $sanitized, Moltex_Exporter_Export_Policy::sanitize( $input ) );
+
 		return $sanitized;
 	}
 
@@ -228,6 +233,11 @@ class Moltex_Exporter_Admin_Page {
 		}
 		if ( isset( $_POST['cleanup_after_hours'] ) ) {
 			$input['cleanup_after_hours'] = $_POST['cleanup_after_hours'];
+		}
+		foreach ( array( 'media_acquisition', 'part_max_bytes', 'geodirectory_include_fields', 'include_non_public_post_types', 'include_user_emails', 'include_subscribers', 'production_origin' ) as $policy_key ) {
+			if ( isset( $_POST[ $policy_key ] ) ) {
+				$input[ $policy_key ] = sanitize_text_field( wp_unslash( $_POST[ $policy_key ] ) );
+			}
 		}
 
 		// Sanitize using existing method
@@ -398,6 +408,7 @@ class Moltex_Exporter_Admin_Page {
 				'message' => $message,
 				'completed' => true,
 				'download_url' => $download_url,
+				'parts'        => $this->public_parts( $result['results'] ),
 				'zip_filename' => $zip_filename,
 				'zip_size' => $zip_size,
 				'errors' => $result['errors'],
@@ -505,5 +516,36 @@ class Moltex_Exporter_Admin_Page {
 
 		// Serve the file
 		$packager->serve_download( $download_data['zip_path'], $download_data['zip_filename'] );
+	}
+
+	/**
+	 * Part links for the admin UI (M1); drops server paths.
+	 *
+	 * @param array $results Packager results.
+	 * @return array[]
+	 */
+	private function public_parts( $results ) {
+		$parts = isset( $results['parts']['parts'] ) && is_array( $results['parts']['parts'] ) ? $results['parts']['parts'] : array();
+		$out = array();
+		foreach ( $parts as $part ) {
+			$downloads = array();
+			foreach ( isset( $part['downloads'] ) && is_array( $part['downloads'] ) ? $part['downloads'] : array() as $download ) {
+				$downloads[] = array(
+					'filename'     => isset( $download['filename'] ) ? (string) $download['filename'] : '',
+					'bytes'        => isset( $download['bytes'] ) ? (int) $download['bytes'] : 0,
+					'sha256'       => isset( $download['sha256'] ) ? (string) $download['sha256'] : '',
+					'download_url' => isset( $download['download_url'] ) ? esc_url_raw( $download['download_url'] ) : '',
+				);
+			}
+			$out[] = array(
+				'label'        => isset( $part['label'] ) ? (string) $part['label'] : '',
+				'filename'     => isset( $part['filename'] ) ? (string) $part['filename'] : '',
+				'bytes'        => isset( $part['bytes'] ) ? (int) $part['bytes'] : 0,
+				'sha256'       => isset( $part['sha256'] ) ? (string) $part['sha256'] : '',
+				'chunked'      => ! empty( $part['chunked'] ),
+				'downloads'    => $downloads,
+			);
+		}
+		return $out;
 	}
 }

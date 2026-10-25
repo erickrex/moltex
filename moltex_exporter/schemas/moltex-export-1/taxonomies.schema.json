@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://moltex.dev/schemas/moltex-export-1/taxonomies.schema.json",
+  "title": "Moltex taxonomy evidence",
+  "type": "object",
+  "required": ["schema_version", "taxonomies", "term_relationships"],
+  "properties": {
+    "schema_version": {"type": "integer", "const": 1},
+    "taxonomies": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["terms"],
+        "properties": {
+          "terms": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["term_id", "name", "slug"],
+              "properties": {
+                "term_id": {"type": "integer"},
+                "name": {"type": "string"},
+                "slug": {"type": "string"},
+                "description": {"type": "string"},
+                "parent": {"type": "integer"},
+                "count": {"type": "integer"},
+                "meta": {"type": "object"},
+                "geodir_meta": {"type": "array", "items": {"type": "object"}}
+              }
+            }
+          }
+        }
+      }
+    },
+    "geodir_term_meta": {
+      "type": "object",
+      "required": ["source_rows", "attached_rows", "unattached_rows"],
+      "properties": {
+        "table": {"type": "string"},
+        "source_rows": {"type": "integer", "minimum": 0},
+        "attached_rows": {"type": "integer", "minimum": 0},
+        "unattached_rows": {"type": "array", "items": {"type": "object"}}
+      }
+    },
+    "term_relationships": {"type": ["object", "array"]}
+  }
+}

@@ -19,7 +19,7 @@ class Moltex_Exporter_Bundle_Validator {
 	private $registry;
 	private $schema_validator;
 
-	public function __construct( Moltex_Exporter_Artifact_Registry $registry = null, Moltex_Exporter_Schema_Validator $schema_validator = null ) {
+	public function __construct( ?Moltex_Exporter_Artifact_Registry $registry = null, ?Moltex_Exporter_Schema_Validator $schema_validator = null ) {
 		$this->registry = $registry ?: new Moltex_Exporter_Artifact_Registry();
 		$this->schema_validator = $schema_validator ?: new Moltex_Exporter_Schema_Validator();
 	}

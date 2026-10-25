@@ -42,6 +42,7 @@ class Moltex_Exporter_Artifact_Registry {
 			'seo-full.schema.json',
 			'site-blueprint.schema.json',
 			'site-settings.schema.json',
+			'taxonomies.schema.json',
 		);
 	}
 
@@ -92,13 +93,19 @@ class Moltex_Exporter_Artifact_Registry {
 			'shortcodes_inventory.json'  => 'shortcodes',
 			'site_environment.json'      => 'environment',
 			'site_options.json'          => 'site_options',
+			'taxonomies.json'            => 'taxonomies',
+			'snapshots/manifest.json'    => 'content',
+			'post_types.json'            => 'content',
+			'redirects.json'             => 'redirects',
 			'translations.json'          => 'translations',
 			'user_roles.json'            => 'user_roles',
+			'users.json'                 => 'user_roles',
 			'widgets.json'               => 'widgets',
 		);
 
 		foreach ( $optional_json as $path => $producer ) {
-			$definitions[] = $this->definition( $path, 'json', $producer, false, null, 'filtered evidence' );
+			$schema = 'taxonomies.json' === $path ? 'schemas/taxonomies.schema.json' : null;
+			$definitions[] = $this->definition( $path, 'json', $producer, false, $schema, 'filtered evidence' );
 		}
 
 		foreach ( self::get_schema_filenames() as $schema_filename ) {
@@ -106,7 +113,7 @@ class Moltex_Exporter_Artifact_Registry {
 				'schemas/' . $schema_filename,
 				'schema',
 				'contract',
-				! in_array( $schema_filename, array( 'geodirectory.schema.json', 'privacy-scan.schema.json' ), true ),
+				! in_array( $schema_filename, array( 'geodirectory.schema.json', 'privacy-scan.schema.json', 'taxonomies.schema.json' ), true ),
 				null,
 				'public contract',
 				1048576,

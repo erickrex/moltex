@@ -100,8 +100,29 @@ class Moltex_Exporter_Taxonomy_Scanner extends Moltex_Exporter_Scanner_Base {
 		);
 
 		// Export each taxonomy
+		$this->geodir_term_meta = $this->load_geodir_term_meta();
 		foreach ( $used_taxonomies as $taxonomy_name ) {
 			$taxonomy_data['taxonomies'][ $taxonomy_name ] = $this->export_taxonomy( $taxonomy_name );
+		}
+
+		// Rows of the plugin-owned GeoDirectory term table (C4/M4), reconciled
+		// against the exported terms so none disappear without a reason.
+		if ( null !== $this->geodir_term_meta ) {
+			$unattached = array();
+			foreach ( $this->geodir_term_meta['rows_by_term'] as $term_id => $rows ) {
+				if ( ! isset( $this->geodir_attached_terms[ $term_id ] ) ) {
+					foreach ( $rows as $row ) {
+						$unattached[] = array( 'term_id' => $term_id ) + $row;
+					}
+				}
+			}
+			$unattached = array_merge( $unattached, $this->geodir_term_meta['rows_without_term'] );
+			$taxonomy_data['geodir_term_meta'] = array(
+				'table'            => $this->geodir_term_meta['table'],
+				'source_rows'      => $this->geodir_term_meta['source_rows'],
+				'attached_rows'    => $this->geodir_term_meta['source_rows'] - count( $unattached ),
+				'unattached_rows'  => $unattached,
+			);
 		}
 
 		// Export term-to-post relationships for exported content
@@ -204,7 +225,99 @@ class Moltex_Exporter_Taxonomy_Scanner extends Moltex_Exporter_Scanner_Base {
 			$term_data['meta'] = $term_meta;
 		}
 
+		// Records stored only in the GeoDirectory term table (icon, colour,
+		// default image, marker, descriptions).
+		$term_id = (int) $term->term_id;
+		if ( null !== $this->geodir_term_meta && isset( $this->geodir_term_meta['rows_by_term'][ $term_id ] ) ) {
+			$term_data['geodir_meta'] = $this->geodir_term_meta['rows_by_term'][ $term_id ];
+			$this->geodir_attached_terms[ $term_id ] = true;
+		}
+
 		return $term_data;
+	}
+
+	/**
+	 * GeoDirectory term table rows (null when the table does not exist).
+	 *
+	 * @var array|null
+	 */
+	private $geodir_term_meta = null;
+
+	/**
+	 * Term IDs whose GeoDirectory rows were attached to an exported term.
+	 *
+	 * @var array
+	 */
+	private $geodir_attached_terms = array();
+
+	/**
+	 * Read every row of {prefix}geodir_term_meta, schema-agnostically: values
+	 * are decoded, credential/personal columns dropped, and rows grouped by
+	 * term_id. A meta_key/meta_value pair is also folded into a `meta` map.
+	 *
+	 * @return array|null
+	 */
+	private function load_geodir_term_meta() {
+		global $wpdb;
+		if ( ! isset( $wpdb ) || ! is_object( $wpdb ) ) {
+			return null;
+		}
+		$table = $wpdb->prefix . 'geodir_term_meta';
+		if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ) ) {
+			return null;
+		}
+		$rows = $wpdb->get_results( "SELECT * FROM {$table}", ARRAY_A );
+		$result = array( 'table' => 'geodir_term_meta', 'source_rows' => 0, 'rows_by_term' => array(), 'rows_without_term' => array() );
+		foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+			if ( ! is_array( $row ) ) {
+				continue;
+			}
+			$result['source_rows']++;
+			$clean = array();
+			foreach ( $row as $column => $value ) {
+				if ( preg_match( '/email|_ip$|^ip$|user_id|owner_id|password|token|secret/i', (string) $column ) ) {
+					continue;
+				}
+				$clean[ $column ] = $this->decode_value( $value );
+			}
+			if ( isset( $clean['meta_key'] ) && array_key_exists( 'meta_value', $clean ) ) {
+				$clean['meta'] = array( (string) $clean['meta_key'] => $clean['meta_value'] );
+			}
+			$term_id = isset( $clean['term_id'] ) ? (int) $clean['term_id'] : 0;
+			unset( $clean['term_id'] );
+			if ( $term_id > 0 ) {
+				$result['rows_by_term'][ $term_id ][] = $clean;
+			} else {
+				$result['rows_without_term'][] = $clean;
+			}
+		}
+		return $result;
+	}
+
+	/**
+	 * Decode a serialized or JSON column value without instantiating objects.
+	 *
+	 * @param mixed $value Raw column value.
+	 * @return mixed
+	 */
+	private function decode_value( $value ) {
+		if ( ! is_string( $value ) ) {
+			return $value;
+		}
+		if ( preg_match( '/^(a|s|i|d|b):\d*[:;]/', $value ) || 'N;' === $value ) {
+			$decoded = @unserialize( $value, array( 'allowed_classes' => false ) );
+			if ( false !== $decoded || 'b:0;' === $value ) {
+				return $decoded;
+			}
+		}
+		$first = substr( ltrim( $value ), 0, 1 );
+		if ( '{' === $first || '[' === $first ) {
+			$decoded = json_decode( $value, true );
+			if ( null !== $decoded ) {
+				return $decoded;
+			}
+		}
+		return $value;
 	}
 
 	/**

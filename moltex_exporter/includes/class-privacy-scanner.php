@@ -37,6 +37,7 @@ class Moltex_Exporter_Privacy_Scanner {
 
 		$artifacts = array();
 		$findings = array();
+		$personal_data = array();
 		$scanned_bytes = 0;
 		$iterator = new RecursiveIteratorIterator(
 			new RecursiveDirectoryIterator( $root, FilesystemIterator::SKIP_DOTS )
@@ -73,6 +74,16 @@ class Moltex_Exporter_Privacy_Scanner {
 				continue;
 			}
 
+			$emails = preg_match_all( '/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/', $content );
+			if ( $emails > 0 ) {
+				$personal_data[] = array(
+					'path'           => $relative,
+					'kind'           => 'email_address',
+					'occurrences'    => (int) $emails,
+					'classification' => self::classify_personal_data( $relative ),
+				);
+			}
+
 			foreach ( $this->detect( $content ) as $code ) {
 				$findings[] = array( 'path' => $relative, 'code' => $code );
 			}
@@ -103,7 +114,40 @@ class Moltex_Exporter_Privacy_Scanner {
 			'scanned_files'   => count( $artifacts ),
 			'scanned_bytes'   => $scanned_bytes,
 			'artifacts'       => $artifacts,
+			'personal_data'   => $personal_data,
 		);
+	}
+
+	/**
+	 * Classify personal data instead of blocking it (P4).
+	 *
+	 * Opted-in artifacts are labelled so the harness can apply retention rules;
+	 * everything else is public site content (for example a listing contact).
+	 *
+	 * @param string $path Artifact path.
+	 * @return string
+	 */
+	public static function classify_personal_data( $path ) {
+		if ( 'users.json' === $path ) {
+			return Moltex_Exporter_Export_Policy::get( 'include_user_emails' ) ? 'operator_opted_in' : 'unexpected';
+		}
+		if ( 'forms_config.json' === $path && Moltex_Exporter_Export_Policy::get( 'include_subscribers' ) ) {
+			return 'operator_opted_in';
+		}
+		return 'site_content';
+	}
+
+	/**
+	 * Replace credential-looking literals in exported source text.
+	 *
+	 * @param string $text Source text (for example a code snippet).
+	 * @return array {text, redactions}
+	 */
+	public static function redact_credentials( $text ) {
+		$text = preg_replace( '/(?:AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{20,}|sk-(?:proj-)?[A-Za-z0-9_-]{20,})/', '[REDACTED]', (string) $text, -1, $first );
+		$text = preg_replace( '/((?:api[_-]?key|access[_-]?token|client[_-]?secret|password|passwd)\s*["\']?\s*[:=]\s*["\']?)[A-Za-z0-9_+\/=.-]{8,}/i', '$1[REDACTED]', $text, -1, $second );
+		$text = preg_replace( '/-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/', '[REDACTED]', $text, -1, $third );
+		return array( 'text' => $text, 'redactions' => $first + $second + $third );
 	}
 
 	/**

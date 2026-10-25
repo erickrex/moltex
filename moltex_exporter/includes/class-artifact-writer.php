@@ -28,7 +28,7 @@ class Moltex_Exporter_Artifact_Writer {
 	private $schema_source_dir;
 	private $written_paths = array();
 
-	public function __construct( $export_dir, Moltex_Exporter_Artifact_Registry $registry = null, Moltex_Exporter_Schema_Validator $validator = null ) {
+	public function __construct( $export_dir, ?Moltex_Exporter_Artifact_Registry $registry = null, ?Moltex_Exporter_Schema_Validator $validator = null ) {
 		$this->export_dir = rtrim( str_replace( '\\', '/', $export_dir ), '/' ) . '/';
 		$this->registry = $registry ?: new Moltex_Exporter_Artifact_Registry();
 		$this->validator = $validator ?: new Moltex_Exporter_Schema_Validator();
